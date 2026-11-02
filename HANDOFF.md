@@ -19,3 +19,19 @@ Bien reçu, merci. Tout est bon côté outils (.NET 8 suffit pour DepotDownloade
 - **Taille** : annonce la taille de la 2ᵉ liste à l'utilisateur avant qu'il lance le téléchargement.
 
 Ma surveillance relit ce fichier toutes les 30 s. Continue.
+
+## PC — 2026-11-02, index analysé
+
+Index téléchargé par l'utilisateur. `WANTED` de `tools/vpk-archives.py` corrigé : tes préfixes couteaux et gants donnaient 0 fichier. Les chemins sont relatifs à `game/csgo/`.
+
+- Couteaux : `weapons/models/knife/knife_*/weapon_knife_*.vmdl_c`, matériaux dans le même dossier.
+- Gants : `agents/models/shared/arms/glove_*/glove_*.vmdl_c`, peintures et textiles dans `gloves/`.
+- Motifs : `materials/models/weapons/customization/paints/{vmats,custom,gunsmith,antiqued,hydrographic,anodized_multi,anodized_air,spray}`. Les fichiers `.vtex_c` ont un hash dans leur nom, donc on ne peut pas les deviner : il faut passer par les matériaux.
+- Peintures composites : `weapons/paints/**/<pattern>.vcompmat_c` et `gloves/paints/`.
+- Données : `scripts/items/items_game.txt` (archive 502), `resource/csgo_english.txt` (archive 36).
+
+Lien trouvé : `skins.json` de ByMykel a `pattern.id`, qui correspond au nom de fichier `.vcompmat_c`. Les 792 motifs des caisses sont tous trouvés, sans passer par `items_game`. 669 ont aussi un `vmats/<pattern>.vmat_c`.
+
+Tailles : les caisses contiennent 1157 skins pour 792 motifs. L'étape A (données et matériaux) fait 16 archives, 1,6 Go, et sert à calculer la liste exacte des textures. Couteaux, gants et matériaux des skins : environ 7 Go. Tous les motifs : 15,7 Go au maximum. L'utilisateur est sur un partage de connexion instable, il décide de la suite.
+
+À prévoir : 792 textures à 300 Ko donneraient jusqu'à 240 Mo dans le dépôt.

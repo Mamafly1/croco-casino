@@ -10,10 +10,12 @@ from collections import defaultdict
 
 # Ce qu'on veut récupérer (préfixes de chemins dans le jeu)
 WANTED = {
-    'couteaux (modèles)': ('models/weapons/v_knife', 'models/weapons/w_knife'),
-    'gants (modèles)': ('models/weapons/v_models/arms/glove', 'models/weapons/w_models/arms/glove'),
-    'textures de skins': ('materials/models/weapons/customization/paints',),
-    'matériaux couteaux / gants': ('materials/models/weapons/v_models/knife', 'materials/models/weapons/v_models/arms/glove'),
+    'couteaux (modèles et matériaux)': ('weapons/models/knife/',),
+    'gants (modèles)': ('agents/models/shared/arms/glove_',),
+    'gants (peintures et textiles)': ('gloves/',),
+    'textures de skins': ('materials/models/weapons/customization/paints/',),
+    'peintures composites': ('weapons/paints/',),
+    'données (paint kits, noms)': ('scripts/items/items_game.txt', 'resource/csgo_english.txt'),
 }
 
 
@@ -68,7 +70,7 @@ def main():
     print('Lignes à mettre dans liste.txt :')
     print(r'regex:pak01_dir\.vpk$')
     for a in sorted(archives):
-        print(rf'regex:pak01_{a:03d}\.vpk$')
+        print(f'game/csgo/pak01_{a:03d}.vpk')  # chemin complet : game/core et game/csgo_lv ont aussi des pak01
 
 
 if __name__ == '__main__':
