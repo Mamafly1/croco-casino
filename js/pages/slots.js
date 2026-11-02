@@ -48,13 +48,17 @@ const pct = (x) => nfx.format(x * 100) + ' %';
 })();
 
 // ---------- lignes gagnantes ----------
+// Les points de la ligne sont pris au centre des vraies cases affichées, pour tomber pile dessus.
 function drawLines(lines) {
   const svg = $('lines');
-  const w = svg.clientWidth, h = svg.clientHeight, cw = (w - 16) / 3;
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  svg.innerHTML = lines.map((l) => {
-    const pts = LINES[l.line].map((row, r) => `${(r * (cw + 8) + cw / 2).toFixed(1)},${(row * cell + cell / 2).toFixed(1)}`);
-    return `<path d="M${pts.join('L')}"/>`;
+  const box = svg.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+  svg.innerHTML = lines.map((l, i) => {
+    const pts = LINES[l.line].map((row, r) => {
+      const c = strips[r].children[row].getBoundingClientRect();
+      return `${(c.left + c.width / 2 - box.left).toFixed(1)},${(c.top + c.height / 2 - box.top).toFixed(1)}`;
+    });
+    return `<path pathLength="1" style="animation-delay:${i * 0.45}s" d="M${pts.join('L')}"/>`;
   }).join('');
 }
 
@@ -103,9 +107,13 @@ async function spinOnce() {
     casino.reveal(res.payout);
     stats.add(res.bet, res.payout, res.payout / res.bet);
     drawLines(res.lines);
-    res.lines.forEach((l) => LINES[l.line].forEach((row, r) => {
+    // Les symboles gagnants gigotent quand leur ligne passe dessus
+    res.lines.forEach((l, i) => LINES[l.line].forEach((row, r) => {
       const c = strips[r].children[row];
-      if (c) { c.classList.remove('win'); void c.offsetWidth; c.classList.add('win'); }
+      if (!c) return;
+      c.classList.remove('win'); void c.offsetWidth;
+      c.style.setProperty('--d', (i * 0.45 + 0.3 + r * 0.08) + 's');
+      c.classList.add('win');
     }));
     if (res.payout > 0) {
       const big = res.payout / res.bet >= 10;

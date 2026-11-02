@@ -16,10 +16,15 @@
 .strip { position: absolute; left: 0; right: 0; top: 0; will-change: transform; }
 .cell { height: var(--cell); display: grid; place-items: center; }
 .cell .sym { width: 72%; height: 72%; }
-.cell.win { animation: pulse 0.6s ease 3; }
-@keyframes pulse { 50% { transform: scale(1.12); } }
-.lines { position: absolute; inset: 8px; pointer-events: none; }
-.lines path { fill: none; stroke: var(--gold); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px #000); }
+.cell.win .sym { animation: wiggle 0.42s ease-in-out var(--d, 0s) 4 both; }
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0) scale(1); }
+  25% { transform: rotate(-11deg) scale(1.16); }
+  75% { transform: rotate(11deg) scale(1.16); }
+}
+.lines { position: absolute; top: 8px; left: 8px; width: calc(100% - 16px); height: calc(100% - 16px); pointer-events: none; overflow: visible; z-index: 2; }
+.lines path { fill: none; stroke: var(--gold); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px #000) drop-shadow(0 0 8px rgba(255,191,23,.6)); stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 0.5s ease-out forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
 .lights { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
 .lights i { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); opacity: 0.35; }
 .machine.spinning .lights i { animation: blink 0.5s steps(2) infinite; }
