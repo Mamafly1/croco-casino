@@ -10,30 +10,37 @@ Il tourne sur **Cloudflare Workers** avec un **Durable Object** (base SQLite int
 
 Tant que `js/config.js` est vide, le site fonctionne en **mode solo** : rien ne casse.
 
-## Mettre le serveur en ligne (une seule fois)
+## Mettre le serveur en ligne (une seule fois, tout depuis le navigateur)
+
+Le serveur tourne chez Cloudflare, pas sur ton PC. C'est GitHub qui l'envoie, rien à installer.
 
 1. Crée un compte gratuit sur <https://dash.cloudflare.com/sign-up>. Les Durable Objects avec stockage
    SQLite sont disponibles sur l’offre gratuite ; vérifie les limites du moment sur
    <https://developers.cloudflare.com/durable-objects/platform/pricing/>.
-2. Installe Node.js (version LTS) : sous Windows, `winget install OpenJS.NodeJS.LTS`, puis rouvre le terminal.
-3. Dans le dossier du dépôt :
-
-   ```bash
-   cd server
-   npx wrangler login      # ouvre le navigateur pour te connecter à Cloudflare
-   npx wrangler deploy     # envoie le serveur
-   ```
-
-   À la fin, wrangler affiche une adresse du type `https://croco-casino.TON-NOM.workers.dev`.
-4. Vérifie qu’il répond : ouvre `https://croco-casino.TON-NOM.workers.dev/health`, tu dois voir `ok`.
-5. Mets cette adresse dans `js/config.js` :
+2. Dans Cloudflare : **Workers et Pages**, note ton **Account ID** (colonne de droite).
+3. Toujours dans Cloudflare : ton profil, **API Tokens**, **Create Token**, modèle
+   **« Edit Cloudflare Workers »**, puis **Create**. Copie la clé (elle ne s'affiche qu'une fois).
+4. Sur GitHub, dans le dépôt : **Settings**, **Secrets and variables**, **Actions**,
+   **New repository secret**, et crée deux secrets :
+   - `CLOUDFLARE_API_TOKEN` : la clé de l’étape 3 ;
+   - `CLOUDFLARE_ACCOUNT_ID` : l’identifiant de l’étape 2.
+5. Sur GitHub : onglet **Actions**, **Déployer le serveur**, **Run workflow**. Au bout d’une minute,
+   le journal affiche une adresse du type `https://croco-casino.TON-NOM.workers.dev`.
+6. Vérifie qu’il répond : ouvre `https://croco-casino.TON-NOM.workers.dev/health`, tu dois voir `ok`.
+7. Mets cette adresse dans `js/config.js` (bouton crayon sur GitHub) :
 
    ```js
    export const SERVER_URL = 'https://croco-casino.TON-NOM.workers.dev';
    ```
 
-   puis fais un commit et un push. GitHub Pages republie le site, et tout le monde joue ensemble sur
+   GitHub Pages republie le site, et tout le monde joue ensemble sur
    <https://mamafly1.github.io/croco-plinko/>.
+
+Ensuite, chaque modification du serveur poussée sur `main` est renvoyée automatiquement.
+
+Ne mets jamais la clé Cloudflare dans un fichier du dépôt : il est public. Seulement dans les secrets.
+
+Variante en ligne de commande, si un jour tu préfères : `cd server`, `npx wrangler login`, `npx wrangler deploy`.
 
 ## Réglages
 

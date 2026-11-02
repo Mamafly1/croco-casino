@@ -116,17 +116,16 @@ async function try3D(it) {
     const v = await import('../viewer3d.js');
     const info = await v.modelFor(it.n);
     if (my !== token3D) return;
-    if (!info) { note.textContent = 'Pas encore de modèle 3D pour cette arme : relief reconstitué à partir de l’image officielle du skin.'; return; }
+    if (!info) { note.textContent = 'Pas encore de modèle 3D pour cet objet (couteaux et gants à venir) : relief reconstitué à partir de l’image officielle.'; return; }
     $('scene').classList.add('loading3d');
     const d = await v.mount($('scene'), info, tc(it.t));
     if (my !== token3D) { d(); return; }
     dispose3D = d;
     $('scene').classList.remove('loading3d');
     $('scene').classList.add('has3d');
-    const cr = info.credit ? ` Modèle fan-made de ${esc(info.credit.author)} (<a href="${info.credit.url}" target="_blank" rel="noopener">CC-BY 4.0</a>).` : '';
-    note.innerHTML = (info.exact
-      ? `Vrai modèle 3D de l’arme avec ce skin. Tourne-le à la souris ou au doigt, molette pour zoomer.`
-      : `Vrai modèle 3D du ${esc(info.weapon)}, mais la texture du skin « ${esc(info.skin)} » n’est pas disponible : l’arme est montrée sans motif.`) + cr;
+    note.innerHTML = info.exact
+      ? `Géométrie officielle du ${esc(info.weapon)} (ressources Workshop de Valve) avec la texture de ce skin. Tourne-le à la souris ou au doigt, molette pour zoomer.`
+      : `Géométrie officielle du ${esc(info.weapon)} (ressources Workshop de Valve). La texture du skin « ${esc(info.skin)} » n’est pas encore disponible : l’arme est montrée en métal nu.`;
   } catch (e) {
     console.error(e);
     $('scene').classList.remove('loading3d');

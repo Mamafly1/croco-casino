@@ -1,0 +1,33 @@
+# Envoie le serveur multijoueur sur Cloudflare depuis GitHub : rien à installer sur ton PC.
+# Il faut une seule fois ajouter deux secrets au dépôt (voir server/README.md) :
+#   CLOUDFLARE_API_TOKEN et CLOUDFLARE_ACCOUNT_ID
+name: Déployer le serveur
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'js/engine/**'
+      - 'data/cases.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vérifier que les secrets existent
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Ajoute le secret CLOUDFLARE_API_TOKEN au dépôt (voir server/README.md)."
+            exit 1
+          fi
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: server
+          command: deploy

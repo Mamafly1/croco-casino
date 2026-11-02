@@ -1,17 +1,71 @@
 {
-  "note": "Modèles fan-made sous licence CC-BY 4.0 (auteurs ci-dessous), rassemblés par le projet MIT realBoltDev/inspect3d. Les textures de skins viennent du même projet.",
-  "weapons": {
-    "AK-47": { "dir": "ak-47", "skins": { "Asiimov": "asiimov.png", "Neon Revolution": "neon_revolution.png", "Phantom Disruptor": "phantom_disruptor.png", "Wild Lotus": "" } },
-    "AWP": { "dir": "awp", "skins": { "Dragon Lore": "dragon_lore.png", "Neo-Noir": "neo-noir.png", "Wildfire": "wildfire.png" } },
-    "Desert Eagle": { "dir": "desert_eagle", "skins": { "Ocean Drive": "ocean_drive.png", "Printstream": "printstream.png", "Trigger Discipline": "trigger_discipline.png" } },
-    "M4A1-S": { "dir": "m4a1-s", "skins": { "Cyrex": "cyrex.png", "Decimator": "decimator.png", "Player Two": "player_two.png", "Dream Catcher": "" } },
-    "M4A4": { "dir": "m4a4", "skins": { "Desolate Space": "desolate_space.png", "Temukau": "temukau.png", "The Emperor": "the_emperor.png", "Poseidon": "" } }
+ "note": "valve/ : géométrie officielle des armes CS2 (ressources Workshop de Valve, counter-strike.net/workshop/workshopresources), convertie en GLB compressé (meshopt). skins/ : textures de skins issues du projet MIT realBoltDev/inspect3d.",
+ "valve": {
+  "AK-47": "rif_ak47",
+  "AUG": "rif_aug",
+  "AWP": "snip_awp",
+  "CZ75-Auto": "pist_cz75a",
+  "Desert Eagle": "pist_deagle",
+  "Dual Berettas": "pist_elite",
+  "FAMAS": "rif_famas",
+  "Five-SeveN": "pist_fiveseven",
+  "G3SG1": "snip_g3sg1",
+  "Galil AR": "rif_galilar",
+  "Glock-18": "pist_glock18",
+  "M249": "mach_m249",
+  "M4A1-S": "rif_m4a1_silencer",
+  "M4A4": "rif_m4a4",
+  "MAC-10": "smg_mac10",
+  "MAG-7": "shot_mag7",
+  "MP5-SD": "smg_mp5sd",
+  "MP7": "smg_mp7",
+  "MP9": "smg_mp9",
+  "Negev": "mach_negev",
+  "Nova": "shot_nova",
+  "P2000": "pist_hkp2000",
+  "P250": "pist_p250",
+  "P90": "smg_p90",
+  "PP-Bizon": "smg_bizon",
+  "R8 Revolver": "pist_revolver",
+  "SCAR-20": "snip_scar20",
+  "SG 553": "rif_sg556",
+  "SSG 08": "snip_ssg08",
+  "Sawed-Off": "shot_sawedoff",
+  "Tec-9": "pist_tec9",
+  "UMP-45": "smg_ump45",
+  "USP-S": "pist_usp_silencer",
+  "XM1014": "shot_xm1014",
+  "Zeus x27": "pist_taser"
+ },
+ "skins": {
+  "AK-47": {
+   "Asiimov": "models/skins/rif_ak47/asiimov.jpg",
+   "Neon Revolution": "models/skins/rif_ak47/neon_revolution.jpg",
+   "Phantom Disruptor": "models/skins/rif_ak47/phantom_disruptor.jpg"
   },
-  "credits": [
-    { "model": "AK-47", "title": "CSGO AK47 WILD LOTUS", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-ak47-wild-lotus-0af74d693a014c4d9fe5538b99dc0355" },
-    { "model": "AWP", "title": "CSGO AWP DRAGON LORE", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-awp-dragon-lore-013c3a1d945a4336a87f889c3d4c25b1" },
-    { "model": "Desert Eagle", "title": "CSGO WEAPON: Desert Eagle Ocean Drive", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-weapon-desert-eagle-ocean-drive-7a2df06321fd490eb7d7be89438ec476" },
-    { "model": "M4A1-S", "title": "M4A1-S | Dream Catcher", "author": "kosear", "url": "https://sketchfab.com/3d-models/m4a1-s-dream-catcher-0f2d96978b904a4995d521a1e5edb711" },
-    { "model": "M4A4", "title": "CSGO WEAPON: M4A4 POSEIDON", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-weapon-m4a4-poseidon-2c1a506ec59a4f3ba4e1a5321c0c09e2" }
-  ]
+  "AWP": {
+   "Dragon Lore": "models/skins/snip_awp/dragon_lore.jpg",
+   "Neo-Noir": "models/skins/snip_awp/neo-noir.jpg",
+   "Wildfire": "models/skins/snip_awp/wildfire.jpg"
+  },
+  "Desert Eagle": {
+   "Ocean Drive": "models/skins/pist_deagle/ocean_drive.jpg",
+   "Printstream": "models/skins/pist_deagle/printstream.jpg",
+   "Trigger Discipline": "models/skins/pist_deagle/trigger_discipline.jpg"
+  },
+  "M4A1-S": {
+   "Cyrex": "models/skins/rif_m4a1_silencer/cyrex.jpg",
+   "Decimator": "models/skins/rif_m4a1_silencer/decimator.jpg",
+   "Player Two": "models/skins/rif_m4a1_silencer/player_two.jpg"
+  },
+  "M4A4": {
+   "Desolate Space": "models/skins/rif_m4a4/desolate_space.jpg",
+   "Temukau": "models/skins/rif_m4a4/temukau.jpg",
+   "The Emperor": "models/skins/rif_m4a4/the_emperor.jpg"
+  }
+ },
+ "credits": {
+  "valve": "https://www.counter-strike.net/workshop/workshopresources",
+  "skins": "https://github.com/realBoltDev/inspect3d"
+ }
 }
