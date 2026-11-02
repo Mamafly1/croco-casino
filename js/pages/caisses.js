@@ -134,9 +134,9 @@ $('open').addEventListener('click', async () => {
 
 // ---------- visualiseur 3D ----------
 // Le visualiseur SkinHub rend l'objet avec le shader du jeu, à son float et son seed. Tant qu'il charge
-// (ou s'il échoue), on montre l'image du skin extrudée en empilant des copies dans l'épaisseur.
+// (ou s'il échoue), on montre l'image officielle du skin.
 const SKINHUB = 'https://skinhub.gg/frame';
-let frame = null, onFrame = null;
+let frame = null, onFrame = null, slowTimer = 0;
 function try3D(it) {
   const c = data && data.cases.find((x) => x.id === it.caseId);
   const src = c && pool(c, it.t).find((x) => x.n === it.n && (x.ph || null) === (it.ph || null));
@@ -152,56 +152,27 @@ function try3D(it) {
   frame.className = 'skinframe';
   frame.title = `Modèle 3D : ${it.n}`;
   frame.src = `${SKINHUB}?${q}`;
+  slowTimer = setTimeout(() => { note.textContent = 'La connexion est lente : la 3D peut mettre une minute ou deux à arriver.'; }, 20000);
   onFrame = (e) => {
     if (e.source !== frame.contentWindow || !e.data || e.data.channel !== 'skinhub-viewer') return;
+    if (e.data.type === 'ready' || e.data.type === 'error') clearTimeout(slowTimer);
     if (e.data.type === 'ready') {
       scene.classList.remove('loading3d');
       scene.classList.add('has3d');
       note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. Tourne-le à la souris ou au doigt, molette pour zoomer.';
     } else if (e.data.type === 'error') {
       scene.classList.remove('loading3d');
-      note.textContent = 'Le modèle 3D n’a pas pu se charger : relief reconstitué à partir de l’image.';
+      note.textContent = 'Le modèle 3D n’a pas pu se charger : voici l’image officielle du skin.';
     }
   };
   addEventListener('message', onFrame);
   scene.appendChild(frame);
 }
 function stop3D() {
+  clearTimeout(slowTimer);
   if (frame) { removeEventListener('message', onFrame); frame.remove(); frame = null; }
   $('scene').classList.remove('has3d', 'loading3d');
 }
-let rotY = -25, rotX = 8, auto = true, raf = 0, last = 0;
-function buildModel(it) {
-  const LAYERS = 12, DEPTH = 1.6;
-  let h = '';
-  for (let i = 0; i < LAYERS; i++) {
-    const z = (i - (LAYERS - 1) / 2) * DEPTH;
-    const edge = i > 0 && i < LAYERS - 1;
-    h += `<img src="${img(it.i, '512fx384f')}" data-raw="${data.img + it.i}" alt="" draggable="false" style="transform:translateZ(${z}px)${i === 0 ? ' rotateY(180deg)' : ''};${edge ? 'filter:brightness(.42) saturate(.8)' : ''}">`;
-  }
-  $('model').innerHTML = h;
-}
-function spinLoop(now) {
-  const dt = Math.min(50, now - (last || now));
-  last = now;
-  if (auto) rotY += dt * 0.03;
-  $('model').style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
-  raf = requestAnimationFrame(spinLoop);
-}
-(function drag() {
-  const sc = $('scene');
-  let down = null;
-  sc.addEventListener('pointerdown', (e) => { if (sc.classList.contains('has3d')) return; down = { x: e.clientX, y: e.clientY, ry: rotY, rx: rotX }; auto = false; sc.setPointerCapture(e.pointerId); });
-  sc.addEventListener('pointermove', (e) => {
-    if (!down) return;
-    rotY = down.ry + (e.clientX - down.x) * 0.5;
-    rotX = Math.max(-40, Math.min(40, down.rx - (e.clientY - down.y) * 0.3));
-  });
-  const up = () => { down = null; };
-  sc.addEventListener('pointerup', up);
-  sc.addEventListener('pointercancel', up);
-  sc.addEventListener('dblclick', () => { auto = true; });
-})();
 
 function floatBar(it) {
   const segs = [['#3ddc5f', 0, 0.07], ['#a7e05a', 0.07, 0.15], ['#ffbf17', 0.15, 0.38], ['#ff8a3d', 0.38, 0.45], ['#de0607', 0.45, 1]];
@@ -215,7 +186,7 @@ function showItem(it, fresh) {
   m.querySelector('.sheet').style.setProperty('--tc', tc(it.t));
   $('scene').style.setProperty('--tc', tc(it.t));
   $('rvTitle').textContent = fresh ? 'Tu as obtenu' : 'Objet de ton inventaire';
-  buildModel(it);
+  $('model').innerHTML = imgTag(it.i, it.n, '512fx384f');
   const c = data.cases.find((x) => x.id === it.caseId);
   const list = c ? pool(c, it.t) : [];
   const chance = list.length ? ODDS[it.t] / list.length : 0;
@@ -238,8 +209,6 @@ function showItem(it, fresh) {
   $('keep').addEventListener('click', closeReveal);
   $('sellOne').addEventListener('click', () => sell(it.uid).then(closeReveal));
   m.hidden = false;
-  auto = true; rotY = -25; rotX = 8;
-  if (!raf) raf = requestAnimationFrame(spinLoop);
   $('keep').focus();
   stop3D();
   try3D(it);
@@ -247,7 +216,6 @@ function showItem(it, fresh) {
 function closeReveal() {
   stop3D();
   $('reveal').hidden = true;
-  cancelAnimationFrame(raf); raf = 0; last = 0;
   $('model').innerHTML = '';
 }
 $('rvClose').addEventListener('click', closeReveal);

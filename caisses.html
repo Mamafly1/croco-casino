@@ -44,18 +44,16 @@
 .invbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
 /* visualiseur 3D */
 .viewer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0; }
-.scene { position: relative; min-height: 300px; perspective: 900px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; cursor: grab; touch-action: none; overflow: hidden; }
-.scene:active { cursor: grabbing; }
-.model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; transform-style: preserve-3d; }
+.scene { position: relative; min-height: 300px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; overflow: hidden; }
+.model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; }
 .model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
-.shadow { position: absolute; bottom: 14%; left: 20%; right: 20%; height: 18px; border-radius: 50%; background: rgba(0,0,0,.55); filter: blur(8px); }
 /* Le haut du cadre SkinHub (avec son logo, retiré avec leur accord) dépasse et reste masqué par .scene.
    color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
 .skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
 .scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
-.scene.has3d .model, .scene.has3d .shadow, .scene.has3d .hint3d { display: none; }
-.scene.loading3d .model { opacity: .35; }
-.hint3d { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }
+.scene.has3d .model { display: none; }
+.hint3d { display: none; position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
+.scene.loading3d .hint3d { display: block; }
 .specs { padding: 16px; display: grid; gap: 10px; align-content: start; }
 .specs h3 { margin: 0; font-size: 17px; line-height: 1.3; }
 .rar { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 12px; color: #181818; background: var(--tc); }
@@ -110,7 +108,7 @@
   <div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="rvTitle">
     <div class="sheet-head"><h2 id="rvTitle">Tu as obtenu</h2><button class="x" id="rvClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="viewer">
-      <div class="scene" id="scene"><div class="shadow"></div><div class="model" id="model"></div><p class="hint3d">Fais glisser pour tourner l’objet</p></div>
+      <div class="scene" id="scene"><div class="model" id="model"></div><p class="hint3d">Image officielle en attendant la 3D…</p></div>
       <div class="specs" id="specs"></div>
     </div>
   </div>

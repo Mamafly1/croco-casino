@@ -38,7 +38,7 @@ comparer le retour obtenu au retour calculé.
 - **Prix :** une ouverture coûte le prix de la caisse plus celui de la clé. `pr` donne le prix d'un objet par usure,
   `prs` sa version StatTrak. Les objets déjà dans un inventaire gardent la valeur enregistrée à leur ouverture.
 - **Skins, couteaux et gants en 3D :** iframe `https://skinhub.gg/frame`, documentée dans le fichier `EMBED.md` du dépôt
-  `SkinHubgg/skinhub-viewer`. La vue tombe sur le relief reconstitué tant que l'événement `ready` n'est pas arrivé.
+  `SkinHubgg/skinhub-viewer`. La vue montre l'image officielle du skin tant que l'événement `ready` n'est pas arrivé.
 - **Logo SkinHub :** `.skinframe` dans `caisses.html` le fait sortir du cadre, avec l'accord de SkinHub. Ne pas reprendre
   cette technique pour un autre usage sans leur redemander.
 - **Caisses en 3D :** `models/cases/` contient les modèles du jeu, affichés par `js/viewer3d.js` (three.js). Trois caisses
