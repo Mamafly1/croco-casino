@@ -35,3 +35,13 @@ Lien trouvé : `skins.json` de ByMykel a `pattern.id`, qui correspond au nom de 
 Tailles : les caisses contiennent 1157 skins pour 792 motifs. L'étape A (données et matériaux) fait 16 archives, 1,6 Go, et sert à calculer la liste exacte des textures. Couteaux, gants et matériaux des skins : environ 7 Go. Tous les motifs : 15,7 Go au maximum. L'utilisateur est sur un partage de connexion instable, il décide de la suite.
 
 À prévoir : 792 textures à 300 Ko donneraient jusqu'à 240 Mo dans le dépôt.
+
+## PC — 2026-11-03, changement de plan
+
+Le plan ci-dessus est abandonné. L'utilisateur a demandé de chercher un outil existant, et on a trouvé [SkinHub](https://skinhub.gg).
+
+- Skins, couteaux et gants en 3D : iframe `https://skinhub.gg/frame`, avec le shader du jeu, le float et le seed. Pas de compte ni de clé. Logo masqué avec l'accord de SkinHub (e-mail à l'utilisateur), en décalant le cadre de 56 px.
+- Supprimés : `models/valve`, `models/skins`, `models/models.json`, `tools/vpk-archives.py`. Il n'y a plus de textures de skins à extraire.
+- Prix réels (API Skinport) dans `data/cases.json`, générés par `tools/build-cases.mjs`. Le moteur `js/engine/cases.js` n'a plus de valeurs fixes : une ouverture coûte la caisse plus la clé (estimée à partir de 2,50 $). Le retour varie de 16 % à 81 % selon la caisse.
+- Caisses en 3D : vrais modèles du jeu dans `models/cases/` (39 caisses sur 42, 8,6 Mo), affichés avec three.js.
+- À faire : quand ce sera publié sur `main`, le serveur Cloudflare se redéploiera, car `js/engine/**` et `data/cases.json` changent. Rendu 3D sur vrai téléphone à vérifier.

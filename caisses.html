@@ -16,7 +16,10 @@
 .caselist button small { display: block; color: var(--muted); font-weight: 500; font-size: 11px; }
 .caselist button[aria-pressed="true"] { border-color: var(--gold); background: #2f2810; }
 .casehead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.casehead img { width: 120px; height: 90px; object-fit: contain; }
+.case3d { position: relative; flex: none; width: 180px; height: 135px; display: grid; place-items: center; }
+.case3d img { width: 120px; height: 90px; object-fit: contain; }
+.case3d.on img { display: none; }
+.case3d canvas { position: absolute; inset: 0; cursor: grab; }
 .casehead h1 { margin: 0; font: clamp(13px, 2.2vw, 17px)/1.4 var(--font-pixel); }
 .casehead p { margin: 4px 0 0; color: var(--muted); }
 .spinner-box { position: relative; overflow: hidden; border-radius: 12px; background: #101010; height: 150px; border: 2px solid var(--line); }
@@ -46,8 +49,11 @@
 .model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; transform-style: preserve-3d; }
 .model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
 .shadow { position: absolute; bottom: 14%; left: 20%; right: 20%; height: 18px; border-radius: 50%; background: rgba(0,0,0,.55); filter: blur(8px); }
-.scene .gl { position: absolute; inset: 0; width: 100% !important; height: 100% !important; cursor: grab; }
-.scene.has3d .model, .scene.has3d .shadow { display: none; }
+/* Le haut du cadre SkinHub (avec son logo, retiré avec leur accord) dépasse et reste masqué par .scene.
+   color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
+.skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
+.scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
+.scene.has3d .model, .scene.has3d .shadow, .scene.has3d .hint3d { display: none; }
 .scene.loading3d .model { opacity: .35; }
 .hint3d { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }
 .specs { padding: 16px; display: grid; gap: 10px; align-content: start; }
@@ -72,7 +78,7 @@
       <div class="field-head"><span id="clLabel">Caisses CS2</span><span id="caseCount"></span></div>
       <div class="caselist" id="caselist" role="group" aria-labelledby="clLabel"></div>
     </div>
-    <button id="open" class="play" type="button" disabled>Ouvrir · 2,50 €</button>
+    <button id="open" class="play" type="button" disabled>Ouvrir</button>
     <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
       <h2>Les vraies cotes</h2>

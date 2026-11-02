@@ -130,7 +130,8 @@ export function run(p, game, action, params = {}, ctx) {
     const c = ctx.caseList.find((x) => x.id === params.caseId);
     if (!c) throw new GameError('Caisse inconnue.');
     if (p.inventory.length >= MAX_INVENTORY) throw new GameError('Inventaire plein : vends des objets.');
-    readBet(p, cases.CASE_PRICE);
+    const price = cases.cost(c);
+    if (price > p.balance + 1e-9) throw new GameError('Solde insuffisant. Fais un dépôt pour jouer.');
     const it = cases.open(c, rng);
     // La « roue » de l'animation : objets tirés au même hasard, le gagnant à la position 45
     const reel = [];
@@ -139,11 +140,11 @@ export function run(p, game, action, params = {}, ctx) {
       reel.push({ n: x.n, t: x.t, i: x.i });
     }
     const item = { ...it, uid: uid(rng), caseId: c.id, at: Date.now() };
-    p.balance = money(p.balance - cases.CASE_PRICE);
+    p.balance = money(p.balance - price);
     p.inventory.unshift(item);
     played(p, 'cases');
     // L'objet arrive dans l'inventaire : pas de gain en argent immédiat
-    return out({ item, reel, bet: cases.CASE_PRICE, payout: 0 }, { game, bet: cases.CASE_PRICE, payout: item.value, item: { n: item.n, t: item.t, wear: item.wear, st: item.st, value: item.value } });
+    return out({ item, reel, bet: price, payout: 0 }, { game, bet: price, payout: item.value, item: { n: item.n, t: item.t, wear: item.wear, st: item.st, value: item.value } });
   }
 
   if (game === 'cases' && action === 'sell') {

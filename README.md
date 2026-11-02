@@ -16,23 +16,20 @@ En ligne : <https://mamafly1.github.io/croco-plinko/>
 | `js/config.js` | Adresse du serveur multijoueur (vide = mode solo) |
 | `data/cases.json` | Les 42 caisses CS2 et leur contenu, généré par `tools/build-cases.mjs` |
 | `server/` | Serveur multijoueur (Cloudflare Worker), voir `server/README.md` |
-| `models/` | Modèles 3D des armes et textures de skins |
-| `vendor/three/` | three.js 0.170.0 (licence MIT), pour l’affichage 3D |
+| `models/cases/` | Modèles 3D des caisses, extraits des fichiers du jeu (`models/cases.json` : id de caisse vers fichier) |
+| `vendor/three/` | three.js 0.170.0 (licence MIT), pour l’affichage 3D des caisses |
 
 ## Sources des données des caisses
 
 - Contenu des caisses, raretés, plages de float, StatTrak : [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API),
   extrait des fichiers du jeu. Les images viennent du CDN de Steam.
 - Taux par rareté (79,92 / 15,98 / 3,20 / 0,64 / 0,26 %) : taux rendus publics par Valve, tels que repris par de nombreux sites (page d’origine non consultée).
-- Les valeurs en € sont des valeurs de jeu, pas des prix du marché.
-- Modèles 3D : géométrie officielle des 35 armes (ressources Workshop de Valve,
-  <https://www.counter-strike.net/workshop/workshopresources>), convertie en GLB compressé dans `models/valve/`.
-  Textures de 15 skins dans `models/skins/`, issues du projet MIT
-  [realBoltDev/inspect3d](https://github.com/realBoltDev/inspect3d). Les autres skins s’affichent en métal nu,
-  les couteaux et gants en relief reconstitué à partir de l’image, en attendant les fichiers du jeu.
-- `tools/vpk-archives.py` : lit `pak01_dir.vpk` de CS2 pour savoir quelles archives télécharger.
+- Prix en euros : API publique de [Skinport](https://docs.skinport.com/), au moment de la génération. Une usure absente
+  du marché prend le prix de l’usure la plus proche. La clé est estimée à partir de ses 2,50 $.
+- Skins, couteaux et gants en 3D : visualiseur [SkinHub](https://skinhub.gg) intégré en iframe. Son logo est masqué avec
+  l’accord de SkinHub (réponse par e-mail du 2 novembre 2026).
 
-Pour mettre à jour la liste : `node tools/build-cases.mjs`.
+Pour mettre à jour la liste et les prix : `node tools/build-cases.mjs`.
 
 ## Tester en local
 

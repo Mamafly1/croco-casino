@@ -1,7 +1,8 @@
-// Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve.
+// Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve,
+// prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
 import { casino, mountShell, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
 import { mountFeed } from '../widgets.js';
-import { ODDS, TIERS, TIER_INFO, CASE_PRICE, ST_RATE, WEARS, wearProbs, rtp } from '../engine/cases.js';
+import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
 
 mountShell('cases');
 mountFeed($('feed'), { game: 'cases', limit: 8 });
@@ -27,7 +28,7 @@ const wearName = (id) => (WEARS.find((w) => w.id === id) || {}).name || 'Sans us
 function renderList() {
   $('caseCount').textContent = data.cases.length;
   $('caselist').innerHTML = data.cases.map((c) =>
-    `<button type="button" data-id="${c.id}" aria-pressed="${c === sel}">${imgTag(c.i, '', '96fx96f')}<span>${esc(c.n)}<small>${(c.d || '').slice(0, 4)} · retour ${pct(rtp(c))}</small></span></button>`).join('');
+    `<button type="button" data-id="${c.id}" aria-pressed="${c === sel}">${imgTag(c.i, '', '96fx96f')}<span>${esc(c.n)}<small>${(c.d || '').slice(0, 4)} · ${eur(cost(c))} · retour ${pct(rtp(c))}</small></span></button>`).join('');
 }
 $('caselist').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || opening) return;
@@ -36,27 +37,53 @@ $('caselist').addEventListener('click', (e) => {
 
 function pool(c, t) { return t === 'rare' ? c.rare : c.items.filter((x) => x.t === t); }
 
+function priceRange(it) {
+  const lo = Math.min(...it.pr), hi = Math.max(...it.pr);
+  return lo === hi ? eur(lo) : `${eur(lo)} – ${eur(hi)}`;
+}
+
+// Le vrai modèle 3D de la caisse ; l'image reste affichée s'il n'existe pas ou ne se charge pas
+let disposeCase = null, tokenCase = 0;
+async function showCase3D(c) {
+  const my = ++tokenCase;
+  if (disposeCase) { disposeCase(); disposeCase = null; }
+  try {
+    const v = await import('../viewer3d.js');
+    const url = await v.caseModel(c.id);
+    if (!url || my !== tokenCase) return;
+    const host = $('case3d');
+    const d = await v.mount(host, url);
+    if (my !== tokenCase) { d(); return; }
+    disposeCase = d;
+    host.classList.add('on');
+  } catch (e) {
+    console.error(e);
+  }
+}
+
 function select(c) {
   sel = c;
   document.querySelectorAll('#caselist button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === c.id)));
-  $('casehead').innerHTML = `${imgTag(c.i, c.n, '256fx192f')}<div><h1>${esc(c.n.toUpperCase())}</h1><p>Sortie le ${esc(c.d || '?')} · ${c.items.length} skins + ${c.rare.length} objets rares</p></div>`;
+  $('casehead').innerHTML = `<div class="case3d" id="case3d">${imgTag(c.i, c.n, '256fx192f')}</div><div><h1>${esc(c.n.toUpperCase())}</h1><p>Sortie le ${esc(c.d || '?')} · ${c.items.length} skins + ${c.rare.length} objets rares</p><p>Caisse ${eur(c.pr)} + clé ${eur(c.key)}</p></div>`;
+  showCase3D(c);
+  $('open').textContent = `Ouvrir · ${eur(cost(c))}`;
   $('open').disabled = false;
   $('tiers').innerHTML = TIERS.map((t) => {
     const list = pool(c, t);
     if (!list.length) return '';
     const each = ODDS[t] / list.length;
     return `<div class="tier"><h3 style="color:${tc(t)}">${TIER_INFO[t].name}<span>${pct(ODDS[t])} au total · ${pct(each)} chacun</span></h3>
-      <div class="grid">${list.map((it) => `<div class="it" style="--tc:${tc(t)}">${imgTag(it.i, it.n, '128fx96f')}<b title="${esc(it.n)}">${esc(it.n)}</b><small>${it.f ? `Float ${it.f[0]}–${it.f[1]}` : 'Sans usure'}${it.st ? ' · StatTrak possible' : ''}</small></div>`).join('')}</div></div>`;
+      <div class="grid">${list.map((it) => `<div class="it" style="--tc:${tc(t)}">${imgTag(it.i, it.n, '128fx96f')}<b title="${esc(it.n)}">${esc(it.n)}</b><small>${it.f ? `Float ${it.f[0]}–${it.f[1]}` : 'Sans usure'}${it.st ? ' · StatTrak possible' : ''}</small><small style="color:var(--gold)">${priceRange(it)}</small></div>`).join('')}</div></div>`;
   }).join('');
   idleTrack();
   writeOdds();
 }
 
 function writeOdds() {
-  const r = sel ? rtp(sel) : 0.9;
+  const r = sel ? rtp(sel) : 0;
   $('oddsNote').innerHTML = `Taux publiés par Valve pour chaque caisse : <strong>Mil-Spec 79,92 %</strong>, Restricted 15,98 %, Classified 3,20 %, Covert 0,64 %, <strong>couteau ou gants 0,26 %</strong> (1 sur ${nf0.format(1 / ODDS.rare)}). StatTrak™ : ${pct(ST_RATE)} des objets qui le permettent.<br>` +
-    `L’usure vient du float, tiré ici uniformément entre le min et le max du skin (Valve ne publie pas la loi exacte). Les valeurs en € sont des <strong>valeurs de jeu</strong>, pas les prix du marché Steam.<br>` +
-    `Une ouverture coûte ${eur(CASE_PRICE)} ; l’objet vaut en moyenne <strong>${pct(r)}</strong> de ce prix. Tu perds donc <strong>${pct(1 - r)}</strong> par caisse sur la durée.`;
+    `L’usure vient du float, tiré ici uniformément entre le min et le max du skin (Valve ne publie pas la loi exacte). Les prix viennent du marché Skinport${data ? ` (relevés le ${esc(data.pricesAt)})` : ''} et peuvent différer de Steam ; quand une usure n’y est pas en vente, on prend la plus proche. La clé est estimée à partir de ses 2,50 $.` +
+    (sel ? `<br>Une ouverture coûte ${eur(cost(sel))} ; l’objet vaut en moyenne <strong>${pct(r)}</strong> de ce prix. Tu perds donc <strong>${pct(1 - r)}</strong> par caisse sur la durée.` : '');
 }
 
 // ---------- roue d'ouverture ----------
@@ -106,35 +133,41 @@ $('open').addEventListener('click', async () => {
 });
 
 // ---------- visualiseur 3D ----------
-// Si l'arme a un vrai modèle 3D dans models/ (three.js), on l'affiche. Sinon, on extrude l'image du skin
-// en empilant des copies dans l'épaisseur, ce qui donne un volume qu'on peut faire tourner.
-let dispose3D = null, token3D = 0;
-async function try3D(it) {
-  const my = ++token3D;
-  const note = $('m3dNote');
-  try {
-    const v = await import('../viewer3d.js');
-    const info = await v.modelFor(it.n);
-    if (my !== token3D) return;
-    if (!info) { note.textContent = 'Pas encore de modèle 3D pour cet objet (couteaux et gants à venir) : relief reconstitué à partir de l’image officielle.'; return; }
-    $('scene').classList.add('loading3d');
-    const d = await v.mount($('scene'), info, tc(it.t));
-    if (my !== token3D) { d(); return; }
-    dispose3D = d;
-    $('scene').classList.remove('loading3d');
-    $('scene').classList.add('has3d');
-    note.innerHTML = info.exact
-      ? `Géométrie officielle du ${esc(info.weapon)} (ressources Workshop de Valve) avec la texture de ce skin. Tourne-le à la souris ou au doigt, molette pour zoomer.`
-      : `Géométrie officielle du ${esc(info.weapon)} (ressources Workshop de Valve). La texture du skin « ${esc(info.skin)} » n’est pas encore disponible : l’arme est montrée en métal nu.`;
-  } catch (e) {
-    console.error(e);
-    $('scene').classList.remove('loading3d');
-    if (my === token3D) note.textContent = 'Le modèle 3D n’a pas pu se charger : relief reconstitué à partir de l’image.';
-  }
+// Le visualiseur SkinHub rend l'objet avec le shader du jeu, à son float et son seed. Tant qu'il charge
+// (ou s'il échoue), on montre l'image du skin extrudée en empilant des copies dans l'épaisseur.
+const SKINHUB = 'https://skinhub.gg/frame';
+let frame = null, onFrame = null;
+function try3D(it) {
+  const c = data && data.cases.find((x) => x.id === it.caseId);
+  const src = c && pool(c, it.t).find((x) => x.n === it.n && (x.ph || null) === (it.ph || null));
+  const q = new URLSearchParams({ hash: it.n, hostloading: 1 });
+  if (src) q.set('paint', src.p); // indispensable pour la phase d'un Doppler
+  if (it.float != null) q.set('float', it.float);
+  if (it.seed != null) q.set('seed', it.seed);
+  if (it.st) q.set('st', 0);
+  if (/Gloves|Hand Wraps/.test(it.n)) q.set('zoom', 0.75); // la paire est trop large pour le cadre
+  const scene = $('scene'), note = $('m3dNote');
+  scene.classList.add('loading3d');
+  frame = document.createElement('iframe');
+  frame.className = 'skinframe';
+  frame.title = `Modèle 3D : ${it.n}`;
+  frame.src = `${SKINHUB}?${q}`;
+  onFrame = (e) => {
+    if (e.source !== frame.contentWindow || !e.data || e.data.channel !== 'skinhub-viewer') return;
+    if (e.data.type === 'ready') {
+      scene.classList.remove('loading3d');
+      scene.classList.add('has3d');
+      note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. Tourne-le à la souris ou au doigt, molette pour zoomer.';
+    } else if (e.data.type === 'error') {
+      scene.classList.remove('loading3d');
+      note.textContent = 'Le modèle 3D n’a pas pu se charger : relief reconstitué à partir de l’image.';
+    }
+  };
+  addEventListener('message', onFrame);
+  scene.appendChild(frame);
 }
 function stop3D() {
-  token3D++;
-  if (dispose3D) { dispose3D(); dispose3D = null; }
+  if (frame) { removeEventListener('message', onFrame); frame.remove(); frame = null; }
   $('scene').classList.remove('has3d', 'loading3d');
 }
 let rotY = -25, rotX = 8, auto = true, raf = 0, last = 0;
@@ -198,7 +231,7 @@ function showItem(it, fresh) {
       <dt>Chance de ce skin</dt><dd>${pct(chance)} (1 sur ${nf0.format(1 / chance)})</dd>
       <dt>StatTrak™</dt><dd>${it.st ? 'Oui (1 sur 10)' : 'Non'}</dd>
       ${c ? `<dt>Caisse</dt><dd>${esc(c.n)}</dd>` : ''}
-      <dt>Valeur de jeu</dt><dd style="color:var(--gold)">${eur(it.value)}</dd>
+      <dt>Prix du marché</dt><dd style="color:var(--gold)">${eur(it.value)}</dd>
     </dl>
     <p class="muted small" id="m3dNote">Chargement du modèle 3D…</p>
     <div class="btn2"><button class="btn-ghost" id="keep" type="button">Garder</button><button class="btn-main" id="sellOne" type="button">Vendre ${eur(it.value)}</button></div>`;

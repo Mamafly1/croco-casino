@@ -48,7 +48,6 @@ import { casino, mountShell, $ } from './js/core.js';
 import { mountBoard, mountFeed } from './js/widgets.js';
 import { pixelIcon, GAME_INFO } from './js/icons.js';
 import { rtp as slotsRtp } from './js/engine/slots.js';
-import { TARGET_RTP } from './js/engine/cases.js';
 
 mountShell('home');
 const pct = (x) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(x * 100) + ' %';
@@ -56,7 +55,7 @@ const DESC = {
   plinko: ['Le croco tombe entre les clous.', 'Retour moyen ≈ 97 %'],
   roulette: ['Roulette européenne, tours partagés en ligne.', 'Retour moyen ' + pct(36 / 37)],
   blackjack: ['Bats le croupier sans dépasser 21.', 'Retour ≈ 99,5 % en jouant parfaitement'],
-  cases: ['Vraies caisses CS2, vrais taux publiés.', 'Retour moyen ' + pct(TARGET_RTP)],
+  cases: ['Vraies caisses CS2, vrais taux publiés.', 'Prix du marché'],
   slots: ['Trois rouleaux, cinq lignes.', 'Retour moyen ' + pct(slotsRtp())],
 };
 $('tiles').innerHTML = Object.entries(GAME_INFO).map(([g, info]) =>
