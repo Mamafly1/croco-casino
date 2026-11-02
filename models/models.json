@@ -1,0 +1,17 @@
+{
+  "note": "Modèles fan-made sous licence CC-BY 4.0 (auteurs ci-dessous), rassemblés par le projet MIT realBoltDev/inspect3d. Les textures de skins viennent du même projet.",
+  "weapons": {
+    "AK-47": { "dir": "ak-47", "skins": { "Asiimov": "asiimov.png", "Neon Revolution": "neon_revolution.png", "Phantom Disruptor": "phantom_disruptor.png", "Wild Lotus": "" } },
+    "AWP": { "dir": "awp", "skins": { "Dragon Lore": "dragon_lore.png", "Neo-Noir": "neo-noir.png", "Wildfire": "wildfire.png" } },
+    "Desert Eagle": { "dir": "desert_eagle", "skins": { "Ocean Drive": "ocean_drive.png", "Printstream": "printstream.png", "Trigger Discipline": "trigger_discipline.png" } },
+    "M4A1-S": { "dir": "m4a1-s", "skins": { "Cyrex": "cyrex.png", "Decimator": "decimator.png", "Player Two": "player_two.png", "Dream Catcher": "" } },
+    "M4A4": { "dir": "m4a4", "skins": { "Desolate Space": "desolate_space.png", "Temukau": "temukau.png", "The Emperor": "the_emperor.png", "Poseidon": "" } }
+  },
+  "credits": [
+    { "model": "AK-47", "title": "CSGO AK47 WILD LOTUS", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-ak47-wild-lotus-0af74d693a014c4d9fe5538b99dc0355" },
+    { "model": "AWP", "title": "CSGO AWP DRAGON LORE", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-awp-dragon-lore-013c3a1d945a4336a87f889c3d4c25b1" },
+    { "model": "Desert Eagle", "title": "CSGO WEAPON: Desert Eagle Ocean Drive", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-weapon-desert-eagle-ocean-drive-7a2df06321fd490eb7d7be89438ec476" },
+    { "model": "M4A1-S", "title": "M4A1-S | Dream Catcher", "author": "kosear", "url": "https://sketchfab.com/3d-models/m4a1-s-dream-catcher-0f2d96978b904a4995d521a1e5edb711" },
+    { "model": "M4A4", "title": "CSGO WEAPON: M4A4 POSEIDON", "author": "WoodenManufacturing", "url": "https://sketchfab.com/3d-models/csgo-weapon-m4a4-poseidon-2c1a506ec59a4f3ba4e1a5321c0c09e2" }
+  ]
+}

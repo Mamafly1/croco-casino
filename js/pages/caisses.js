@@ -106,8 +106,38 @@ $('open').addEventListener('click', async () => {
 });
 
 // ---------- visualiseur 3D ----------
-// Pas de modèle officiel (les fichiers 3D de Valve ne sont pas libres) : on extrude l'image du skin
-// en empilant des copies dans l'épaisseur, ce qui donne un vrai volume qu'on peut faire tourner.
+// Si l'arme a un vrai modèle 3D dans models/ (three.js), on l'affiche. Sinon, on extrude l'image du skin
+// en empilant des copies dans l'épaisseur, ce qui donne un volume qu'on peut faire tourner.
+let dispose3D = null, token3D = 0;
+async function try3D(it) {
+  const my = ++token3D;
+  const note = $('m3dNote');
+  try {
+    const v = await import('../viewer3d.js');
+    const info = await v.modelFor(it.n);
+    if (my !== token3D) return;
+    if (!info) { note.textContent = 'Pas encore de modèle 3D pour cette arme : relief reconstitué à partir de l’image officielle du skin.'; return; }
+    $('scene').classList.add('loading3d');
+    const d = await v.mount($('scene'), info, tc(it.t));
+    if (my !== token3D) { d(); return; }
+    dispose3D = d;
+    $('scene').classList.remove('loading3d');
+    $('scene').classList.add('has3d');
+    const cr = info.credit ? ` Modèle fan-made de ${esc(info.credit.author)} (<a href="${info.credit.url}" target="_blank" rel="noopener">CC-BY 4.0</a>).` : '';
+    note.innerHTML = (info.exact
+      ? `Vrai modèle 3D de l’arme avec ce skin. Tourne-le à la souris ou au doigt, molette pour zoomer.`
+      : `Vrai modèle 3D du ${esc(info.weapon)}, mais la texture du skin « ${esc(info.skin)} » n’est pas disponible : l’arme est montrée sans motif.`) + cr;
+  } catch (e) {
+    console.error(e);
+    $('scene').classList.remove('loading3d');
+    if (my === token3D) note.textContent = 'Le modèle 3D n’a pas pu se charger : relief reconstitué à partir de l’image.';
+  }
+}
+function stop3D() {
+  token3D++;
+  if (dispose3D) { dispose3D(); dispose3D = null; }
+  $('scene').classList.remove('has3d', 'loading3d');
+}
 let rotY = -25, rotX = 8, auto = true, raf = 0, last = 0;
 function buildModel(it) {
   const LAYERS = 12, DEPTH = 1.6;
@@ -129,7 +159,7 @@ function spinLoop(now) {
 (function drag() {
   const sc = $('scene');
   let down = null;
-  sc.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, ry: rotY, rx: rotX }; auto = false; sc.setPointerCapture(e.pointerId); });
+  sc.addEventListener('pointerdown', (e) => { if (sc.classList.contains('has3d')) return; down = { x: e.clientX, y: e.clientY, ry: rotY, rx: rotX }; auto = false; sc.setPointerCapture(e.pointerId); });
   sc.addEventListener('pointermove', (e) => {
     if (!down) return;
     rotY = down.ry + (e.clientX - down.x) * 0.5;
@@ -171,7 +201,7 @@ function showItem(it, fresh) {
       ${c ? `<dt>Caisse</dt><dd>${esc(c.n)}</dd>` : ''}
       <dt>Valeur de jeu</dt><dd style="color:var(--gold)">${eur(it.value)}</dd>
     </dl>
-    <p class="muted small">Modèle 3D reconstitué à partir de l’image officielle du skin (ce n’est pas le modèle 3D de Valve).</p>
+    <p class="muted small" id="m3dNote">Chargement du modèle 3D…</p>
     <div class="btn2"><button class="btn-ghost" id="keep" type="button">Garder</button><button class="btn-main" id="sellOne" type="button">Vendre ${eur(it.value)}</button></div>`;
   $('keep').addEventListener('click', closeReveal);
   $('sellOne').addEventListener('click', () => sell(it.uid).then(closeReveal));
@@ -179,8 +209,11 @@ function showItem(it, fresh) {
   auto = true; rotY = -25; rotX = 8;
   if (!raf) raf = requestAnimationFrame(spinLoop);
   $('keep').focus();
+  stop3D();
+  try3D(it);
 }
 function closeReveal() {
+  stop3D();
   $('reveal').hidden = true;
   cancelAnimationFrame(raf); raf = 0; last = 0;
   $('model').innerHTML = '';
