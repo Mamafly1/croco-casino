@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Blackjack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css">
+<style>
+.felt { position: relative; padding: 18px 16px; border-radius: 14px 14px 140px 140px / 14px 14px 60px 60px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 18px; min-height: 460px; align-content: space-between; border: 3px solid #3a2a12; box-shadow: inset 0 0 0 2px var(--gold-deep); }
+.zone { display: grid; justify-items: center; gap: 8px; }
+.zone h2 { margin: 0; font: 11px/1.4 var(--font-pixel); color: var(--gold); display: flex; gap: 10px; align-items: center; }
+.tot { padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,.4); color: var(--ink); font: 800 14px var(--font-body); font-variant-numeric: tabular-nums; }
+.cards { display: flex; justify-content: center; min-height: calc(var(--cw) * 1.4); --cw: clamp(54px, 9vw, 80px); }
+.cards .pcard + .pcard { margin-left: calc(var(--cw) * -0.42); }
+.rules { text-align: center; font: 10px/1.6 var(--font-pixel); color: rgba(240,240,230,.55); letter-spacing: .04em; }
+.hands { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; }
+.hand { display: grid; justify-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 2px solid transparent; }
+.hand.active { border-color: var(--gold); background: rgba(0,0,0,.18); }
+.hand .res { min-height: 1.3em; font-weight: 800; }
+.acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.acts button { padding: 12px 4px; border: 0; border-radius: 9px; font-weight: 800; background: var(--panel-2); }
+.acts button.main { background: var(--gold); color: var(--gold-ink); }
+.acts button:disabled { opacity: .35; cursor: not-allowed; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.seat { padding: 8px 10px; border-radius: 10px; background: var(--field); display: grid; gap: 6px; min-width: 0; }
+.seat b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .cards { --cw: 30px; justify-content: flex-start; min-height: 0; }
+.seat small { color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Mise">
+    <div class="field">
+      <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
+      <div class="betrow">
+        <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
+        <button id="half" type="button" aria-label="Diviser la mise par deux">½</button>
+        <button id="double" type="button" aria-label="Doubler la mise">2×</button>
+      </div>
+    </div>
+    <button id="deal" class="play" type="button">Distribuer</button>
+    <div class="acts" role="group" aria-label="Actions">
+      <button id="hit" type="button" disabled>Tirer</button>
+      <button id="stand" type="button" class="main" disabled>Rester</button>
+      <button id="dbl" type="button" disabled>Doubler</button>
+      <button id="split" type="button" disabled>Séparer</button>
+    </div>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <section class="stats" aria-label="Statistiques">
+      <h2>Session</h2>
+      <dl class="stat-grid">
+        <div><dt>Mains</dt><dd id="sCount">0</dd></div>
+        <div><dt>Profit</dt><dd id="sProfit">0,00 €</dd></div>
+        <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
+        <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
+      </dl>
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note">6 jeux de 52 cartes, rebattus à chaque main. Le croupier tire jusqu’à 16 et reste à partir de 17. Blackjack payé <strong>3 contre 2</strong>, victoire 1 contre 1, égalité remboursée. Tu peux doubler sur tes deux premières cartes et séparer une paire une fois.<br>En jouant la <strong>stratégie de base</strong>, la banque garde environ <strong>0,5 %</strong>. En jouant « au feeling », c’est souvent 2 à 5 %.</p>
+    </section>
+  </aside>
+  <section class="stage" aria-label="Table de blackjack">
+    <div class="felt">
+      <div class="zone">
+        <h2>CROUPIER <span class="tot" id="dTot" hidden></span></h2>
+        <div class="cards" id="dealer"></div>
+      </div>
+      <p class="rules">BLACKJACK PAIE 3 POUR 2<br>LE CROUPIER RESTE SUR 17</p>
+      <div class="zone">
+        <div class="hands" id="hands"></div>
+        <h2>TOI</h2>
+      </div>
+    </div>
+    <section class="surface" id="tableBox" hidden aria-labelledby="tbTitle">
+      <h2 class="h-label" id="tbTitle" style="margin-bottom:10px">À la table</h2>
+      <div class="seats" id="seats"></div>
+    </section>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Blackjack en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/blackjack.js"></script>
+</body>
+</html>

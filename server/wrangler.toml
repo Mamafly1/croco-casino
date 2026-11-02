@@ -1,0 +1,15 @@
+name = "croco-casino"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Sites autorisés à se connecter (séparés par des virgules). Vide = tout le monde.
+ALLOWED_ORIGINS = "https://mamafly1.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+[[durable_objects.bindings]]
+name = "CASINO"
+class_name = "Casino"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Casino"]

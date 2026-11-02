@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Roulette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css">
+<style>
+.felt { padding: 16px; border-radius: 14px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 14px; min-width: 0; }
+.wheel-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: center; }
+.wheel-box { position: relative; width: 100%; aspect-ratio: 1; }
+.wheel-box svg { width: 100%; height: 100%; display: block; }
+.status { display: grid; gap: 10px; align-content: center; min-width: 0; }
+.status h1 { margin: 0; font: clamp(14px, 2.6vw, 20px)/1.3 var(--font-pixel); color: var(--gold); }
+.bigres { display: flex; align-items: center; gap: 12px; min-height: 64px; }
+.bigres .ball-n { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font: 22px var(--font-pixel); color: #fff; border: 3px solid var(--gold); }
+.bigres p { margin: 0; font-weight: 800; font-size: 16px; }
+.bar { height: 8px; border-radius: 8px; background: rgba(0,0,0,.35); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--gold); }
+.history { display: flex; gap: 5px; flex-wrap: wrap; }
+.history span { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #fff; }
+.c-red { background: var(--red); }
+.c-black { background: #181818; }
+.c-green { background: #1f8a4c; }
+.table-scroll { overflow-x: auto; padding-bottom: 4px; }
+.tbl { min-width: 560px; display: grid; grid-template-columns: 1.1fr repeat(12, 1fr) 1.1fr; grid-template-rows: repeat(3, 44px) 40px 40px; gap: 3px; }
+.tbl button { position: relative; border: 1px solid rgba(240,240,230,.35); border-radius: 5px; color: #fff; font-weight: 800; font-size: 13px; padding: 0; background: transparent; }
+.tbl button:hover { box-shadow: inset 0 0 0 2px var(--gold); }
+.tbl button.hl { box-shadow: inset 0 0 0 3px var(--gold); }
+.tbl .n.c-red { background: var(--red); }
+.tbl .n.c-black { background: #181818; }
+.tbl .zero { grid-row: 1 / 4; grid-column: 1; background: #1f8a4c; }
+.tbl .chipon { position: absolute; right: -6px; top: -8px; pointer-events: none; z-index: 2; }
+.tbl .chipon .chipsvg { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.5)); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chipset { display: flex; gap: 6px; flex-wrap: wrap; }
+.chipset button { border: 0; background: none; padding: 2px; border-radius: 50%; }
+.chipset button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--gold); }
+.chipset .chipsvg { width: 40px; height: 40px; display: block; }
+.total { margin-left: auto; font-weight: 800; }
+.players { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.players li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 8px; background: var(--field); font-size: 13px; }
+.players li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) { .wheel-row { grid-template-columns: minmax(0, 1fr); } .wheel-box { max-width: 280px; margin: 0 auto; } }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Mises">
+    <div class="field">
+      <div class="field-head"><span id="chipLabel">Valeur du jeton</span><span class="num" id="betMax"></span></div>
+      <div class="chipset" id="chipset" role="group" aria-labelledby="chipLabel"></div>
+    </div>
+    <p class="muted small">Clique sur le tapis pour poser un jeton. Clic droit ou appui long pour en retirer un.</p>
+    <div class="tools">
+      <button class="btn-ghost" id="undo" type="button">Annuler</button>
+      <button class="btn-ghost" id="clear" type="button">Effacer</button>
+      <button class="btn-ghost" id="dbl" type="button">×2</button>
+      <span class="total num" id="total">0,00 €</span>
+    </div>
+    <button id="play" class="play" type="button">Lancer la bille</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <section class="stats" aria-label="Statistiques">
+      <h2>Session</h2>
+      <dl class="stat-grid">
+        <div><dt>Tours</dt><dd id="sCount">0</dd></div>
+        <div><dt>Profit</dt><dd id="sProfit">0,00 €</dd></div>
+        <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
+        <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
+      </dl>
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note">37 cases : 1 à 36 et un seul zéro. Un numéro paie 35 contre 1 et sort <strong>1 fois sur 37</strong>. Rouge/noir, pair/impair, 1-18/19-36 paient 1 contre 1 mais gagnent <strong>18 fois sur 37</strong> (le zéro fait perdre). Douzaines et colonnes : 2 contre 1, <strong>12 fois sur 37</strong>. Quelle que soit la mise, la banque garde <strong>2,7 %</strong> sur la durée.</p>
+    </section>
+  </aside>
+  <section class="stage" aria-label="Table de roulette">
+    <div class="felt">
+      <div class="wheel-row">
+        <div class="wheel-box"><svg id="wheel" viewBox="0 0 300 300" aria-hidden="true"></svg></div>
+        <div class="status">
+          <h1 id="phase">ROULETTE</h1>
+          <div class="bar" id="barBox" hidden><i id="bar"></i></div>
+          <div class="bigres" id="bigres" aria-live="polite"></div>
+          <div class="history" id="history" aria-label="Derniers numéros"></div>
+        </div>
+      </div>
+      <div class="table-scroll"><div class="tbl" id="tbl"></div></div>
+    </div>
+    <section class="surface" id="playersBox" hidden aria-labelledby="plTitle">
+      <h2 class="h-label" id="plTitle" style="margin-bottom:10px">Joueurs dans ce tour</h2>
+      <ul class="players" id="players"></ul>
+    </section>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Roulette en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/roulette.js"></script>
+</body>
+</html>

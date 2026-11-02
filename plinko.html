@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Plinko</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css">
+<style>
+.board-wrap {
+  border-radius: 12px;
+  background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%);
+  overflow: hidden;
+}
+.board {
+  position: relative;
+  width: 100%;
+  max-width: calc((100svh - 150px) * 600 / 580);
+  min-width: 260px;
+  margin: 0 auto;
+  aspect-ratio: 600 / 580;
+  user-select: none;
+}
+.board > * { position: absolute; inset: 0; }
+.board svg { width: 100%; height: 100%; display: block; }
+.title {
+  font-family: var(--font-display);
+  font-size: 58px;
+  letter-spacing: 1px;
+  text-anchor: middle;
+  fill: var(--ink);
+  paint-order: stroke;
+}
+.title-depth { fill: var(--red); }
+.kicker { font: 800 13px var(--font-body); letter-spacing: 5px; text-anchor: middle; fill: var(--gold); }
+.peg { fill: var(--ink); }
+
+.bins { pointer-events: none; }
+.bin {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 0.35em;
+  color: #17110a;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  cursor: help;
+  transition: transform 0.12s ease;
+}
+.bin:hover, .bin.sel { filter: brightness(1.12); }
+.bin.hit { animation: hit 0.3s ease; }
+@keyframes hit { 0% { transform: translateY(0); } 35% { transform: translateY(0.45em); } 100% { transform: translateY(0); } }
+
+.balls { pointer-events: none; overflow: hidden; }
+.ball {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  border: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  will-change: transform;
+  -webkit-user-drag: none;
+  transition: opacity 0.25s ease;
+}
+
+.history {
+  inset: 12px 12px auto auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+.history span {
+  min-width: 46px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  color: #17110a;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  animation: slide 0.25s ease;
+}
+@keyframes slide { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 760px) {
+  .board { max-width: none; min-width: 0; }
+  .title { font-size: 52px; }
+}
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Réglages de la mise">
+    <div class="tabs" role="group" aria-label="Mode de jeu">
+      <button id="tabManual" type="button" aria-pressed="true">Manuel</button>
+      <button id="tabAuto" type="button" aria-pressed="false">Auto</button>
+    </div>
+
+    <div class="field">
+      <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
+      <div class="betrow">
+        <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
+        <button id="half" type="button" aria-label="Diviser la mise par deux">½</button>
+        <button id="double" type="button" aria-label="Doubler la mise">2×</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-head"><span id="riskLabel">Risque</span></div>
+      <div class="seg" id="risk" role="group" aria-labelledby="riskLabel">
+        <button type="button" data-risk="low" aria-pressed="false">Faible</button>
+        <button type="button" data-risk="medium" aria-pressed="true">Moyen</button>
+        <button type="button" data-risk="high" aria-pressed="false">Élevé</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-head"><span id="rowsLabel">Rangées</span></div>
+      <div class="chips" id="rows" role="group" aria-labelledby="rowsLabel">
+        <button type="button" data-rows="8" aria-pressed="true">8</button>
+        <button type="button" data-rows="9" aria-pressed="false">9</button>
+        <button type="button" data-rows="10" aria-pressed="false">10</button>
+        <button type="button" data-rows="11" aria-pressed="false">11</button>
+        <button type="button" data-rows="12" aria-pressed="false">12</button>
+      </div>
+    </div>
+
+    <div class="field" id="autoBox" hidden>
+      <div class="field-head"><span id="autoLabel">Nombre de crocos</span></div>
+      <div class="chips wide" id="autoCount" role="group" aria-labelledby="autoLabel">
+        <button type="button" data-n="10" aria-pressed="true">10</button>
+        <button type="button" data-n="25" aria-pressed="false">25</button>
+        <button type="button" data-n="50" aria-pressed="false">50</button>
+        <button type="button" data-n="100" aria-pressed="false">100</button>
+      </div>
+    </div>
+
+    <button id="play" class="play" type="button">Miser</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+
+    <section class="stats" aria-label="Statistiques">
+      <h2>Session</h2>
+      <dl class="stat-grid">
+        <div><dt>Crocos lâchés</dt><dd id="sCount">0</dd></div>
+        <div><dt>Profit</dt><dd id="sProfit">0,00 €</dd></div>
+        <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
+        <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
+      </dl>
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note" id="oddsNote"></p>
+    </section>
+  </aside>
+
+  <section class="stage" aria-label="Plateau">
+    <div class="board-wrap">
+      <div class="board" id="board">
+        <svg id="svg" viewBox="0 0 600 580" aria-hidden="true"></svg>
+        <div class="bins" id="bins"></div>
+        <div class="balls" id="balls" aria-hidden="true"></div>
+        <div class="history" id="history" aria-label="Derniers multiplicateurs"></div>
+      </div>
+    </div>
+    <div class="oddsbar" id="oddsbar" aria-live="polite"></div>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Plinko en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/plinko.js"></script>
+</body>
+</html>

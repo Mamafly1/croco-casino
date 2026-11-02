@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Caisses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css">
+<style>
+.caselist { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
+.caselist button { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid transparent; border-radius: 8px; background: var(--field); text-align: left; font-weight: 700; font-size: 13px; }
+.caselist button img { width: 44px; height: 34px; object-fit: contain; flex: none; }
+.caselist button small { display: block; color: var(--muted); font-weight: 500; font-size: 11px; }
+.caselist button[aria-pressed="true"] { border-color: var(--gold); background: #2f2810; }
+.casehead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.casehead img { width: 120px; height: 90px; object-fit: contain; }
+.casehead h1 { margin: 0; font: clamp(13px, 2.2vw, 17px)/1.4 var(--font-pixel); }
+.casehead p { margin: 4px 0 0; color: var(--muted); }
+.spinner-box { position: relative; overflow: hidden; border-radius: 12px; background: #101010; height: 150px; border: 2px solid var(--line); }
+.track { position: absolute; top: 10px; left: 0; display: flex; gap: 6px; will-change: transform; }
+.slot { flex: none; width: 140px; height: 128px; border-radius: 8px; background: linear-gradient(180deg, #2c2c2c, #1d1d1d); border-bottom: 4px solid var(--tc); display: grid; grid-template-rows: 1fr auto; padding: 6px; box-sizing: border-box; }
+.slot img { width: 100%; height: 86px; object-fit: contain; }
+.slot span { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.marker { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1.5px; background: var(--gold); box-shadow: 0 0 10px var(--gold); z-index: 2; }
+.marker::before, .marker::after { content: ""; position: absolute; left: -7px; border: 8px solid transparent; }
+.marker::before { top: 0; border-top-color: var(--gold); }
+.marker::after { bottom: 0; border-bottom-color: var(--gold); }
+.tiers { display: grid; gap: 14px; }
+.tier h3 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.tier h3 span { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
+.it { position: relative; display: grid; gap: 2px; padding: 8px; border-radius: 8px; background: var(--field); border-bottom: 3px solid var(--tc); min-width: 0; text-align: left; border-top: 0; border-left: 0; border-right: 0; }
+.it img { width: 100%; height: 70px; object-fit: contain; }
+.it b { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.it small { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.it .st { position: absolute; top: 6px; left: 6px; font: 8px var(--font-pixel); color: #cf6a32; }
+.it .sell { margin-top: 4px; padding: 5px; border: 0; border-radius: 6px; background: var(--panel-2); font-weight: 800; font-size: 12px; }
+.invbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
+/* visualiseur 3D */
+.viewer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0; }
+.scene { position: relative; min-height: 300px; perspective: 900px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; cursor: grab; touch-action: none; overflow: hidden; }
+.scene:active { cursor: grabbing; }
+.model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; transform-style: preserve-3d; }
+.model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
+.shadow { position: absolute; bottom: 14%; left: 20%; right: 20%; height: 18px; border-radius: 50%; background: rgba(0,0,0,.55); filter: blur(8px); }
+.hint3d { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--muted); }
+.specs { padding: 16px; display: grid; gap: 10px; align-content: start; }
+.specs h3 { margin: 0; font-size: 17px; line-height: 1.3; }
+.rar { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 12px; color: #181818; background: var(--tc); }
+.floatbar { position: relative; height: 12px; border-radius: 4px; overflow: hidden; display: flex; }
+.floatbar i { height: 100%; }
+.floatpin { position: relative; height: 12px; }
+.floatpin b { position: absolute; top: -2px; width: 3px; height: 14px; margin-left: -1.5px; background: var(--ink); }
+.floatpin span { position: absolute; top: 0; height: 4px; border-radius: 2px; background: rgba(240,240,230,.35); }
+.kv { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.btn2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 760px) { .viewer { grid-template-columns: minmax(0, 1fr); } .slot { width: 110px; } .caselist { max-height: 220px; } }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Choix de la caisse">
+    <div class="field">
+      <div class="field-head"><span id="clLabel">Caisses CS2</span><span id="caseCount"></span></div>
+      <div class="caselist" id="caselist" role="group" aria-labelledby="clLabel"></div>
+    </div>
+    <button id="open" class="play" type="button" disabled>Ouvrir · 2,50 €</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <section class="stats" aria-label="Statistiques">
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note" id="oddsNote"></p>
+    </section>
+  </aside>
+  <section class="stage" aria-label="Ouverture">
+    <div class="surface" style="display:grid;gap:14px">
+      <div class="casehead" id="casehead"></div>
+      <div class="spinner-box" aria-hidden="true"><div class="track" id="track"></div><div class="marker"></div></div>
+    </div>
+    <div class="tabs" role="group" aria-label="Affichage">
+      <button id="tabContent" type="button" aria-pressed="true">Contenu de la caisse</button>
+      <button id="tabInv" type="button" aria-pressed="false">Inventaire</button>
+    </div>
+    <div class="surface" id="contentBox"><div class="tiers" id="tiers"></div></div>
+    <div class="surface" id="invBox" hidden>
+      <div class="invbar"><span id="invSum" class="muted"></span><button class="btn-ghost" id="sellAll" type="button">Tout vendre</button></div>
+      <div class="grid" id="inv"></div>
+    </div>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Ouvertures en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+
+<div class="modal" id="reveal" hidden>
+  <div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="rvTitle">
+    <div class="sheet-head"><h2 id="rvTitle">Tu as obtenu</h2><button class="x" id="rvClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="viewer">
+      <div class="scene" id="scene"><div class="shadow"></div><div class="model" id="model"></div><p class="hint3d">Fais glisser pour tourner l’objet</p></div>
+      <div class="specs" id="specs"></div>
+    </div>
+  </div>
+</div>
+<script type="module" src="js/pages/caisses.js"></script>
+</body>
+</html>

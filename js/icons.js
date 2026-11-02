@@ -1,0 +1,112 @@
+// Icônes pixel dessinées à la main (aucun emoji). Chaque lettre est une couleur, « . » est vide.
+const PAL = { w: '#f0f0e6', g: '#ffbf17', r: '#de0607', k: '#181818', d: '#2c2c2c', s: '#8a8a80', b: '#4b69ff', o: '#b07a00' };
+
+const ART = {
+  plinko: [
+    '....w....',
+    '.........',
+    '...w.w...',
+    '.........',
+    '..w.w.w..',
+    '....g....',
+    '.w.wgw.w.',
+    '.........',
+    'rrgg.ggrr',
+  ],
+  roulette: [
+    '..rrkrr..',
+    '.kgggggk.',
+    'rgg.w.ggr',
+    'rg.www.gr',
+    'kgwwgwwgk',
+    'rg.www.gr',
+    'rgg.w.ggr',
+    '.kgggggk.',
+    '..rrkrr..',
+  ],
+  blackjack: [
+    '.wwwww...',
+    '.wr..wwww',
+    '.w.r.w..w',
+    '.wrrrwk.w',
+    '.w.r.w.kw',
+    '.w...wkkw',
+    '.wwwwwk.w',
+    '.....w..w',
+    '.....wwww',
+  ],
+  cases: [
+    '.........',
+    '.ooooooo.',
+    'ogggggggo',
+    'okkkwkkko',
+    'ogggggggo',
+    'og.....go',
+    'og.....go',
+    'ogggggggo',
+    '.ooooooo.',
+  ],
+  slots: [
+    '.rrrrrrr.',
+    'rwwwwwwwr',
+    'rwgggggwr',
+    'rw....gwr',
+    'rw...g.wr',
+    'rw..g..wr',
+    'rw..g..wr',
+    'rwwwwwwwr',
+    '.rrrrrrr.',
+  ],
+  crown: [
+    '.........',
+    'g...g...g',
+    'gg.ggg.gg',
+    'ggggggggg',
+    'ggrgggrgg',
+    'ggggggggg',
+    '.ooooooo.',
+    '.........',
+    '.........',
+  ],
+  coin: [
+    '..ggggg..',
+    '.gooooog.',
+    'gog...ogg',
+    'gogoooogg',
+    'go.ggg.og',
+    'ggoooogog',
+    'ggo...gog',
+    '.gooooog.',
+    '..ggggg..',
+  ],
+  home: [
+    '....w....',
+    '...www...',
+    '..wwwww..',
+    '.wwwwwww.',
+    'wwwwwwwww',
+    '.ww...ww.',
+    '.ww.g.ww.',
+    '.ww.g.ww.',
+    '.wwwwwww.',
+  ],
+};
+
+export function pixelIcon(name, size = 18, title = '') {
+  const rows = ART[name];
+  if (!rows) return '';
+  let rects = '';
+  rows.forEach((row, y) => {
+    [...row].forEach((ch, x) => { if (PAL[ch]) rects += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${PAL[ch]}"/>`; });
+  });
+  const lab = title ? `role="img" aria-label="${title}"><title>${title}</title>` : 'aria-hidden="true">';
+  return `<svg class="px" width="${size}" height="${size}" viewBox="0 0 9 9" shape-rendering="crispEdges" ${lab}${rects}</svg>`;
+}
+
+export const GAME_INFO = {
+  plinko: { name: 'Plinko', href: 'plinko.html' },
+  roulette: { name: 'Roulette', href: 'roulette.html' },
+  blackjack: { name: 'Blackjack', href: 'blackjack.html' },
+  cases: { name: 'Caisses CS', href: 'caisses.html' },
+  slots: { name: 'Machine à sous', href: 'slots.html' },
+};
