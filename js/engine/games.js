@@ -42,6 +42,20 @@ function takeNext(p, c, rng) {
   return it;
 }
 
+// Libellé court d'un mouvement de solde, pour l'historique du profil (même texte en solo et en ligne)
+export function historyLabel(game, action, params, result, feed) {
+  if (game === 'wallet') return 'Dépôt';
+  if (game === 'plinko') return `Plinko ×${String(result.mult).replace('.', ',')}`;
+  if (game === 'slots') return result.payout > 0 ? `Machine à sous ×${String(money(result.payout / result.bet)).replace('.', ',')}` : 'Machine à sous';
+  if (game === 'roulette') return result.n != null ? `Roulette : ${result.n}` : 'Roulette : mise';
+  if (game === 'blackjack') {
+    if (feed) return 'Blackjack : ' + ({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' }[feed.result] || feed.result);
+    return action === 'deal' ? 'Blackjack : mise' : params.action === 'double' ? 'Blackjack : double' : 'Blackjack : séparation';
+  }
+  if (game === 'cases') return action === 'open' ? `Caisse : ${result.item.n}` : params.all ? 'Vente de l’inventaire' : 'Vente';
+  return game;
+}
+
 export function newPlayer() {
   return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null };
 }

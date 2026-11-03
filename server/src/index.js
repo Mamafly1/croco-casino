@@ -1,7 +1,7 @@
 // Serveur multijoueur de Croco Casino : un Worker Cloudflare + un Durable Object (stockage SQLite).
 // Le site reste sur GitHub Pages ; il se connecte ici en WebSocket quand js/config.js donne l'adresse.
 import { DurableObject } from 'cloudflare:workers';
-import { run, newPlayer, score, inventoryValue, readRouletteBets, GameError, money, GAMES } from '../../js/engine/games.js';
+import { run, newPlayer, score, inventoryValue, readRouletteBets, GameError, money, GAMES, historyLabel } from '../../js/engine/games.js';
 import * as roulette from '../../js/engine/roulette.js';
 import { view as bjView } from '../../js/engine/blackjack.js';
 import { rng } from '../../js/engine/rng.js';
@@ -70,6 +70,10 @@ export class Casino extends DurableObject {
       try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch { /* colonne déjà là */ }
     }
     this.fails = new Map(); // essais de code ratés, par pseudo
+    // Historique du solde de chaque joueur (graphique du profil) : les 500 derniers mouvements
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS hist (id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL,
+      at INTEGER NOT NULL, d REAL NOT NULL, b REAL NOT NULL, l TEXT NOT NULL, g TEXT NOT NULL)`);
+    this.sql.exec('CREATE INDEX IF NOT EXISTS hist_player ON hist(player_id, id)');
     this.feed = [];         // derniers événements, gardés aussi dans le stockage (l'objet peut s'endormir)
     this.table = new Map(); // mains de blackjack visibles par tous (éphémère)
     ctx.blockConcurrencyWhile(async () => { this.feed = (await ctx.storage.get('feed')) || []; });
@@ -147,6 +151,7 @@ export class Casino extends DurableObject {
         const pl = this.load(r.id); pl.p = newPlayer(); this.save(pl); refresh(r.id);
       }
       this.feed = []; await this.ctx.storage.put('feed', this.feed);
+      this.sql.exec('DELETE FROM hist');
       this.broadcast({ t: 'board', board: this.board() });
       return reply(200, { ok: true, message: 'Tout le monde repart de zéro (comptes et codes gardés).' });
     }
@@ -156,22 +161,33 @@ export class Casino extends DurableObject {
       const v = money(Number(msg.amount));
       if (!Number.isFinite(v)) return reply(400, { error: 'Montant invalide.' });
       const pl = this.load(row.id);
+      const before = pl.p.balance;
       pl.p.balance = money(Math.max(0, op === 'setBalance' ? v : pl.p.balance + v));
       this.save(pl); refresh(row.id); this.boardSoon();
+      this.addHist(row.id, pl.p.balance - before, pl.p.balance, 'Ajustement admin', 'admin');
       return reply(200, { ok: true, message: `${pl.name} : solde ${pl.p.balance} €` });
     }
     if (op === 'rename') {
       const newName = String(msg.newName || '').trim();
       if (!NAME_RE.test(newName)) return reply(400, { error: 'Pseudo : 2 à 16 caractères.' });
       if (this.sql.exec('SELECT 1 FROM players WHERE name = ? AND id != ?', newName, row.id).toArray().length) return reply(409, { error: 'Pseudo déjà pris.' });
+      const oldName = this.sql.exec('SELECT name FROM players WHERE id = ?', row.id).one().name;
       this.sql.exec('UPDATE players SET name = ? WHERE id = ?', newName, row.id);
       // Ses connexions ouvertes prennent le nouveau nom tout de suite
       for (const ws of this.ctx.getWebSockets()) {
         const w = ws.deserializeAttachment();
         if (w && w.id === row.id) ws.serializeAttachment({ ...w, name: newName });
       }
+      for (const e of this.feed) if (e.name === oldName) e.name = newName;
+      await this.ctx.storage.put('feed', this.feed);
+      const seat = this.table.get(row.id); if (seat) seat.name = newName;
+      const r = await this.getRound();
+      if (r.bets && r.bets[row.id]) { r.bets[row.id].name = newName; await this.ctx.storage.put('round', r); }
       refresh(row.id);
       this.broadcast({ t: 'board', board: this.board() });
+      this.broadcast({ t: 'feedAll', feed: this.feed });
+      this.broadcast({ t: 'table', table: [...this.table.values()] });
+      this.broadcast({ t: 'round', round: await this.roundView(r) });
       return reply(200, { ok: true, message: `Renommé en ${newName}.` });
     }
     if (op === 'resetDeposits') {
@@ -195,6 +211,7 @@ export class Casino extends DurableObject {
     if (op === 'delete') {
       this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
       this.sql.exec('DELETE FROM players WHERE id = ?', row.id);
+      this.sql.exec('DELETE FROM hist WHERE player_id = ?', row.id);
       for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
       this.broadcast({ t: 'board', board: this.board() });
       return reply(200, { ok: true, message: 'Compte supprimé.' });
@@ -212,6 +229,26 @@ export class Casino extends DurableObject {
       if (w && w.id && (w.at || 0) > since) ids.add(w.id);
     }
     return ids.size;
+  }
+
+  addHist(id, d, b, l, g) {
+    if (!d) return;
+    this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
+    if (Math.random() < 0.05) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 500)', id, id);
+  }
+  // Profil public d'un joueur : stats, inventaire CS, historique du solde
+  profile(name) {
+    const row = this.sql.exec('SELECT id, name, data, score, created, seen FROM players WHERE name = ?', String(name || '')).toArray()[0];
+    if (!row) return null;
+    const p = JSON.parse(row.data);
+    const rank = this.sql.exec('SELECT COUNT(*) AS n FROM players WHERE score > ?', row.score).one().n + 1;
+    const hist = this.sql.exec('SELECT at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
+    return {
+      name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
+      inventoryValue: inventoryValue(p), played: p.played,
+      inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ n: x.n, t: x.t, i: x.i, wear: x.wear, float: x.float, st: x.st, value: x.value })),
+      hist,
+    };
   }
 
   // ---------- comptes ----------
@@ -302,6 +339,10 @@ export class Casino extends DurableObject {
     if (msg.t === 'logout') return this.logout(ws, msg);
     const who = ws.deserializeAttachment();
     if (!who) return this.askLogin(ws);
+    if (msg.t === 'profile') {
+      const prof = this.profile(msg.name);
+      return this.send(ws, prof ? { t: 'res', id: msg.id, ok: true, result: prof } : { t: 'res', id: msg.id, ok: false, error: 'Joueur introuvable.' });
+    }
     if (msg.t !== 'req') return;
     if (!this.allow(who.id)) return this.send(ws, { t: 'res', id: msg.id, ok: false, error: 'Doucement : trop de requêtes.' });
     const pl = this.load(who.id);
@@ -314,10 +355,12 @@ export class Casino extends DurableObject {
     }
     try {
       let res;
+      const before = pl.p.balance;
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
       else if (msg.game === 'roulette') throw new GameError('En ligne, la roulette se joue en tours partagés.');
       else res = run(pl.p, msg.game, msg.action, msg.params || {}, { rng, caseList: caseData.cases });
       this.save(pl);
+      this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
       this.send(ws, { t: 'res', id: msg.id, ok: true, result: res.result, me: this.me(pl) });
       if (msg.game === 'blackjack') this.updateTable(pl);
       if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
@@ -408,6 +451,7 @@ export class Casino extends DurableObject {
         pl.p.balance = money(pl.p.balance + payout);
         pl.p.played.roulette = (pl.p.played.roulette || 0) + 1;
         this.save(pl);
+        this.addHist(pl.id, payout, pl.p.balance, `Roulette : ${n}`, 'roulette');
         events.push({ name: pl.name, at: Date.now(), game: 'roulette', bet: b.total, payout, n });
       }
       await this.ctx.storage.put('round', r);

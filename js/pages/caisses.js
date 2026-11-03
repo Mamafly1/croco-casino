@@ -1,7 +1,7 @@
 // Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve,
 // prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
 import { casino, mountShell, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
-import { localImageName } from '../imgname.js';
+import { img, imgTag } from '../steamimg.js';
 import { mountFeed } from '../widgets.js';
 import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
 
@@ -12,28 +12,7 @@ let data = null, sel = null, opening = false;
 const pctf = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 3 });
 const pct = (x) => pctf.format(x * 100) + ' %';
 
-// Images Steam : d'abord la copie hébergée sur le site (img/steam/, faite par le workflow « Images des caisses »),
-// qui passe partout. Si elle manque, les serveurs de Steam, l'un après l'autre (certains réseaux en bloquent),
-// et toute la page suit le serveur qui marche.
-const HOSTS = ['https://community.akamai.steamstatic.com', 'https://community.cloudflare.steamstatic.com', 'https://community.fastly.steamstatic.com'];
-let hostIdx = 0;
-try { hostIdx = Math.min(HOSTS.length - 1, +sessionStorage.getItem('croco-img-host') || 0); } catch {}
-const imgUrl = (i, size, h = hostIdx) => (h < 0 ? `img/steam/${localImageName(i)}.webp` : `${HOSTS[h]}/economy/image/${i}${size ? '/' + size : ''}`);
-const img = (i, size = '256fx256f') => (i ? imgUrl(i, size, -1) : '');
-const imgTag = (i, alt, size = '256fx256f') => `<img src="${img(i, size)}" data-i="${i}" data-size="${size}" data-h="-1" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer">`;
-document.addEventListener('error', (e) => {
-  const t = e.target;
-  if (t.tagName !== 'IMG' || !t.dataset.i) return;
-  const h = +t.dataset.h;
-  if (h < 0) { t.dataset.h = hostIdx; t.src = imgUrl(t.dataset.i, t.dataset.size); return; } // pas encore copiée sur le site
-  if (h === hostIdx && hostIdx < HOSTS.length - 1) {
-    hostIdx++; // ce serveur ne passe pas ici : on change pour toute la page
-    try { sessionStorage.setItem('croco-img-host', hostIdx); } catch {}
-  }
-  if (h < hostIdx) { t.dataset.h = hostIdx; t.src = imgUrl(t.dataset.i, t.dataset.size); return; }
-  if (t.dataset.size) { t.dataset.size = ''; t.src = imgUrl(t.dataset.i, ''); return; } // dernier essai : image brute
-  t.style.visibility = 'hidden';
-}, true);
+// Images Steam : voir js/steamimg.js
 
 const tc = (t) => TIER_INFO[t].color;
 const wearName = (id) => (WEARS.find((w) => w.id === id) || {}).name || 'Sans usure';

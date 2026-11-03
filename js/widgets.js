@@ -1,6 +1,7 @@
 // Éléments partagés : classement, fil en direct, cartes à jouer en SVG.
 import { casino, eur, esc, nf2, nfx } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
+import { openProfile } from './profile.js';
 import { GAMES } from './engine/games.js';
 
 // ---------- classement ----------
@@ -18,7 +19,7 @@ export function mountBoard(el, { limit = 10 } = {}) {
       note = 'Score = solde + valeur de l’inventaire − dépôts. Déposer ne fait pas grimper.';
     }
     const body = rows.map((r, i) => `
-      <tr class="${r.name === me.name ? 'me' : ''}">
+      <tr class="${r.name === me.name ? 'me' : ''}" data-name="${esc(r.name)}" tabindex="0" title="Voir le profil">
         <td class="name"><span class="rk">${i + 1}</span>${esc(r.name.toUpperCase())}</td>
         <td class="r">${fmtScore(r.score)}</td>
         <td><div class="ico">${(r.games || []).map((g) => pixelIcon(g, 16, GAME_INFO[g] ? GAME_INFO[g].name : g)).join('') || '<span style="color:#666">-</span>'}</div></td>
@@ -33,6 +34,9 @@ export function mountBoard(el, { limit = 10 } = {}) {
       </table>${mine}<p class="lb-note">${note}</p>`;
   };
   casino.on('board', draw).on('me', draw).on('status', draw);
+  const open = (e) => { const tr = e.target.closest('tr[data-name]'); if (tr) openProfile(tr.dataset.name); };
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
   draw();
 }
 
@@ -60,10 +64,11 @@ export function mountFeed(el, { game = null, limit = 12 } = {}) {
       const net = e.game === 'cases' ? e.payout : e.payout - e.bet;
       const cls = e.game === 'cases' ? (e.item && ['covert', 'rare'].includes(e.item.t) ? 'pos' : '') : net > 0.004 ? 'pos' : 'neg';
       const amt = e.game === 'cases' ? eur(e.payout) : (net > 0.004 ? '+' : '') + eur(net);
-      return `<li>${pixelIcon(e.game, 18)}<span class="who">${esc(e.name)}</span><span class="what">${esc(feedText(e))}</span><span class="amt ${cls}">${amt}</span></li>`;
+      return `<li>${pixelIcon(e.game, 18)}<button type="button" class="who" data-name="${esc(e.name)}">${esc(e.name)}</button><span class="what">${esc(feedText(e))}</span><span class="amt ${cls}">${amt}</span></li>`;
     }).join('') + '</ul>';
   };
   casino.on('feed', draw).on('feeds', draw);
+  el.addEventListener('click', (e) => { const b = e.target.closest('button.who'); if (b) openProfile(b.dataset.name); });
   draw();
 }
 

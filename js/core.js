@@ -1,6 +1,6 @@
 // Noyau commun à toutes les pages : joueur, solde, connexion au serveur, en-tête et dépôt simulé.
 import { SERVER_URL } from './config.js';
-import { run, newPlayer, score, inventoryValue, GameError, PACKS, GAMES, money, nextOpen, decodeHint } from './engine/games.js';
+import { run, newPlayer, score, inventoryValue, GameError, PACKS, GAMES, money, nextOpen, decodeHint, historyLabel } from './engine/games.js';
 import { view as bjView } from './engine/blackjack.js';
 import { rng } from './engine/rng.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
@@ -77,9 +77,16 @@ export const casino = {
     if (!this.online) {
       const ctx = { rng, caseList: game === 'cases' ? (await loadCases()).cases : [] };
       try {
+        const before = local.p.balance;
         const r = run(local.p, game, action, params, ctx);
         result = r.result;
         soloFeed = r.feed ? { name: this.me.name, at: Date.now(), ...r.feed } : null;
+        const d = money(local.p.balance - before);
+        if (d) {
+          local.hist = local.hist || [];
+          local.hist.push({ at: Date.now(), d, b: local.p.balance, l: historyLabel(game, action, params, result, r.feed), g: game });
+          if (local.hist.length > 400) local.hist.splice(0, local.hist.length - 400);
+        }
       } finally {
         saveLocal();
       }
@@ -115,6 +122,15 @@ export const casino = {
       const res = await request({ t: 'req', game: 'cases', action: 'next', params: { caseId } });
       return decodeHint(res.result.hint);
     } catch { return null; } // hors ligne ou serveur ancien : pas de préchargement, sans gêner le jeu
+  },
+  // Profil d'un joueur (stats, inventaire, historique du solde)
+  async profile(name) {
+    if (this.online) return (await request({ t: 'profile', name })).result;
+    const p = local.p;
+    return {
+      name: this.me.name, rank: null, score: score(p), balance: p.balance, deposits: p.deposits, inventoryValue: inventoryValue(p),
+      played: p.played, inventory: [...p.inventory].sort((a, b) => b.value - a.value), hist: local.hist || [],
+    };
   },
   // Pour un gain décidé par le serveur sans requête de ta part (tour de roulette partagé)
   hold(amount) { this.pending = money(this.pending + (amount || 0)); holding++; renderWallet(); },
@@ -179,6 +195,7 @@ function connect() {
       if (m.ok) w.resolve(m); else w.reject(new GameError(m.error));
     } else if (m.t === 'me') { casino.me = m.me; emit('me', m.me); renderWallet(); }
     else if (m.t === 'feed') addFeed(m.e);
+    else if (m.t === 'feedAll') { casino.feed = m.feed; emit('feeds', m.feed); }
     else if (m.t === 'board') { casino.board = m.board; emit('board', m.board); }
     else if (m.t === 'round') { casino.round = m.round; emit('round', m.round); }
     else if (m.t === 'table') { casino.table = m.table; emit('table', m.table); }
