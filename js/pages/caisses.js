@@ -291,9 +291,10 @@ function lookAt(clientX, clientY) {
   const r = $('scene').getBoundingClientRect();
   const D = Math.max(r.width, r.height) * 0.75;
   const dx = clientX - (r.left + r.width / 2), dy = clientY - (r.top + r.height / 2);
-  const yaw = Math.atan2(dx, D) * toDeg * 1.3;     // à droite : l'arme se tourne vers la droite
-  const pitch = Math.atan2(dy, D) * toDeg * 1.1;   // en haut : l'arme lève la tête (pitch négatif)
-  return [Math.max(-70, Math.min(70, yaw)), Math.max(-50, Math.min(50, pitch))];
+  // Mouvement léger : au plus 15° à l'horizontale et 8° à la verticale
+  const yaw = Math.atan2(dx, D) * toDeg * 0.45;    // à droite : l'arme se tourne vers la droite
+  const pitch = Math.atan2(dy, D) * toDeg * 0.3;   // en haut : l'arme lève la tête (pitch négatif)
+  return [Math.max(-15, Math.min(15, yaw)), Math.max(-8, Math.min(8, pitch))];
 }
 function look() {
   if (rot.drag || rot.cx == null || reduceMotion) return;
