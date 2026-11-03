@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m3">
+<link rel="stylesheet" href="css/casino.css?v=m4">
 <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
 <style>
 .caselist { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
@@ -65,6 +65,10 @@
 #reveal.off { z-index: -1; opacity: 0.01; pointer-events: none; }
 #reveal.off .sheet-head, #reveal.off .specs { visibility: hidden; } /* seul le cadre 3D reste « affiché » */
 .scene.has3d .model { display: none; }
+.skinframe.idle { visibility: hidden; }
+/* « Voir l'image officielle » : si la 3D rend mal un skin */
+.scene.has3d.forceimg .model { display: block; }
+.scene.forceimg .skinframe, .scene.forceimg .grab { visibility: hidden; }
 .hint3d { display: none; position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
 .scene.loading3d .hint3d { display: block; }
 .specs { padding: 16px; display: grid; gap: 10px; align-content: start; }
@@ -143,6 +147,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=m3"></script>
+<script type="module" src="js/pages/caisses.js?v=m4"></script>
 </body>
 </html>

@@ -34,7 +34,8 @@ export async function mount(host, url) {
   const camera = new THREE.PerspectiveCamera(35, w / h, 0.1, 100);
   camera.position.set(0, 3, 19);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  // Téléphone : moins de pixels, pour ménager la carte graphique (la 3D du skin tourne aussi sur la page)
+  renderer.setPixelRatio(Math.min(matchMedia('(pointer: coarse)').matches ? 1.5 : 2, window.devicePixelRatio || 1));
   renderer.setSize(w, h);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   host.appendChild(renderer.domElement);
@@ -46,12 +47,22 @@ export async function mount(host, url) {
   controls.autoRotate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   controls.autoRotateSpeed = 2.2;
 
-  let raf = 0;
-  const loop = () => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
+  // On ne dessine que si la caisse est à l'écran, l'onglet visible et rien n'est posé par-dessus (setPaused)
+  let raf = 0, onScreen = true, paused = false;
+  const loop = () => { raf = 0; controls.update(); renderer.render(scene, camera); if (running()) raf = requestAnimationFrame(loop); };
+  const running = () => onScreen && !paused && !document.hidden;
+  const wake = () => { if (running() && !raf) raf = requestAnimationFrame(loop); };
+  const io = new IntersectionObserver(([e]) => { onScreen = e.isIntersecting; wake(); });
+  io.observe(host);
+  document.addEventListener('visibilitychange', wake);
+  // Si le téléphone retire la 3D (mémoire graphique pleine), on revient à l'image de la caisse
+  renderer.domElement.addEventListener('webglcontextlost', () => { host.classList.remove('on'); renderer.domElement.style.display = 'none'; });
   loop();
 
-  return () => {
-    cancelAnimationFrame(raf);
+  const dispose = () => {
+    cancelAnimationFrame(raf); raf = 0; paused = true;
+    io.disconnect();
+    document.removeEventListener('visibilitychange', wake);
     controls.dispose();
     model.traverse((o) => {
       if (!o.isMesh) return;
@@ -60,6 +71,9 @@ export async function mount(host, url) {
       o.material.dispose();
     });
     renderer.dispose();
+    renderer.forceContextLoss();
     renderer.domElement.remove();
   };
+  dispose.setPaused = (b) => { paused = b; if (b) { cancelAnimationFrame(raf); raf = 0; } else wake(); };
+  return dispose;
 }

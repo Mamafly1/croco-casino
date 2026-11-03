@@ -8,7 +8,7 @@ import { rng } from '../../js/engine/rng.js';
 import caseData from '../../data/cases.json';
 
 const BET_MS = 15000;   // durée des mises d'un tour de roulette
-const SHOW_MS = 7000;   // affichage du résultat avant le tour suivant
+const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
 export default {

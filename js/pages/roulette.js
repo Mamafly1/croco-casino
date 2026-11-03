@@ -40,23 +40,73 @@ function draw(rot, ball, r) {
   const [bx, by] = polar(r, ball);
   $('ball').setAttribute('cx', bx); $('ball').setAttribute('cy', by);
 }
-function spinTo(n, ms = 5200) {
+// Bille : elle tourne sur le bord, ralentit, tombe, puis saute de case en case
+// (avance, revient, repart) avant de se poser. Le numéro tiré ne change pas : seule l'animation est libre.
+const HOPS = [[2, 0, 1, 0], [3, 1, 2, 0], [3, 1, -1, 0], [4, 2, 0, -1, 0], [3, 2, 0, 1, 0], [2, 1, -1, 0], [4, 1, 2, 0], [1, -1, 0, 1, 0]];
+const hermite = (p0, p1, m0, m1, u) => {
+  const u2 = u * u, u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * m1;
+};
+function spinTo(n, ms = 7500) {
   return new Promise((resolve) => {
-    const idx = WHEEL.indexOf(n);
-    const startRot = wheelRot, endRot = startRot + 360 * 3 + ((-(idx * A) - startRot) % 360 + 360) % 360;
-    const startBall = ballAngle, endBall = startBall - 360 * 5 - ((startBall % 360) + 360) % 360; // la bille finit en haut
-    if (reduceMotion) { wheelRot = endRot % 360; ballAngle = 0; draw(wheelRot, 0, 112); resolve(); return; }
+    const idx = WHEEL.indexOf(n), target = idx * A;
+    const startRot = wheelRot, dRot = 360 + ((-target - startRot) % 360 + 360) % 360;
+    const done = () => { wheelRot = (startRot + dRot) % 360; ballAngle = 0; draw(wheelRot, 0, 112); resolve(); };
+    if (reduceMotion) { done(); return; }
+    const rot = (t) => startRot + dRot * (1 - (1 - t) * (1 - t)); // la roue ralentit jusqu'à l'arrêt
+    const rotV = (t) => 2 * dRot * (1 - t);
+    const seq = HOPS[Math.floor(Math.random() * HOPS.length)];
+    // découpage du temps : bord, sauts, pose
+    const TC = 0.5, TS = 0.9;
+    // phase 1 : vitesse de la bille (écran) de -V0 à -V1 ; on ajuste V0 pour tomber pile sur la case seq[0]
+    const V1 = 0.25 * rotV(TC);
+    const want = target + seq[0] * A + rot(TC); // angle écran voulu au moment de la chute
+    let D = -(4.5 * 360);
+    D -= (((ballAngle + D - want) % 360) + 360) % 360;
+    const V0 = -2 * D / TC - V1;
+    const ballP1 = (t) => ballAngle - V0 * t + (V0 - V1) * t * t / (2 * TC);
+    // phase 2 : sauts (durées décroissantes, petites pauses dans les cases)
+    const segs = [];
+    let w = 0;
+    for (let i = 1; i < seq.length; i++) {
+      const hop = 1.25 - i * 0.12, dwell = i === seq.length - 1 ? 0 : (i === seq.length - 2 ? 0.9 : 0.35 + Math.random() * 0.3);
+      segs.push({ from: seq[i - 1], to: seq[i], hop, dwell, i }); w += hop + dwell;
+    }
+    let tt = TC;
+    for (const g of segs) { g.t0 = tt; g.t1 = tt + g.hop / w * (TS - TC); g.t2 = g.t1 + g.dwell / w * (TS - TC); tt = g.t2; }
+    const vIn = -V1 - rotV(TC); // vitesse relative à la roue au moment de la chute
     const t0 = performance.now();
     (function step(now) {
-      const t = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - t, 3);
-      const rot = startRot + (endRot - startRot) * e;
-      const ball = startBall + (endBall - startBall) * (1 - Math.pow(1 - t, 2.2));
-      const r = t < 0.7 ? 140 : 140 - 28 * Math.min(1, (t - 0.7) / 0.2);
-      // la bille rebondit un peu en tombant dans la case
-      const bounce = t > 0.7 && t < 0.95 ? Math.sin((t - 0.7) * 60) * 3 * (0.95 - t) * 4 : 0;
-      draw(rot, ball, r + bounce);
-      if (t < 1) requestAnimationFrame(step);
-      else { wheelRot = endRot % 360; ballAngle = 0; draw(wheelRot, 0, 112); resolve(); }
+      const t = Math.min(1, (now - t0) / ms), R = rot(t);
+      let ball, r;
+      if (t < TC) {
+        ball = ballP1(t);
+        const f = t / TC;
+        r = f < 0.7 ? 140 : 140 - 16 * Math.pow((f - 0.7) / 0.3, 1.6);
+        if (f > 0.82 && f < 0.9) r += Math.sin((f - 0.82) / 0.08 * Math.PI) * 4; // choc sur un losange
+      } else if (t < TS) {
+        const g = segs.find((x) => t < x.t2) || segs[segs.length - 1];
+        let rel;
+        if (t < g.t1) {
+          const u = (t - g.t0) / (g.t1 - g.t0), span = (g.to - g.from) * A, d = g.t1 - g.t0;
+          const m0 = g.i === 1 ? Math.max(vIn * d, span * 2 - A) : span * 1.3, m1 = span * 0.4;
+          rel = target + hermite(g.from * A, g.to * A, m0, m1, u);
+          const h = 9 / g.i;
+          r = (g.i === 1 ? 124 - 12 * u : 112) + Math.sin(u * Math.PI) * h;
+        } else {
+          // la bille tape le bord de la case et oscille un peu avant de repartir
+          const u = (t - g.t1) / Math.max(1e-6, g.t2 - g.t1);
+          rel = target + g.to * A + Math.sign(g.to - g.from) * A * 0.22 * Math.sin(u * Math.PI * 2.5) * (1 - u);
+          r = 112;
+        }
+        ball = R + rel;
+      } else {
+        const u = (t - TS) / (1 - TS), last = segs[segs.length - 1];
+        ball = R + target + Math.sign(last.to - last.from) * A * 0.25 * Math.sin(u * Math.PI * 2) * (1 - u) * (1 - u);
+        r = 112;
+      }
+      draw(R, ball, r);
+      if (t < 1) requestAnimationFrame(step); else done();
     })(t0);
   });
 }
@@ -281,7 +331,7 @@ async function onRound(r) {
     if (mine) casino.hold(payout);
     spinning = true; label();
     $('bigres').innerHTML = '';
-    await spinTo(r.n, Math.max(1500, Math.min(5200, r.endsAt - Date.now() - 1200)));
+    await spinTo(r.n, Math.max(2000, Math.min(7500, r.endsAt - Date.now() - 2000)));
     spinning = false;
     if (mine) { casino.reveal(payout); stats.add(mine.total, payout, payout / mine.total); }
     showResult(r.n, payout, mine ? mine.total : 0);

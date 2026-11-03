@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m3">
+<link rel="stylesheet" href="css/casino.css?v=m4">
 <style>
 .lobby { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .hero { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; padding: 22px 18px; border-radius: 12px; background: var(--panel); }
@@ -52,7 +52,7 @@ import { rtp as slotsRtp } from './js/engine/slots.js';
 mountShell('home');
 const pct = (x) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(x * 100) + ' %';
 const DESC = {
-  plinko: ['Le croco tombe entre les clous.', 'Retour moyen ≈ 97 %'],
+  plinko: ['Le croco tombe entre les clous.', 'Retour moyen ≈ 99 %'],
   roulette: ['Roulette européenne, tours partagés en ligne.', 'Retour moyen ' + pct(36 / 37)],
   blackjack: ['Bats le croupier sans dépasser 21.', 'Retour ≈ 99,5 % en jouant parfaitement'],
   cases: ['Vraies caisses CS2, vrais taux publiés.', 'Prix du marché'],

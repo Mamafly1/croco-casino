@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js');
+    const v = await import('../viewer3d.js?v=m4');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -190,6 +190,7 @@ addEventListener('message', (e) => {
     if (v3.pending) { const p = v3.pending; v3.pending = null; send(p); }
   } else if (m.type === 'ready') {
     v3.loadedKey = v3.wantedKey;
+    if ($('reveal').classList.contains('off')) frameIdle(true);
     refresh();
   } else if (m.type === 'error') {
     console.warn('SkinHub', m.error);
@@ -201,7 +202,11 @@ addEventListener('message', (e) => {
     }
   }
 });
+// Cadre au repos : quand l'objet est chargé et que la fenêtre est fermée, on le cache vraiment pour que le navigateur
+// arrête de dessiner sa 3D (sinon deux scènes 3D tournent en continu et saturent la carte graphique du téléphone).
+function frameIdle(on) { if (v3.frame) v3.frame.classList.toggle('idle', on); }
 function send(sp) {
+  frameIdle(false);
   if (!v3.frame) { createFrame(sp); return; }
   if (!v3.listening) { v3.pending = sp; return; }
   if (sp.key !== v3.wantedKey) { v3.wantedKey = sp.key; v3.loadedKey = ''; L('nouveau modèle ' + sp.key); } // on attend « ready »
@@ -231,6 +236,8 @@ function refresh() {
   const ok = v3.loadedKey && v3.loadedKey === v3.wantedKey && v3.wantedKey === v3.shown.key;
   sc.classList.toggle('has3d', !!ok);
   sc.classList.toggle('loading3d', !ok);
+  const tg = $('viewToggle');
+  if (tg) tg.hidden = !ok;
   if (ok) {
     clearTimeout(v3.slowTimer);
     note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. L’arme regarde ta souris ; clique et glisse pour la tourner, molette pour zoomer.';
@@ -333,7 +340,7 @@ function stop3D() {
   rotReset();
   clearTimeout(v3.slowTimer);
   v3.shown = null;
-  $('scene').classList.remove('has3d', 'loading3d');
+  $('scene').classList.remove('has3d', 'loading3d', 'forceimg');
 }
 
 // Barre d'usure : les zones que ce skin ne peut pas atteindre sont grisées et hachurées,
@@ -370,10 +377,16 @@ function showItem(it, fresh) {
       <dt>Prix du marché</dt><dd style="color:var(--gold)">${eur(it.value)}</dd>
     </dl>
     <p class="muted small" id="m3dNote">Chargement du modèle 3D…</p>
+    <button class="btn-link small" id="viewToggle" type="button" hidden>Voir l’image officielle</button>
     <div class="btn2"><button class="btn-ghost" id="keep" type="button">Garder</button><button class="btn-main" id="sellOne" type="button">Vendre ${eur(it.value)}</button></div>`;
+  $('viewToggle').addEventListener('click', () => {
+    const img = $('scene').classList.toggle('forceimg');
+    $('viewToggle').textContent = img ? 'Revoir la 3D' : 'Voir l’image officielle';
+  });
   $('keep').addEventListener('click', closeReveal);
   $('sellOne').addEventListener('click', () => sell(it.uid).then(closeReveal));
   m.classList.remove('off'); m.inert = false; m.removeAttribute('aria-hidden');
+  if (disposeCase && disposeCase.setPaused) disposeCase.setPaused(true); // la caisse est cachée par la fenêtre
   $('keep').focus();
   stop3D();
   try3D(it);
@@ -383,6 +396,8 @@ function closeReveal() {
   const m = $('reveal');
   m.classList.add('off'); m.inert = true; m.setAttribute('aria-hidden', 'true');
   $('model').innerHTML = '';
+  if (v3.loadedKey === v3.wantedKey) frameIdle(true);
+  if (disposeCase && disposeCase.setPaused) disposeCase.setPaused(false);
   preloadNext();
 }
 $('rvClose').addEventListener('click', closeReveal);
