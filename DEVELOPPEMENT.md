@@ -43,9 +43,9 @@ comparer le retour obtenu au retour calculé.
   cette technique pour un autre usage sans leur redemander.
 - **Caisses en 3D :** `models/cases/` contient les modèles du jeu, affichés par `js/viewer3d.js` (three.js). Trois caisses
   eSports n'en ont pas et gardent leur image.
-- **Préchargement (solo) :** `nextOpen()` (`js/engine/games.js`) tire à l'avance la prochaine ouverture de chaque caisse,
+- **Préchargement :** `nextOpen()` (`js/engine/games.js`) tire à l'avance la prochaine ouverture de chaque caisse,
   gardée dans `p.next` jusqu'à ce que la caisse soit ouverte. La page charge sa 3D pendant qu'on regarde. Même tirage,
-  juste plus tôt. Le serveur ne l'utilise jamais : en ligne, aucun résultat n'est connu avant l'ouverture, sinon un
-  joueur pourrait choisir sa caisse en connaissant le résultat.
+  juste plus tôt. En ligne, l'action `cases/next` envoie l'objet brouillé (`encodeHint`), pas chiffré : un joueur
+  curieux peut connaître ses prochains objets et choisir sa caisse. Accepté par l'utilisateur (site entre amis).
 - **Banc de test 3D :** lien « Test 3D » sur la page des caisses (ou `caisses.html?dev=1`). Mesure SkinHub et copie le journal.
 

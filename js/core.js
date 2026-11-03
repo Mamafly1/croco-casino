@@ -1,6 +1,6 @@
 // Noyau commun à toutes les pages : joueur, solde, connexion au serveur, en-tête et dépôt simulé.
 import { SERVER_URL } from './config.js';
-import { run, newPlayer, score, inventoryValue, GameError, PACKS, GAMES, money, nextOpen } from './engine/games.js';
+import { run, newPlayer, score, inventoryValue, GameError, PACKS, GAMES, money, nextOpen, decodeHint } from './engine/games.js';
 import { view as bjView } from './engine/blackjack.js';
 import { rng } from './engine/rng.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
@@ -102,15 +102,19 @@ export const casino = {
     if (!holding) { const h = held; held = []; h.reverse().forEach(showFeed); }
     renderWallet();
   },
-  // Mode solo : l'objet de la prochaine ouverture de cette caisse, tiré à l'avance, pour précharger sa 3D.
-  // En ligne, rien n'est tiré à l'avance : renvoie null.
+  // L'objet de la prochaine ouverture de cette caisse, tiré à l'avance, pour précharger sa 3D (sans le montrer).
   async peekNext(caseId) {
-    if (this.online) return null;
-    const c = (await loadCases()).cases.find((x) => x.id === caseId);
-    if (!c) return null;
-    const it = nextOpen(local.p, c, rng);
-    saveLocal();
-    return it;
+    if (!this.online) {
+      const c = (await loadCases()).cases.find((x) => x.id === caseId);
+      if (!c) return null;
+      const it = nextOpen(local.p, c, rng);
+      saveLocal();
+      return it;
+    }
+    try {
+      const res = await request({ t: 'req', game: 'cases', action: 'next', params: { caseId } });
+      return decodeHint(res.result.hint);
+    } catch { return null; } // hors ligne ou serveur ancien : pas de préchargement, sans gêner le jeu
   },
   // Pour un gain décidé par le serveur sans requête de ta part (tour de roulette partagé)
   hold(amount) { this.pending = money(this.pending + (amount || 0)); holding++; renderWallet(); },

@@ -353,7 +353,7 @@ loadCases().then((d) => {
   select(data.cases[0]);
   renderInv();
 }).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });
-if (casino.online) warm3D();
+if (casino.online) { warm3D(); casino.on('status', (st) => { if (st === 'online') preloadNext(); }); }
 
 // ---------- banc de test 3D (caisses.html?dev=1) ----------
 // Mesure le temps entre la demande d'un modèle et l'événement « ready » de SkinHub, dans plusieurs situations,

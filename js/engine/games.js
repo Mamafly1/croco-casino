@@ -16,14 +16,23 @@ export class GameError extends Error {}
 
 export const money = (x) => Math.round(x * 100) / 100;
 
-// Prochaine ouverture tirée à l'avance (mode solo) : la page peut charger la 3D de l'objet avant le clic.
+// Prochaine ouverture tirée à l'avance : la page peut charger la 3D de l'objet avant le clic.
 // Le tirage est le même qu'à l'ouverture, juste fait plus tôt ; il est gardé jusqu'à ce que cette caisse soit ouverte,
-// donc changer de caisse ou recharger la page ne le refait pas. Le serveur n'appelle jamais nextOpen :
-// en ligne, rien n'est tiré à l'avance et aucun résultat n'est connu avant l'ouverture.
+// donc changer de caisse ou recharger la page ne le refait pas.
+// En ligne aussi (choix de l'utilisateur, site entre amis) : l'indice envoyé au navigateur est seulement brouillé.
+// Quelqu'un d'assez curieux peut donc connaître ses prochains objets et choisir sa caisse en conséquence.
 export function nextOpen(p, c, rng) {
   p.next = p.next || {};
   if (!p.next[c.id]) p.next[c.id] = cases.open(c, rng);
   return p.next[c.id];
+}
+// Brouillage de l'indice : pas un chiffrement, juste de quoi ne pas le lire en clair dans les messages
+export function encodeHint(o) {
+  const b = btoa(encodeURIComponent(JSON.stringify(o)));
+  return b.split('').reverse().join('');
+}
+export function decodeHint(h) {
+  return JSON.parse(decodeURIComponent(atob(String(h).split('').reverse().join(''))));
 }
 function takeNext(p, c, rng) {
   const it = p.next && p.next[c.id];
@@ -161,6 +170,13 @@ export function run(p, game, action, params = {}, ctx) {
     played(p, 'cases');
     // L'objet arrive dans l'inventaire : pas de gain en argent immédiat
     return out({ item, reel, bet: price, payout: 0 }, { game, bet: price, payout: item.value, item: { n: item.n, t: item.t, wear: item.wear, st: item.st, value: item.value } });
+  }
+
+  if (game === 'cases' && action === 'next') {
+    const c = ctx.caseList.find((x) => x.id === params.caseId);
+    if (!c) throw new GameError('Caisse inconnue.');
+    const it = nextOpen(p, c, rng);
+    return out({ hint: encodeHint({ n: it.n, ph: it.ph || null, t: it.t, float: it.float, seed: it.seed, st: it.st }), payout: 0 });
   }
 
   if (game === 'cases' && action === 'sell') {
