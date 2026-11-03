@@ -22,7 +22,7 @@ function buildWheel() {
   WHEEL.forEach((n, i) => {
     const a0 = i * A - A / 2, a1 = i * A + A / 2;
     const [x0, y0] = polar(132, a0), [x1, y1] = polar(132, a1), [x2, y2] = polar(92, a1), [x3, y3] = polar(92, a0);
-    const fill = color(n) === 'red' ? '#de0607' : color(n) === 'black' ? '#1d1d1d' : '#1f8a4c';
+    const fill = color(n) === 'red' ? '#de0607' : color(n) === 'black' ? '#1d1d1d' : '#1b7a43';
     s += `<path d="M${x0} ${y0}A132 132 0 0 1 ${x1} ${y1}L${x2} ${y2}A92 92 0 0 0 ${x3} ${y3}z" fill="${fill}" stroke="#ffbf17" stroke-width=".8"/>`;
     const [tx, ty] = polar(118, i * A);
     s += `<text x="${tx}" y="${ty}" transform="rotate(${i * A} ${tx} ${ty})" text-anchor="middle" dominant-baseline="central" font-family="DM Sans, Arial" font-weight="800" font-size="10" fill="#f0f0e6">${n}</text>`;

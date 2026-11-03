@@ -11,7 +11,7 @@
   --gold-ink: #181818;
   --gold-deep: #b07a00;
   --red: #de0607;
-  --red-ink: #f0f0e6;
+  --red-ink: #ffffff;
   --win: #ffbf17;
   --lose: #ff5a52;
   --felt: #1d3b2c;
@@ -417,7 +417,7 @@ a { color: inherit; }
 .prof-inv b { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prof-inv small { font-size: 10.5px; color: var(--muted); }
 .prof-inv .v { color: var(--gold); }
-.prof-inv .stt { color: #cf6a32; }
+.prof-inv .stt { color: #e47a3c; }
 @media (max-width: 760px) { .prof-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* ---------- fil en direct ---------- */

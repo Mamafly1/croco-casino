@@ -27,7 +27,7 @@ pre.src = SRC;
 function binColor(k, N) {
   const d = Math.abs(k - N / 2) / (N / 2);           // 0 au centre, 1 au bord
   const hue = 44 - 44 * Math.pow(d, 0.8);            // or -> rouge
-  return 'hsl(' + ((hue + 360) % 360).toFixed(0) + ', 100%, ' + (54 - 8 * d).toFixed(0) + '%)';
+  return 'hsl(' + ((hue + 360) % 360).toFixed(0) + ', 100%, ' + (56 - 6 * d).toFixed(0) + '%)'; // assez clair pour le texte noir (contraste ≥ 4,5)
 }
 function geom(N) {
   const dy = (BIN_TOP - TOP) / (N - 1 + 0.75);

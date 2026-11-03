@@ -65,7 +65,7 @@ function select(c) {
     const list = pool(c, t);
     if (!list.length) return '';
     const each = ODDS[t] / list.length;
-    return `<div class="tier"><h3 style="color:${tc(t)}">${TIER_INFO[t].name}<span>${pct(ODDS[t])} au total · ${pct(each)} chacun</span></h3>
+    return `<div class="tier"><h3 style="--tc:${tc(t)}">${TIER_INFO[t].name}<span>${pct(ODDS[t])} au total · ${pct(each)} chacun</span></h3>
       <div class="grid">${list.map((it) => `<div class="it" style="--tc:${tc(t)}">${imgTag(it.i, it.n, '128fx96f')}<b title="${esc(it.n)}">${esc(it.n)}</b><small>${it.f ? `Float ${it.f[0]}–${it.f[1]}` : 'Sans usure'}${it.st ? ' · StatTrak possible' : ''}</small><small style="color:var(--gold)">${priceRange(it)}</small></div>`).join('')}</div></div>`;
   }).join('');
   idleTrack();
@@ -358,7 +358,7 @@ function showItem(it, fresh) {
   const wp = it.range ? wearProbs(it.range).find((w) => w.id === it.wear) : null;
   $('specs').innerHTML = `
     <span class="rar" style="--tc:${tc(it.t)}">${TIER_INFO[it.t].name}</span>
-    <h3>${it.st ? '<span style="color:#cf6a32">StatTrak™</span> ' : ''}${esc(it.n)}${it.ph ? ' · ' + esc(it.ph) : ''}</h3>
+    <h3>${it.st ? '<span style="color:#e47a3c">StatTrak™</span> ' : ''}${esc(it.n)}${it.ph ? ' · ' + esc(it.ph) : ''}</h3>
     ${it.float != null ? `<div><div class="field-head" style="margin-bottom:6px"><span>Float</span><span class="num" style="color:var(--ink)">${it.float.toFixed(9)}</span></div>${floatBar(it)}</div>` : ''}
     <dl class="kv">
       <dt>Usure</dt><dd>${wearName(it.wear)}</dd>
