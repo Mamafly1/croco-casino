@@ -137,6 +137,13 @@ a { color: inherit; }
 .topup.nudge { animation: nudge 0.5s ease 2; }
 @keyframes nudge { 0%, 100% { transform: none; } 30% { transform: translateX(-3px); } 70% { transform: translateX(3px); } }
 
+/* ---------- connexion ---------- */
+.who-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; max-height: 40vh; overflow-y: auto; }
+.who-btn { padding: 12px 8px; border: 2px solid var(--line); border-radius: 9px; background: var(--field); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-btn[aria-pressed="true"] { border-color: var(--gold); background: #2f2810; }
+.who-form { display: grid; gap: 8px; }
+.who-chip { margin-left: 4px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); color: var(--ink); font-size: 10px; font-weight: 800; letter-spacing: 0.02em; text-transform: none; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+
 /* ---------- mise en page de jeu ---------- */
 .game {
   max-width: 1180px;

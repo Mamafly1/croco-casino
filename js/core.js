@@ -158,10 +158,8 @@ function connect() {
   const url = SERVER_URL.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws';
   try { ws = new WebSocket(url); } catch { setStatus('offline'); return; }
   setStatus(everConnected ? 'offline' : 'connecting');
-  ws.onopen = () => {
-    if (!local.name) { askName(''); return; }
-    ws.send(JSON.stringify({ t: 'hello', name: local.name, token: local.token }));
-  };
+  // Le jeton de l'appareil suffit si ce téléphone s'est déjà connecté ; sinon le serveur envoie la liste des joueurs.
+  ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', token: local.token })); };
   ws.onmessage = (ev) => {
     let m;
     try { m = JSON.parse(ev.data); } catch { return; }
@@ -169,11 +167,11 @@ function connect() {
       everConnected = true; retry = 0;
       casino.me = m.me; casino.board = m.board; casino.feed = m.feed; casino.round = m.round; casino.table = m.table; casino.onlineCount = m.online;
       local.name = m.me.name; saveLocal();
-      closeNameBox();
+      closeLogin();
       setStatus('online');
       emit('me', m.me); emit('board', m.board); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online);
-    } else if (m.t === 'error') {
-      if (m.code === 'name') askName(m.error);
+    } else if (m.t === 'login') {
+      showLogin(m.players || [], m.error || '');
     } else if (m.t === 'res') {
       const w = waiting.get(m.id);
       if (!w) return;
@@ -195,38 +193,88 @@ function connect() {
   };
 }
 
-// ---------- pseudo ----------
-function askName(error) {
-  let box = $('nameBox');
+// ---------- connexion ----------
+// Liste des joueurs : on clique sur son pseudo et on tape son code à 4 chiffres, une seule fois par appareil.
+let loginList = [], loginPick = null, loginNew = false;
+function sendAuth(msg) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ ...msg, token: local.token })); }
+function showLogin(players, error) {
+  loginList = players;
+  let box = $('loginBox');
   if (!box) {
     box = document.createElement('div');
     box.className = 'modal';
-    box.id = 'nameBox';
+    box.id = 'loginBox';
     box.innerHTML = `
-      <form class="sheet" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
-        <div class="sheet-head"><h2 id="nameTitle">Ton pseudo</h2></div>
+      <form class="sheet" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+        <div class="sheet-head"><h2 id="loginTitle">Qui joue ?</h2></div>
         <div class="step">
-          <p class="muted">Il apparaît dans le classement et le fil en direct. 2 à 16 lettres ou chiffres.</p>
-          <input class="text-in" id="nameIn" maxlength="16" autocomplete="nickname" required>
-          <p class="err" id="nameErr" aria-live="polite"></p>
-          <button class="btn-main" type="submit">Entrer au casino</button>
+          <div class="who-list" id="whoList"></div>
+          <button class="btn-ghost" id="whoNew" type="button">+ Nouveau joueur</button>
+          <div id="whoForm" class="who-form" hidden>
+            <label class="field-head" for="whoName"><span>Pseudo</span></label>
+            <input class="text-in" id="whoName" maxlength="16" autocomplete="nickname">
+            <label class="field-head" for="whoPin"><span id="whoPinLabel">Ton code (4 chiffres)</span></label>
+            <input class="otp" id="whoPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+            <p class="err" id="whoErr" aria-live="polite"></p>
+            <button class="btn-main" type="submit" id="whoGo">Entrer</button>
+          </div>
+          <p class="muted small">Ce téléphone s’en souviendra : tu n’auras plus à le refaire ici.</p>
         </div>
       </form>`;
     document.body.appendChild(box);
+    $('whoList').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-name]'); if (!b) return;
+      pickLogin(b.dataset.name, false);
+    });
+    $('whoNew').addEventListener('click', () => pickLogin('', true));
     box.querySelector('form').addEventListener('submit', (e) => {
       e.preventDefault();
-      const v = $('nameIn').value.trim();
-      if (v.length < 2) { $('nameErr').textContent = 'Au moins 2 caractères.'; return; }
-      local.name = v; saveLocal();
-      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'hello', name: v, token: local.token }));
+      const pin = $('whoPin').value.replace(/\D/g, '');
+      if (pin.length !== 4) { $('whoErr').textContent = 'Le code fait 4 chiffres.'; return; }
+      if (loginNew) {
+        const name = $('whoName').value.trim();
+        if (name.length < 2) { $('whoErr').textContent = 'Pseudo : au moins 2 caractères.'; return; }
+        sendAuth({ t: 'register', name, pin });
+      } else {
+        sendAuth({ t: 'login', name: loginPick, pin });
+      }
+      $('whoGo').disabled = true;
     });
   }
+  $('whoList').innerHTML = players.length
+    ? players.map((p) => `<button type="button" class="who-btn" data-name="${esc(p.name)}" aria-pressed="${p.name === loginPick}">${esc(p.name)}</button>`).join('')
+    : '<p class="muted">Personne pour l’instant : crée le premier joueur.</p>';
   box.hidden = false;
-  $('nameErr').textContent = error || '';
-  $('nameIn').value = local.name || '';
-  $('nameIn').focus();
+  $('whoGo').disabled = false;
+  if (!players.length && !loginPick) pickLogin('', true);
+  $('whoErr').textContent = error || '';
+  if (error) $('whoPin').value = '';
 }
-function closeNameBox() { const b = $('nameBox'); if (b) b.hidden = true; }
+function pickLogin(name, isNew) {
+  loginPick = isNew ? null : name;
+  loginNew = isNew;
+  $('whoForm').hidden = false;
+  $('whoName').hidden = !isNew;
+  document.querySelector('label[for="whoName"]').hidden = !isNew;
+  $('whoPinLabel').textContent = isNew ? 'Choisis un code (4 chiffres), à retenir' : `Code de ${name}`;
+  $('whoGo').textContent = isNew ? 'Créer et entrer' : 'Entrer';
+  $('whoErr').textContent = '';
+  $('whoPin').value = '';
+  document.querySelectorAll('#whoList .who-btn').forEach((b) => b.setAttribute('aria-pressed', String(!isNew && b.dataset.name === name)));
+  (isNew ? $('whoName') : $('whoPin')).focus();
+}
+function closeLogin() { const b = $('loginBox'); if (b) b.hidden = true; loginPick = null; }
+
+// Changer de joueur sur cet appareil : on oublie son jeton et on revient à la liste
+export function switchPlayer() {
+  sendAuth({ t: 'logout' });
+  const a = new Uint8Array(24);
+  crypto.getRandomValues(a);
+  local.token = [...a].map((x) => x.toString(16).padStart(2, '0')).join('');
+  local.name = '';
+  saveLocal();
+  setStatus('connecting');
+}
 
 // ---------- en-tête ----------
 const SIM_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>';
@@ -241,7 +289,7 @@ export function mountShell(active) {
     <nav class="nav" aria-label="Jeux">${links}</nav>
     <div class="wallet">
       <div>
-        <div class="wallet-label">Solde <span class="demo">Démo</span> <span class="net" id="net"></span></div>
+        <div class="wallet-label">Solde <span class="demo">Démo</span> <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
       </div>
       <button id="topup" class="topup" type="button">
@@ -252,6 +300,7 @@ export function mountShell(active) {
   document.body.prepend(top);
   buildShop();
   $('topup').addEventListener('click', openShop);
+  $('whoChip').addEventListener('click', () => { if (confirm(`Changer de joueur ? (${casino.me.name})`)) switchPlayer(); });
   renderWallet();
   if (casino.online) connect();
   else setTimeout(() => { emit('me', casino.me); emit('feeds', casino.feed); }, 0);
@@ -266,6 +315,12 @@ function renderWallet() {
     n.className = 'net ' + s;
     n.textContent = s === 'solo' ? 'Solo' : s === 'online' ? 'En ligne' : s === 'connecting' ? 'Connexion…' : 'Hors ligne';
     n.title = s === 'solo' ? 'Aucun serveur configuré : ton solde reste dans ce navigateur.' : '';
+  }
+  const w = $('whoChip');
+  if (w) {
+    w.hidden = !(casino.online && casino.status === 'online' && casino.me.name);
+    w.textContent = casino.me.name || '';
+    w.title = 'Changer de joueur';
   }
 }
 

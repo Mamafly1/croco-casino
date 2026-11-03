@@ -43,6 +43,12 @@ export class Casino extends DurableObject {
       games TEXT NOT NULL DEFAULT '[]',
       created INTEGER NOT NULL)`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS players_score ON players(score DESC)');
+    // Comptes : un code à 4 chiffres par joueur, et un jeton par appareil (le site s'en souvient)
+    this.sql.exec('CREATE TABLE IF NOT EXISTS tokens (token TEXT PRIMARY KEY, player_id INTEGER NOT NULL, created INTEGER NOT NULL)');
+    for (const col of ['pin TEXT', 'seen INTEGER NOT NULL DEFAULT 0']) {
+      try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch { /* colonne déjà là */ }
+    }
+    this.fails = new Map(); // essais de code ratés, par pseudo
     this.feed = [];         // derniers événements, gardés aussi dans le stockage (l'objet peut s'endormir)
     this.table = new Map(); // mains de blackjack visibles par tous (éphémère)
     ctx.blockConcurrencyWhile(async () => { this.feed = (await ctx.storage.get('feed')) || []; });
@@ -79,29 +85,82 @@ export class Casino extends DurableObject {
       .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games) }));
   }
 
-  async hello(ws, msg) {
-    const token = String(msg.token || '');
-    const name = String(msg.name || '').trim();
-    if (token.length < 20 || token.length > 100) return this.send(ws, { t: 'error', code: 'token', error: 'Jeton invalide.' });
+  // ---------- comptes ----------
+  playerList() {
+    return this.sql.exec('SELECT name, games FROM players ORDER BY seen DESC, name LIMIT 300').toArray()
+      .map((r) => ({ name: r.name, games: JSON.parse(r.games) }));
+  }
+  askLogin(ws, error = '') {
+    ws.serializeAttachment(null);
+    this.send(ws, { t: 'login', players: this.playerList(), error });
+  }
+  async pinHash(pin, salt) { return sha256(`croco-casino:${salt}:${pin}`); }
+  async checkToken(token) {
+    if (typeof token !== 'string' || token.length < 20 || token.length > 100) return null;
     const hash = await sha256(token);
-    let row = this.sql.exec('SELECT id, name FROM players WHERE token = ?', hash).toArray()[0];
-    if (!row) {
-      if (!NAME_RE.test(name)) return this.send(ws, { t: 'error', code: 'name', error: 'Pseudo : 2 à 16 lettres ou chiffres.' });
-      const taken = this.sql.exec('SELECT 1 FROM players WHERE name = ?', name).toArray().length;
-      if (taken) return this.send(ws, { t: 'error', code: 'name', error: 'Ce pseudo est déjà pris.' });
-      this.sql.exec('INSERT INTO players (name, token, data, created) VALUES (?, ?, ?, ?)', name, hash, JSON.stringify(newPlayer()), Date.now());
-      row = this.sql.exec('SELECT id, name FROM players WHERE token = ?', hash).one();
-    } else if (name && name !== row.name && NAME_RE.test(name)) {
-      const taken = this.sql.exec('SELECT 1 FROM players WHERE name = ? AND id != ?', name, row.id).toArray().length;
-      if (!taken) { this.sql.exec('UPDATE players SET name = ? WHERE id = ?', name, row.id); row.name = name; }
-    }
-    ws.serializeAttachment({ id: row.id, name: row.name });
-    const pl = this.load(row.id);
+    return this.sql.exec('SELECT player_id AS id FROM tokens WHERE token = ?', hash).toArray()[0]
+      || this.sql.exec('SELECT id FROM players WHERE token = ?', hash).toArray()[0] || null; // anciens comptes
+  }
+  async remember(token, id) {
+    if (typeof token !== 'string' || token.length < 20 || token.length > 100) return;
+    this.sql.exec('INSERT OR REPLACE INTO tokens (token, player_id, created) VALUES (?, ?, ?)', await sha256(token), id, Date.now());
+  }
+  async welcome(ws, id) {
+    const pl = this.load(id);
+    if (!pl) return this.askLogin(ws);
+    this.sql.exec('UPDATE players SET seen = ? WHERE id = ?', Date.now(), id);
+    ws.serializeAttachment({ id: pl.id, name: pl.name });
     this.send(ws, {
       t: 'welcome', me: this.me(pl), board: this.board(), feed: this.feed,
       round: await this.roundView(), table: [...this.table.values()], online: this.ctx.getWebSockets().length,
     });
     this.broadcast({ t: 'online', n: this.ctx.getWebSockets().length });
+  }
+  // Appareil déjà connu : on entre directement
+  async hello(ws, msg) {
+    const row = await this.checkToken(msg.token);
+    if (row) return this.welcome(ws, row.id);
+    this.askLogin(ws);
+  }
+  async register(ws, msg) {
+    const name = String(msg.name || '').trim(), pin = String(msg.pin || '');
+    if (!NAME_RE.test(name)) return this.askLogin(ws, 'Pseudo : 2 à 16 lettres ou chiffres.');
+    if (!/^\d{4}$/.test(pin)) return this.askLogin(ws, 'Le code fait 4 chiffres.');
+    if (this.sql.exec('SELECT 1 FROM players WHERE name = ?', name).toArray().length) return this.askLogin(ws, 'Ce pseudo est déjà pris : clique dessus dans la liste.');
+    const salt = crypto.randomUUID();
+    this.sql.exec('INSERT INTO players (name, token, data, created, pin) VALUES (?, ?, ?, ?, ?)',
+      name, 'compte:' + crypto.randomUUID(), JSON.stringify(newPlayer()), Date.now(), `${salt}:${await this.pinHash(pin, salt)}`);
+    const id = this.sql.exec('SELECT id FROM players WHERE name = ?', name).one().id;
+    await this.remember(msg.token, id);
+    return this.welcome(ws, id);
+  }
+  async login(ws, msg) {
+    const name = String(msg.name || '').trim(), pin = String(msg.pin || '');
+    const row = this.sql.exec('SELECT id, name, pin FROM players WHERE name = ?', name).toArray()[0];
+    if (!row) return this.askLogin(ws, 'Joueur inconnu.');
+    const key = row.name.toLowerCase(), f = this.fails.get(key) || { n: 0, until: 0 };
+    if (f.until > Date.now()) return this.askLogin(ws, 'Trop d’essais : attends une minute.');
+    if (!row.pin) {
+      // Compte créé avant les codes : le premier code tapé devient le sien
+      if (!/^\d{4}$/.test(pin)) return this.askLogin(ws, 'Le code fait 4 chiffres.');
+      const salt = crypto.randomUUID();
+      this.sql.exec('UPDATE players SET pin = ? WHERE id = ?', `${salt}:${await this.pinHash(pin, salt)}`, row.id);
+    } else {
+      const [salt, hash] = row.pin.split(':');
+      if ((await this.pinHash(pin, salt)) !== hash) {
+        f.n++;
+        if (f.n >= 5) { f.n = 0; f.until = Date.now() + 60000; }
+        this.fails.set(key, f);
+        return this.askLogin(ws, f.until > Date.now() ? 'Trop d’essais : attends une minute.' : 'Code incorrect.');
+      }
+    }
+    this.fails.delete(key);
+    await this.remember(msg.token, row.id);
+    return this.welcome(ws, row.id);
+  }
+  async logout(ws, msg) {
+    if (typeof msg.token === 'string') this.sql.exec('DELETE FROM tokens WHERE token = ?', await sha256(msg.token));
+    this.askLogin(ws);
   }
 
   // ---------- messages ----------
@@ -109,8 +168,11 @@ export class Casino extends DurableObject {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
     if (msg.t === 'hello') return this.hello(ws, msg);
+    if (msg.t === 'login') return this.login(ws, msg);
+    if (msg.t === 'register') return this.register(ws, msg);
+    if (msg.t === 'logout') return this.logout(ws, msg);
     const who = ws.deserializeAttachment();
-    if (!who) return this.send(ws, { t: 'error', code: 'hello', error: 'Pas encore identifié.' });
+    if (!who) return this.askLogin(ws);
     if (msg.t !== 'req') return;
     if (!this.allow(who.id)) return this.send(ws, { t: 'res', id: msg.id, ok: false, error: 'Doucement : trop de requêtes.' });
     const pl = this.load(who.id);
