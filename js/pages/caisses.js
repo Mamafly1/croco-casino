@@ -222,7 +222,8 @@ function send(sp) {
   if (!v3.frame) { createFrame(sp); return; }
   if (!v3.listening) { v3.pending = sp; return; }
   if (sp.key !== v3.wantedKey) { v3.wantedKey = sp.key; v3.loadedKey = ''; L('nouveau modèle ' + sp.key); } // on attend « ready »
-  post({ item: sp.item, settings: { camera: { defaultZoom: sp.zoom } } });
+  rot.baseZoom = sp.zoom;
+  post({ item: sp.item, settings: { camera: { defaultZoom: sp.zoom * (rot.zoom || 1) } } });
   refresh();
 }
 // Demande un objet au visualiseur (sans l'afficher) : appelé dès le tirage, et pour réchauffer la page.
@@ -249,7 +250,7 @@ function refresh() {
   sc.classList.toggle('loading3d', !ok);
   if (ok) {
     clearTimeout(v3.slowTimer);
-    note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. Tourne-le à la souris ou au doigt, molette pour zoomer.';
+    note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. L’arme regarde ta souris ; clique et glisse pour la tourner, molette pour zoomer.';
   }
 }
 function try3D(it) {
@@ -265,16 +266,19 @@ function try3D(it) {
 function warm3D() {
   send({ key: 'weapon_ak47:0', item: { weaponType: 'weapon_ak47', paintIndex: 0, float: 0.2, seed: 1, statTrak: false }, zoom: 1 });
 }
-// L'arme suit la souris : plus le curseur s'éloigne de l'arme, plus elle tourne vers lui (angle envoyé à SkinHub
-// par `settings.camera`, sans rechargement). Curseur sur l'arme = arme de profil, sans rotation : SkinHub prend
-// alors la main et on peut l'attraper. (Au-dessus de la 3D, la page ne voit plus la souris.)
-const ROT = { yaw: 40, pitch: 18 };
-const rot = { tx: 0, ty: 0, x: 0, y: 0, raf: 0, sent: '' };
+// Contrôle de la 3D. Une couche transparente (.grab) au-dessus du cadre SkinHub reçoit la souris et le doigt,
+// et on envoie les angles à SkinHub par `settings.camera` (sans rechargement) :
+//  - sans clic, l'arme REGARDE le curseur (angle calculé comme si elle fixait un point devant l'écran) ;
+//  - clic maintenu + glisser : on la tourne librement ; au relâchement elle se remet à regarder le curseur ;
+//  - molette (ou pincement) : zoom.
+const rot = { tx: 0, ty: 0, x: 0, y: 0, raf: 0, sent: '', drag: null, zoom: 1, baseZoom: 1, cx: null, cy: null };
+const toDeg = 180 / Math.PI;
 function rotTo(x, y) { rot.tx = x; rot.ty = y; if (!rot.raf) rot.raf = requestAnimationFrame(rotStep); }
 function rotStep() {
   rot.raf = 0;
-  rot.x += (rot.tx - rot.x) * 0.18;
-  rot.y += (rot.ty - rot.y) * 0.18;
+  const k = rot.drag ? 1 : 0.16; // en glisser : immédiat ; en suivi du curseur : en douceur
+  rot.x += (rot.tx - rot.x) * k;
+  rot.y += (rot.ty - rot.y) * k;
   if (Math.abs(rot.tx - rot.x) > 0.05 || Math.abs(rot.ty - rot.y) > 0.05) rot.raf = requestAnimationFrame(rotStep);
   else { rot.x = rot.tx; rot.y = rot.ty; }
   const yaw = Math.round(rot.x * 2) / 2, pitch = Math.round(rot.y * 2) / 2, key = yaw + ':' + pitch;
@@ -282,16 +286,64 @@ function rotStep() {
   rot.sent = key;
   post({ settings: { camera: { yaw, pitch } } });
 }
-document.addEventListener('mousemove', (e) => {
-  if ($('reveal').classList.contains('off') || !$('scene').classList.contains('has3d') || reduceMotion) return;
+// L'angle pour « regarder » un point du curseur : comme si le curseur était à une distance D devant l'écran
+function lookAt(clientX, clientY) {
   const r = $('scene').getBoundingClientRect();
-  const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width * 0.8)));
-  const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height * 0.8)));
-  rotTo(nx * ROT.yaw, -ny * ROT.pitch);
+  const D = Math.max(r.width, r.height) * 0.75;
+  const dx = clientX - (r.left + r.width / 2), dy = clientY - (r.top + r.height / 2);
+  const yaw = Math.atan2(dx, D) * toDeg * 1.3;     // à droite : l'arme se tourne vers la droite
+  const pitch = Math.atan2(dy, D) * toDeg * 1.1;   // en haut : l'arme lève la tête (pitch négatif)
+  return [Math.max(-70, Math.min(70, yaw)), Math.max(-50, Math.min(50, pitch))];
+}
+function look() {
+  if (rot.drag || rot.cx == null || reduceMotion) return;
+  const [y, p] = lookAt(rot.cx, rot.cy);
+  rotTo(y, p);
+}
+document.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  if ($('reveal').classList.contains('off') || !$('scene').classList.contains('has3d')) return;
+  rot.cx = e.clientX; rot.cy = e.clientY;
+  look();
 });
-$('scene').addEventListener('mouseenter', () => rotTo(0, 0));
-$('reveal').addEventListener('mouseleave', () => rotTo(0, 0));
-function rotReset() { cancelAnimationFrame(rot.raf); rot.raf = 0; rot.tx = rot.ty = rot.x = rot.y = 0; if (rot.sent && rot.sent !== '0:0' && v3.frame && v3.listening) post({ settings: { camera: { yaw: 0, pitch: 0 } } }); rot.sent = '0:0'; }
+$('reveal').addEventListener('mouseleave', () => { rot.cx = null; if (!rot.drag) rotTo(0, 0); });
+// Couche de prise en main au-dessus de la 3D
+const grab = document.createElement('div');
+grab.className = 'grab';
+grab.setAttribute('aria-hidden', 'true');
+$('scene').appendChild(grab);
+grab.addEventListener('pointerdown', (e) => {
+  rot.drag = { x: e.clientX, y: e.clientY, yaw: rot.x, pitch: rot.y };
+  grab.setPointerCapture(e.pointerId);
+  grab.classList.add('held');
+});
+grab.addEventListener('pointermove', (e) => {
+  if (!rot.drag) return;
+  const yaw = rot.drag.yaw + (e.clientX - rot.drag.x) * 0.6;
+  const pitch = Math.max(-85, Math.min(85, rot.drag.pitch + (e.clientY - rot.drag.y) * 0.4));
+  rotTo(yaw, pitch);
+});
+const release = () => {
+  if (!rot.drag) return;
+  rot.drag = null;
+  grab.classList.remove('held');
+  rot.x = ((rot.x + 180) % 360 + 360) % 360 - 180; // évite de refaire plusieurs tours en revenant
+  rot.tx = rot.x;
+  if (rot.cx != null) look(); else rotTo(0, 0);
+};
+grab.addEventListener('pointerup', release);
+grab.addEventListener('pointercancel', release);
+grab.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  rot.zoom = Math.max(0.6, Math.min(3, rot.zoom * Math.exp(-e.deltaY * 0.0015)));
+  if (v3.frame && v3.listening) post({ settings: { camera: { defaultZoom: rot.baseZoom * rot.zoom } } });
+}, { passive: false });
+function rotReset() {
+  cancelAnimationFrame(rot.raf);
+  Object.assign(rot, { raf: 0, tx: 0, ty: 0, x: 0, y: 0, drag: null, zoom: 1 });
+  if (rot.sent && rot.sent !== '0:0' && v3.frame && v3.listening) post({ settings: { camera: { yaw: 0, pitch: 0 } } });
+  rot.sent = '0:0';
+}
 
 function stop3D() {
   rotReset();
