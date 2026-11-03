@@ -1,12 +1,16 @@
 // Fenêtre de profil d'un joueur : stats, courbe du solde (survol = ce qui l'a fait bouger), inventaire CS.
-import { casino, eur, esc, nf0, $ } from './core.js';
+import { casino, eur, esc, nf0, $, loadCases } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { GAMES } from './engine/games.js';
-import { TIER_INFO } from './engine/cases.js';
+import { TIER_INFO, WEARS, ODDS, wearProbs } from './engine/cases.js';
 import { imgTag } from './steamimg.js';
+import { floatBar } from './widgets.js';
 
 const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 const signed = (v) => (v > 0 ? '+' : '') + eur(v);
+const pctf = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 3 });
+const pct = (x) => pctf.format(x * 100) + ' %';
+const BACK = '<button class="btn-link small prof-back" type="button" data-view="main">← Retour au profil</button>';
 const when = (t) => new Date(t).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 function box() {
@@ -24,12 +28,23 @@ function box() {
   $('profClose').addEventListener('click', close);
   m.addEventListener('click', (e) => { if (e.target === m) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  $('profBody').addEventListener('click', (e) => {
+    const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
+    if (v) view = { kind: v.dataset.view };
+    else if (fl) view = { kind: 'games', filter: fl.dataset.filter || null };
+    else if (pi) { const it = last.inventory[+pi.dataset.item]; view = { kind: 'item', uid: it.uid, it }; }
+    else return;
+    render(last);
+    m.scrollTop = 0; m.querySelector('.sheet').scrollTop = 0;
+  });
   return m;
 }
 
 // Profil en direct : tant qu'il est ouvert, il se recharge quand ce joueur joue (fil), quand le classement bouge
 // ou quand c'est le tien et que ton solde change.
-let current = null, refreshTimer = 0;
+let current = null, refreshTimer = 0, last = null;
+// Vue affichée dans la fenêtre : le profil, la liste des parties (avec filtre) ou la fiche d'un objet
+let view = { kind: 'main' };
 function refreshSoon() {
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
@@ -43,7 +58,7 @@ casino.on('board', () => refreshSoon());
 casino.on('me', (me) => { if (me && me.name === current) refreshSoon(); });
 
 export async function openProfile(name) {
-  current = name;
+  current = name; view = { kind: 'main' };
   const m = box();
   $('profTitle').textContent = name;
   $('profBody').innerHTML = '<p class="muted">Chargement…</p>';
@@ -56,7 +71,9 @@ export async function openProfile(name) {
 }
 
 function render(p) {
-  current = p.name;
+  current = p.name; last = p;
+  if (view.kind === 'games') return renderGames(p);
+  if (view.kind === 'item') { const it = p.inventory.find((x) => (view.uid ? x.uid === view.uid : x.n === view.it.n && x.float === view.it.float)); if (it) return renderItem(p, it); view = { kind: 'main' }; }
   $('profTitle').innerHTML = `${esc(p.name)}${p.rank ? ` <span class="muted">#${p.rank}</span>` : ''}`;
   const games = GAMES.filter((g) => p.played[g]);
   const total = games.reduce((s, g) => s + p.played[g], 0);
@@ -67,14 +84,67 @@ function render(p) {
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
       <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
     </dl>
-    <div class="prof-games">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 18)}${nf0.format(p.played[g])}</span>`).join('') || '<span class="muted">Aucune partie</span>'}${total ? `<span class="muted">· ${nf0.format(total)} parties</span>` : ''}</div>
+    ${total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>'}
     <h3 class="h-label">Solde</h3>
     <div class="chart" id="profChart"></div>
     <h3 class="h-label">Inventaire CS${p.inventory.length ? ` · ${p.inventory.length}` : ''}</h3>
-    <div class="prof-inv">${p.inventory.slice(0, 60).map((it) => `
-      <div class="pi" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
-        <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></div>`).join('') || '<span class="muted">Vide</span>'}</div>`;
+    <div class="prof-inv">${p.inventory.slice(0, 60).map((it, k) => `
+      <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
+        <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
   chart($('profChart'), p.hist || []);
+}
+
+// Toutes les parties (les mouvements du solde), filtrables par jeu
+const KIND_NAME = { wallet: 'Dépôts', admin: 'Admin' };
+const kindName = (g) => (GAME_INFO[g] ? GAME_INFO[g].name : KIND_NAME[g] || 'Autre');
+function renderGames(p) {
+  const hist = (p.hist || []).slice().reverse();
+  const kinds = [...new Set(hist.map((h) => h.g || 'autre'))];
+  const f = view.filter && kinds.includes(view.filter) ? view.filter : null;
+  const list = f ? hist.filter((h) => (h.g || 'autre') === f) : hist;
+  $('profTitle').innerHTML = `${esc(p.name)} <span class="muted">· parties</span>`;
+  $('profBody').innerHTML = `${BACK}
+    <div class="chips wide prof-filter" role="group" aria-label="Filtrer par jeu">
+      <button type="button" data-filter="" aria-pressed="${!f}">Tout</button>
+      ${kinds.map((g) => `<button type="button" data-filter="${esc(g)}" aria-pressed="${f === g}">${GAMES.includes(g) ? pixelIcon(g, 16) : ''}${esc(kindName(g))}</button>`).join('')}
+    </div>
+    ${list.length ? `<ul class="hist">${list.map((h) => `<li>${GAMES.includes(h.g) ? pixelIcon(h.g, 18) : '<span class="hi-dot"></span>'}
+      <span class="hl"><b>${esc(h.l)}</b><small>${when(h.at)} · solde ${eur(h.b)}</small></span>
+      <span class="amt ${h.d > 0 ? 'pos' : h.d < 0 ? 'neg' : ''}">${signed(h.d)}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune partie.</p>'}
+    ${hist.length >= 400 ? '<p class="muted small">Seuls les 400 derniers mouvements sont gardés.</p>' : ''}`;
+}
+
+// Fiche d'un objet de l'inventaire, comme à l'ouverture (sans Garder / Vendre)
+let caseData = null;
+function renderItem(p, it) {
+  const color = TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888';
+  const wearName = (WEARS.find((w) => w.id === it.wear) || {}).name || 'Sans usure';
+  const wp = it.range ? (wearProbs(it.range) || []).find((w) => w.id === it.wear) : null;
+  const c = caseData && it.caseId ? caseData.cases.find((x) => x.id === it.caseId) : null;
+  const list = c ? (it.t === 'rare' ? c.rare : c.items.filter((x) => x.t === it.t)) : [];
+  const chance = list.length ? ODDS[it.t] / list.length : 0;
+  $('profTitle').innerHTML = `${esc(p.name)} <span class="muted">· objet</span>`;
+  $('profBody').innerHTML = `${BACK}
+    <div class="prof-item" style="--tc:${color}">
+      <div class="pi-scene">${imgTag(it.i, it.n, '512fx384f')}</div>
+      <div class="pi-specs">
+        <span class="rar">${TIER_INFO[it.t] ? TIER_INFO[it.t].name : esc(it.t)}</span>
+        <h3>${it.st ? '<span style="color:#e47a3c">StatTrak™</span> ' : ''}${esc(it.n)}${it.ph ? ' · ' + esc(it.ph) : ''}</h3>
+        ${it.float != null ? `<div><div class="field-head" style="margin-bottom:6px"><span>Float</span><span class="num" style="color:var(--ink)">${it.float.toFixed(9)}</span></div>${floatBar(it)}</div>` : ''}
+        <dl class="kv">
+          <dt>Usure</dt><dd>${wearName}</dd>
+          ${it.range ? `<dt>Float possible</dt><dd>${it.range[0]} – ${it.range[1]}</dd>` : ''}
+          ${wp ? `<dt>Chance de cette usure</dt><dd>${pct(wp.p)}</dd>` : ''}
+          ${chance ? `<dt>Chance de ce skin</dt><dd>${pct(chance)} (1 sur ${nf0.format(1 / chance)})</dd>` : ''}
+          <dt>StatTrak™</dt><dd>${it.st ? 'Oui (1 sur 10)' : 'Non'}</dd>
+          ${c ? `<dt>Caisse</dt><dd>${esc(c.n)}</dd>` : ''}
+          ${it.at ? `<dt>Obtenu le</dt><dd>${when(it.at)}</dd>` : ''}
+          <dt>Prix du marché</dt><dd style="color:var(--gold)">${eur(it.value)}</dd>
+        </dl>
+      </div>
+    </div>`;
+  // Nom de la caisse et chance du skin : il faut la liste des caisses, chargée à la demande
+  if (!caseData && it.caseId) loadCases().then((d) => { caseData = d; if (view.kind === 'item' && last === p) renderItem(p, it); }).catch(() => {});
 }
 
 // Courbe du solde en escalier (le solde change par à-coups) ; survol : le mouvement le plus proche

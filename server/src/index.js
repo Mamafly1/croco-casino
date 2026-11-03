@@ -246,7 +246,7 @@ export class Casino extends DurableObject {
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
       inventoryValue: inventoryValue(p), played: p.played,
-      inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ n: x.n, t: x.t, i: x.i, wear: x.wear, float: x.float, st: x.st, value: x.value })),
+      inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,
     };
   }

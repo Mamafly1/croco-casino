@@ -2,7 +2,7 @@
 // prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
 import { casino, mountShell, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
 import { img, imgTag } from '../steamimg.js';
-import { mountFeed } from '../widgets.js';
+import { mountFeed, floatBar } from '../widgets.js';
 import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
 
 mountShell('cases');
@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m5');
+    const v = await import('../viewer3d.js?v=m6');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -341,16 +341,6 @@ function stop3D() {
   clearTimeout(v3.slowTimer);
   v3.shown = null;
   $('scene').classList.remove('has3d', 'loading3d', 'forceimg');
-}
-
-// Barre d'usure : les zones que ce skin ne peut pas atteindre sont grisées et hachurées,
-// le trait blanc montre le float tiré.
-function floatBar(it) {
-  const segs = [['#3ddc5f', 0, 0.07], ['#a7e05a', 0.07, 0.15], ['#ffbf17', 0.15, 0.38], ['#ff8a3d', 0.38, 0.45], ['#de0607', 0.45, 1]];
-  const bar = segs.map(([c, a, b]) => `<i style="width:${(b - a) * 100}%;background:${c}"></i>`).join('');
-  const [lo, hi] = it.range;
-  const out = (lo > 0 ? `<span class="fout" style="left:0;width:${lo * 100}%"></span>` : '') + (hi < 1 ? `<span class="fout" style="left:${hi * 100}%;right:0"></span>` : '');
-  return `<div class="floatbar" aria-hidden="true">${bar}${out}<b class="fmark" style="left:${it.float * 100}%"></b></div>`;
 }
 
 function showItem(it, fresh) {

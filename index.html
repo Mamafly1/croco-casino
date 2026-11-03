@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m5">
+<link rel="stylesheet" href="css/casino.css?v=m6">
 <style>
 .lobby { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .hero { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; padding: 22px 18px; border-radius: 12px; background: var(--panel); }
@@ -23,7 +23,6 @@
 .tile small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
 .tile .rtp { color: var(--gold); font-weight: 800; font-size: 12px; }
 .col { display: grid; gap: 12px; min-width: 0; }
-.notice { margin: 0; display: flex; gap: 8px; padding: 10px 12px; border-radius: 10px; background: #3a2c06; color: var(--gold); font-size: 12.5px; font-weight: 700; line-height: 1.45; }
 @media (max-width: 860px) { .lobby { grid-template-columns: minmax(0, 1fr); } }
 </style>
 </head>
@@ -35,7 +34,6 @@
   </section>
   <div class="col">
     <nav class="tiles" id="tiles" aria-label="Jeux"></nav>
-    <p class="notice"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="flex:none;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>Simulation : aucun vrai argent, aucun vrai paiement. Sur la durée, chaque jeu reprend une partie des mises : le retour moyen est indiqué sur chaque jeu.</p>
     <section class="surface" aria-labelledby="feedTitle">
       <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">En direct <span id="online" class="muted"></span></h2>
       <div id="feed"></div>

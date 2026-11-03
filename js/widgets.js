@@ -162,3 +162,13 @@ export function sessionStats(fmtBest = (x) => '×' + nfx.format(x)) {
   draw();
   return { add(bet, payout, best = 0) { s.count++; s.wager += bet; s.profit += payout - bet; if (best > s.best) s.best = best; draw(); } };
 }
+
+// Barre d'usure : les zones que ce skin ne peut pas atteindre sont grisées et hachurées,
+// le trait blanc montre le float tiré.
+export function floatBar(it) {
+  const segs = [['#3ddc5f', 0, 0.07], ['#a7e05a', 0.07, 0.15], ['#ffbf17', 0.15, 0.38], ['#ff8a3d', 0.38, 0.45], ['#de0607', 0.45, 1]];
+  const bar = segs.map(([c, a, b]) => `<i style="width:${(b - a) * 100}%;background:${c}"></i>`).join('');
+  const [lo, hi] = it.range || [0, 1];
+  const out = (lo > 0 ? `<span class="fout" style="left:0;width:${lo * 100}%"></span>` : '') + (hi < 1 ? `<span class="fout" style="left:${hi * 100}%;right:0"></span>` : '');
+  return `<div class="floatbar" aria-hidden="true">${bar}${out}<b class="fmark" style="left:${it.float * 100}%"></b></div>`;
+}
