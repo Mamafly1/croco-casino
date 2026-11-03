@@ -76,6 +76,7 @@ function select(c) {
       <div class="grid">${list.map((it) => `<div class="it" style="--tc:${tc(t)}">${imgTag(it.i, it.n, '128fx96f')}<b title="${esc(it.n)}">${esc(it.n)}</b><small>${it.f ? `Float ${it.f[0]}–${it.f[1]}` : 'Sans usure'}${it.st ? ' · StatTrak possible' : ''}</small><small style="color:var(--gold)">${priceRange(it)}</small></div>`).join('')}</div></div>`;
   }).join('');
   idleTrack();
+  preloadNext();
   writeOdds();
 }
 
@@ -213,6 +214,18 @@ function send(sp) {
 // Demande un objet au visualiseur (sans l'afficher) : appelé dès le tirage, et pour réchauffer la page.
 function preload3D(it) { const sp = spec(it); if (sp) send(sp); }
 
+// Mode solo : la prochaine ouverture de la caisse choisie est tirée à l'avance (sans être montrée),
+// et sa 3D charge pendant que tu regardes la page. Rien n'est fait tant qu'un objet est affiché.
+let nextReq = 0;
+async function preloadNext() {
+  if (!sel || v3.shown) return;
+  const my = ++nextReq, caseId = sel.id;
+  const it = await casino.peekNext(caseId);
+  if (!it || my !== nextReq || v3.shown || !sel || sel.id !== caseId) return;
+  L('préchargement de la prochaine ouverture');
+  preload3D({ ...it, caseId });
+}
+
 // Affiche la 3D dans la fenêtre de l'objet dès qu'elle est prête pour cet objet
 function refresh() {
   const sc = $('scene'), note = $('m3dNote');
@@ -288,6 +301,7 @@ function closeReveal() {
   const m = $('reveal');
   m.classList.add('off'); m.inert = true; m.setAttribute('aria-hidden', 'true');
   $('model').innerHTML = '';
+  preloadNext();
 }
 $('rvClose').addEventListener('click', closeReveal);
 $('reveal').addEventListener('click', (e) => { if (e.target === $('reveal')) closeReveal(); });
@@ -339,7 +353,7 @@ loadCases().then((d) => {
   select(data.cases[0]);
   renderInv();
 }).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });
-warm3D();
+if (casino.online) warm3D();
 
 // ---------- banc de test 3D (caisses.html?dev=1) ----------
 // Mesure le temps entre la demande d'un modèle et l'événement « ready » de SkinHub, dans plusieurs situations,

@@ -16,6 +16,22 @@ export class GameError extends Error {}
 
 export const money = (x) => Math.round(x * 100) / 100;
 
+// Prochaine ouverture tirée à l'avance (mode solo) : la page peut charger la 3D de l'objet avant le clic.
+// Le tirage est le même qu'à l'ouverture, juste fait plus tôt ; il est gardé jusqu'à ce que cette caisse soit ouverte,
+// donc changer de caisse ou recharger la page ne le refait pas. Le serveur n'appelle jamais nextOpen :
+// en ligne, rien n'est tiré à l'avance et aucun résultat n'est connu avant l'ouverture.
+export function nextOpen(p, c, rng) {
+  p.next = p.next || {};
+  if (!p.next[c.id]) p.next[c.id] = cases.open(c, rng);
+  return p.next[c.id];
+}
+function takeNext(p, c, rng) {
+  const it = p.next && p.next[c.id];
+  if (!it) return cases.open(c, rng);
+  delete p.next[c.id];
+  return it;
+}
+
 export function newPlayer() {
   return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null };
 }
@@ -132,7 +148,7 @@ export function run(p, game, action, params = {}, ctx) {
     if (p.inventory.length >= MAX_INVENTORY) throw new GameError('Inventaire plein : vends des objets.');
     const price = cases.cost(c);
     if (price > p.balance + 1e-9) throw new GameError('Solde insuffisant. Fais un dépôt pour jouer.');
-    const it = cases.open(c, rng);
+    const it = takeNext(p, c, rng);
     // La « roue » de l'animation : objets tirés au même hasard, le gagnant à la position 45
     const reel = [];
     for (let i = 0; i < 52; i++) {
