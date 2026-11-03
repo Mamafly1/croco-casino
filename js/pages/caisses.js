@@ -140,7 +140,10 @@ let frame = null, onFrame = null, slowTimer = 0;
 function try3D(it) {
   const c = data && data.cases.find((x) => x.id === it.caseId);
   const src = c && pool(c, it.t).find((x) => x.n === it.n && (x.ph || null) === (it.ph || null));
-  const q = new URLSearchParams({ hash: it.n, hostloading: 1 });
+  // Éclairage : par défaut SkinHub prend Ancient de nuit, ce qui rend les skins presque noirs.
+  // Mirage de jour donne les vraies couleurs. Sur téléphone, on allège le rendu (moins de pixels, pas de bloom).
+  const q = new URLSearchParams({ hash: it.n, hostloading: 1, map: 'Mirage', time: 'Day', rain: 0 });
+  if (matchMedia('(pointer: coarse), (max-width: 760px)').matches) { q.set('scale', 1); q.set('bloom', 0); }
   if (src) q.set('paint', src.p); // indispensable pour la phase d'un Doppler
   if (it.float != null) q.set('float', it.float);
   if (it.seed != null) q.set('seed', it.seed);
@@ -155,6 +158,7 @@ function try3D(it) {
   slowTimer = setTimeout(() => { note.textContent = 'La connexion est lente : la 3D peut mettre une minute ou deux à arriver.'; }, 20000);
   onFrame = (e) => {
     if (e.source !== frame.contentWindow || !e.data || e.data.channel !== 'skinhub-viewer') return;
+    if (e.data.type === 'hello' && e.data.problems && e.data.problems.length) console.warn('SkinHub', e.data.problems);
     if (e.data.type === 'ready' || e.data.type === 'error') clearTimeout(slowTimer);
     if (e.data.type === 'ready') {
       scene.classList.remove('loading3d');
