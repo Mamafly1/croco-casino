@@ -44,7 +44,7 @@
 .invbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
 /* visualiseur 3D */
 .viewer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0; }
-.scene { position: relative; min-height: 300px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; overflow: hidden; }
+.scene { position: relative; min-height: 300px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; overflow: hidden; overflow: clip; }
 .model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; }
 .model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
 /* Le haut du cadre SkinHub (avec son logo, retiré avec leur accord) dépasse et reste masqué par .scene.
@@ -73,8 +73,8 @@
   .viewer { grid-template-columns: minmax(0, 1fr); } .slot { width: 110px; } .caselist { max-height: 220px; }
   /* Téléphone : la fenêtre de l'objet prend tout l'écran. Titre et fermeture en haut, 3D, puis infos qui défilent,
      et les boutons Garder / Vendre toujours visibles en bas. */
-  #reveal.modal { padding: 0; place-items: stretch; overflow: hidden; }
-  #reveal .sheet.wide { width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; display: flex; flex-direction: column; }
+  #reveal.modal { padding: 0; place-items: stretch; overflow: clip; }
+  #reveal .sheet.wide { position: absolute; inset: 0; width: 100%; height: auto; max-height: none; border-radius: 0; display: flex; flex-direction: column; overflow: clip; }
   #reveal .sheet-head { flex: none; padding-top: max(12px, env(safe-area-inset-top, 0px)); }
   #reveal .viewer { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
   #reveal .scene { flex: none; min-height: 0; height: 40dvh; }

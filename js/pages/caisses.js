@@ -140,8 +140,12 @@ $('open').addEventListener('click', async () => {
 // Le skin gagné est demandé dès le tirage, pendant que la roulette tourne.
 // Tant que la 3D n'est pas prête (ou si elle échoue), la vue montre l'image officielle du skin.
 const SKINHUB = 'https://skinhub.gg', MOBILE = matchMedia('(pointer: coarse), (max-width: 760px)').matches;
+// Journal des événements 3D, pour le banc de test (?dev=1)
+const T0 = performance.now();
+const log3d = [];
+function L(msg) { log3d.push(`${((performance.now() - T0) / 1000).toFixed(2)}s ${msg}`); if (log3d.length > 500) log3d.shift(); if (window.__devLog) window.__devLog(); }
 const LIGHT = new URLSearchParams(location.search).get('eclairage') === 'none' ? 'none' : 'Mirage';
-const v3 = { frame: null, listening: false, loadedKey: '', wantedKey: '', pending: null, shown: null, slowTimer: 0 };
+const v3 = { waiter: null, frame: null, listening: false, loadedKey: '', wantedKey: '', pending: null, shown: null, slowTimer: 0 };
 
 // Ce que le visualiseur doit afficher pour un objet (le modèle et la peinture viennent des données de la caisse)
 function spec(it) {
@@ -155,6 +159,7 @@ function spec(it) {
   };
 }
 function post(patch) {
+  L('envoi ' + JSON.stringify(patch.item || patch));
   v3.frame.contentWindow.postMessage({ channel: 'skinhub-viewer', v: 2, from: 'host', type: 'set', patch }, '*'); // rien de secret dans le message
 }
 function createFrame(sp) {
@@ -172,12 +177,15 @@ function createFrame(sp) {
   v3.frame.title = 'Modèle 3D';
   v3.frame.src = `${SKINHUB}/frame?${q}`;
   v3.wantedKey = sp.key;
+  L('cadre créé ' + sp.key + ' ' + v3.frame.src);
   $('scene').appendChild(v3.frame);
 }
 addEventListener('message', (e) => {
   if (!v3.frame || e.source !== v3.frame.contentWindow) return;
   const m = e.data;
   if (!m || m.channel !== 'skinhub-viewer' || m.from !== 'viewer') return;
+  L('reçu ' + m.type + (m.type === 'error' ? ' ' + JSON.stringify(m.error) : '') + (m.type === 'resize' ? ` ${m.width}x${m.height} dpr ${m.dpr}` : '') + (m.problems && m.problems.length ? ' problèmes ' + JSON.stringify(m.problems) : ''));
+  if (m.type === 'ready' && v3.waiter) { const w = v3.waiter; v3.waiter = null; w(); }
   if (m.type === 'hello') {
     if (m.problems && m.problems.length) console.warn('SkinHub', m.problems);
     v3.listening = true;
@@ -198,7 +206,7 @@ addEventListener('message', (e) => {
 function send(sp) {
   if (!v3.frame) { createFrame(sp); return; }
   if (!v3.listening) { v3.pending = sp; return; }
-  if (sp.key !== v3.wantedKey) { v3.wantedKey = sp.key; v3.loadedKey = ''; } // nouveau modèle : on attend « ready »
+  if (sp.key !== v3.wantedKey) { v3.wantedKey = sp.key; v3.loadedKey = ''; L('nouveau modèle ' + sp.key); } // on attend « ready »
   post({ item: sp.item, settings: { camera: { defaultZoom: sp.zoom } } });
   refresh();
 }
@@ -332,3 +340,98 @@ loadCases().then((d) => {
   renderInv();
 }).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });
 warm3D();
+
+// ---------- banc de test 3D (caisses.html?dev=1) ----------
+// Mesure le temps entre la demande d'un modèle et l'événement « ready » de SkinHub, dans plusieurs situations,
+// et permet de copier tout le journal pour l'envoyer.
+if (new URLSearchParams(location.search).has('dev')) {
+  const box = document.createElement('div');
+  box.id = 'devbox';
+  box.className = 'min'; // replié par défaut : le panneau ne cache pas les boutons de la page
+  box.innerHTML = `<b>Test 3D</b><div class="dev-btns"><button type="button" id="devRun">Lancer le test</button><button type="button" id="devCopy">Copier le log</button><button type="button" id="devHide">±</button></div><pre id="devOut"></pre>`;
+  document.body.appendChild(box);
+  const st = document.createElement('style');
+  st.textContent = `#devbox{position:fixed;z-index:50;left:8px;top:8px;width:min(360px,calc(100vw - 70px));max-height:45vh;display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:#000;border:2px solid var(--gold);font:12px/1.4 ui-monospace,monospace;color:#f0f0e6}
+  #devbox .dev-btns{display:flex;gap:6px}#devbox button{flex:1;padding:8px;border:0;border-radius:6px;background:var(--gold);color:#181818;font-weight:800}
+  #devbox #devHide{flex:0 0 36px;background:#444;color:#fff}#devbox pre{margin:0;overflow:auto;white-space:pre-wrap;flex:1}#devbox.min pre{display:none}#devbox.min{width:auto;padding:6px}#devbox.min b{display:none}`;
+  document.head.appendChild(st);
+  const out = $('devOut');
+  const results = [];
+  window.__devLog = () => { out.textContent = [...results, '---', ...log3d.slice(-12)].join('\n'); out.scrollTop = out.scrollHeight; };
+  $('devHide').onclick = () => box.classList.toggle('min');
+  const env = () => {
+    const c = navigator.connection || {};
+    return [`page ${location.href}`, `navigateur ${navigator.userAgent}`, `écran ${innerWidth}x${innerHeight} dpr ${devicePixelRatio}`,
+      `réseau ${c.effectiveType || '?'} débit ${c.downlink ?? '?'} Mb/s rtt ${c.rtt ?? '?'} ms économie ${c.saveData ?? '?'}`,
+      `réglages éclairage ${LIGHT} mobile ${MOBILE}`, `heure ${new Date().toISOString()}`];
+  };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  function waitReady(timeout = 60000) {
+    return new Promise((resolve) => {
+      const t = setTimeout(() => { v3.waiter = null; resolve(false); }, timeout);
+      v3.waiter = () => { clearTimeout(t); resolve(true); };
+    });
+  }
+  function pick() {
+    // Des objets variés : fusil, pistolet, couteau, gants, pris dans les vraies caisses
+    const all = data.cases.flatMap((c) => [...c.items, ...c.rare].map((x) => ({ ...x, caseId: c.id })));
+    const find = (f) => all.find(f);
+    return [
+      find((x) => /^AK-47 \|/.test(x.n)), find((x) => /^Glock-18 \|/.test(x.n)), find((x) => /^AWP \|/.test(x.n)),
+      find((x) => x.t === 'rare' && /Karambit \|/.test(x.n)), find((x) => x.t === 'rare' && /Gloves|Hand Wraps/.test(x.n)),
+      find((x) => /^USP-S \|/.test(x.n)),
+    ].filter(Boolean).map((x) => ({ ...x, float: 0.15, seed: 7 }));
+  }
+  function showModal(visible) {
+    const m = $('reveal');
+    if (visible) { m.classList.remove('off'); m.inert = false; $('scene').classList.add('has3d'); }
+    else { m.classList.add('off'); m.inert = true; $('scene').classList.remove('has3d'); }
+  }
+  async function one(label, it, visible) {
+    showModal(visible);
+    const sp = spec(it);
+    if (!sp) { results.push(`${label} ${it.n} : pas de modèle`); return; }
+    if (sp.key === v3.wantedKey) { results.push(`${label} ${it.n} : déjà chargé, ignoré`); return; }
+    const t = performance.now();
+    L(`TEST ${label} ${it.n}`);
+    send(sp);
+    const ok = await waitReady();
+    results.push(`${label} ${visible ? 'visible' : 'caché'} ${it.n} : ${ok ? Math.round(performance.now() - t) + ' ms' : 'PAS DE READY en 60 s'}`);
+    window.__devLog();
+  }
+  $('devRun').onclick = async () => {
+    if (!data) { results.push('données pas encore chargées, réessaie'); window.__devLog(); return; }
+    $('devRun').disabled = true;
+    box.classList.remove('min');
+    results.length = 0;
+    results.push(...env(), `cadre déjà prêt au lancement : ${v3.loadedKey ? 'oui (' + v3.loadedKey + ')' : 'non'}`);
+    const items = pick();
+    // 1. Modèles différents, fenêtre visible
+    for (const it of items.slice(0, 3)) await one('A', it, true);
+    // 2. Modèles différents, fenêtre cachée (comme pendant la roulette)
+    for (const it of items.slice(3)) await one('B', it, false);
+    // 3. Retour à un modèle déjà vu (le cache aide-t-il ?)
+    await one('C', items[0], true);
+    // 4. Changement de float seul (sans rechargement attendu)
+    { const sp = spec({ ...items[0], float: 0.6 }); const t = performance.now(); send(sp); await wait(1500); results.push(`D float seul : envoyé, ${Math.round(performance.now() - t)} ms sans attendre ready`); }
+    // 5. Démarrage à froid : nouveau cadre, visible
+    showModal(true);
+    if (v3.frame) v3.frame.remove();
+    Object.assign(v3, { frame: null, listening: false, loadedKey: '', wantedKey: '', pending: null });
+    { const t = performance.now(); L('TEST E démarrage à froid'); send(spec(items[1])); const ok = await waitReady(90000); results.push(`E démarrage à froid ${items[1].n} : ${ok ? Math.round(performance.now() - t) + ' ms' : 'PAS DE READY en 90 s'}`); }
+    showModal(false);
+    results.push('terminé');
+    window.__devLog();
+    $('devRun').disabled = false;
+  };
+  $('devCopy').onclick = async () => {
+    const text = [...env(), '', 'RÉSULTATS', ...results, '', 'JOURNAL', ...log3d].join('\n');
+    try { await navigator.clipboard.writeText(text); $('devCopy').textContent = 'Copié !'; }
+    catch {
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); $('devCopy').textContent = 'Copié (secours)';
+    }
+    setTimeout(() => { $('devCopy').textContent = 'Copier le log'; }, 2000);
+  };
+  window.__devLog();
+}
