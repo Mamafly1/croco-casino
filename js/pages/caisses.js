@@ -11,14 +11,25 @@ let data = null, sel = null, opening = false;
 const pctf = new Intl.NumberFormat('fr-FR', { maximumSignificantDigits: 3 });
 const pct = (x) => pctf.format(x * 100) + ' %';
 
-// Images Steam : on demande une taille réduite, et on retombe sur l'image brute si le serveur refuse
-const img = (i, size = '256fx256f') => (i ? data.img + i + '/' + size : '');
-const imgTag = (i, alt, size) => `<img src="${img(i, size)}" data-raw="${data.img + i}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer">`;
+// Images Steam : Steam sert les mêmes images depuis plusieurs serveurs. Certains réseaux (école, entreprise)
+// bloquent l'un d'eux : si une image échoue, on passe au serveur suivant, et toute la page le suit.
+const HOSTS = ['https://community.akamai.steamstatic.com', 'https://community.cloudflare.steamstatic.com', 'https://community.fastly.steamstatic.com'];
+let hostIdx = 0;
+try { hostIdx = Math.min(HOSTS.length - 1, +sessionStorage.getItem('croco-img-host') || 0); } catch {}
+const imgUrl = (i, size, h = hostIdx) => `${HOSTS[h]}/economy/image/${i}${size ? '/' + size : ''}`;
+const img = (i, size = '256fx256f') => (i ? imgUrl(i, size) : '');
+const imgTag = (i, alt, size = '256fx256f') => `<img src="${img(i, size)}" data-i="${i}" data-size="${size}" data-h="${hostIdx}" alt="${esc(alt)}" loading="lazy" referrerpolicy="no-referrer">`;
 document.addEventListener('error', (e) => {
   const t = e.target;
-  if (t.tagName !== 'IMG' || !t.dataset.raw) return;
-  if (t.src !== t.dataset.raw) t.src = t.dataset.raw;
-  else t.style.visibility = 'hidden';
+  if (t.tagName !== 'IMG' || !t.dataset.i) return;
+  const h = +t.dataset.h;
+  if (h === hostIdx && hostIdx < HOSTS.length - 1) {
+    hostIdx++; // ce serveur ne passe pas ici : on change pour toute la page
+    try { sessionStorage.setItem('croco-img-host', hostIdx); } catch {}
+  }
+  if (h < hostIdx) { t.dataset.h = hostIdx; t.src = imgUrl(t.dataset.i, t.dataset.size); return; }
+  if (t.dataset.size) { t.dataset.size = ''; t.src = imgUrl(t.dataset.i, ''); return; } // dernier essai : image brute
+  t.style.visibility = 'hidden';
 }, true);
 
 const tc = (t) => TIER_INFO[t].color;
