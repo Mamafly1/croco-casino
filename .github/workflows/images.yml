@@ -1,0 +1,32 @@
+# Copie les images Steam des caisses sur le site (img/steam/), pour les réseaux qui bloquent Steam.
+# Se lance à la main (onglet Actions) ou quand la liste des caisses change.
+name: Images des caisses
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'data/cases.json'
+
+permissions:
+  contents: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save sharp@0.33.5
+      - run: node tools/fetch-images.mjs
+      - name: Enregistrer les nouvelles images
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add img/steam
+          if git diff --cached --quiet; then echo "Rien de nouveau"; exit 0; fi
+          git commit -m "Images des caisses : copie des images Steam sur le site"
+          git push
