@@ -344,7 +344,10 @@ warm3D();
 // ---------- banc de test 3D (caisses.html?dev=1) ----------
 // Mesure le temps entre la demande d'un modèle et l'événement « ready » de SkinHub, dans plusieurs situations,
 // et permet de copier tout le journal pour l'envoyer.
-if (new URLSearchParams(location.search).has('dev')) {
+let devReady = false;
+function initDev() {
+  if (devReady) return;
+  devReady = true;
   const box = document.createElement('div');
   box.id = 'devbox';
   box.className = 'min'; // replié par défaut : le panneau ne cache pas les boutons de la page
@@ -435,3 +438,5 @@ if (new URLSearchParams(location.search).has('dev')) {
   };
   window.__devLog();
 }
+if (new URLSearchParams(location.search).has('dev')) initDev();
+$('devOpen').addEventListener('click', () => { initDev(); $('devbox').classList.remove('min'); });
