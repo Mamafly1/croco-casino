@@ -174,7 +174,7 @@ function spec(it) {
   };
 }
 function post(patch) {
-  L('envoi ' + JSON.stringify(patch.item || patch));
+  if (patch.item) L('envoi ' + JSON.stringify(patch.item));
   v3.frame.contentWindow.postMessage({ channel: 'skinhub-viewer', v: 2, from: 'host', type: 'set', patch }, '*'); // rien de secret dans le message
 }
 function createFrame(sp) {
@@ -265,7 +265,36 @@ function try3D(it) {
 function warm3D() {
   send({ key: 'weapon_ak47:0', item: { weaponType: 'weapon_ak47', paintIndex: 0, float: 0.2, seed: 1, statTrak: false }, zoom: 1 });
 }
+// L'arme suit la souris : plus le curseur s'éloigne de l'arme, plus elle tourne vers lui (angle envoyé à SkinHub
+// par `settings.camera`, sans rechargement). Curseur sur l'arme = arme de profil, sans rotation : SkinHub prend
+// alors la main et on peut l'attraper. (Au-dessus de la 3D, la page ne voit plus la souris.)
+const ROT = { yaw: 40, pitch: 18 };
+const rot = { tx: 0, ty: 0, x: 0, y: 0, raf: 0, sent: '' };
+function rotTo(x, y) { rot.tx = x; rot.ty = y; if (!rot.raf) rot.raf = requestAnimationFrame(rotStep); }
+function rotStep() {
+  rot.raf = 0;
+  rot.x += (rot.tx - rot.x) * 0.18;
+  rot.y += (rot.ty - rot.y) * 0.18;
+  if (Math.abs(rot.tx - rot.x) > 0.05 || Math.abs(rot.ty - rot.y) > 0.05) rot.raf = requestAnimationFrame(rotStep);
+  else { rot.x = rot.tx; rot.y = rot.ty; }
+  const yaw = Math.round(rot.x * 2) / 2, pitch = Math.round(rot.y * 2) / 2, key = yaw + ':' + pitch;
+  if (key === rot.sent || !v3.frame || !v3.listening) return;
+  rot.sent = key;
+  post({ settings: { camera: { yaw, pitch } } });
+}
+document.addEventListener('mousemove', (e) => {
+  if ($('reveal').classList.contains('off') || !$('scene').classList.contains('has3d') || reduceMotion) return;
+  const r = $('scene').getBoundingClientRect();
+  const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width * 0.8)));
+  const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height * 0.8)));
+  rotTo(nx * ROT.yaw, -ny * ROT.pitch);
+});
+$('scene').addEventListener('mouseenter', () => rotTo(0, 0));
+$('reveal').addEventListener('mouseleave', () => rotTo(0, 0));
+function rotReset() { cancelAnimationFrame(rot.raf); rot.raf = 0; rot.tx = rot.ty = rot.x = rot.y = 0; if (rot.sent && rot.sent !== '0:0' && v3.frame && v3.listening) post({ settings: { camera: { yaw: 0, pitch: 0 } } }); rot.sent = '0:0'; }
+
 function stop3D() {
+  rotReset();
   clearTimeout(v3.slowTimer);
   v3.shown = null;
   $('scene').classList.remove('has3d', 'loading3d');
