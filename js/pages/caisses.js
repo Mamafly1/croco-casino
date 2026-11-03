@@ -140,6 +140,7 @@ $('open').addEventListener('click', async () => {
 // Le skin gagné est demandé dès le tirage, pendant que la roulette tourne.
 // Tant que la 3D n'est pas prête (ou si elle échoue), la vue montre l'image officielle du skin.
 const SKINHUB = 'https://skinhub.gg', MOBILE = matchMedia('(pointer: coarse), (max-width: 760px)').matches;
+const LIGHT = new URLSearchParams(location.search).get('eclairage') === 'none' ? 'none' : 'Mirage';
 const v3 = { frame: null, listening: false, loadedKey: '', wantedKey: '', pending: null, shown: null, slowTimer: 0 };
 
 // Ce que le visualiseur doit afficher pour un objet (le modèle et la peinture viennent des données de la caisse)
@@ -161,7 +162,8 @@ function createFrame(sp) {
     weapon: sp.item.weaponType, paint: sp.item.paintIndex, float: sp.item.float, seed: sp.item.seed,
     zoom: sp.zoom, hostloading: 1, origin: location.origin,
     // Par défaut SkinHub éclaire avec Ancient de nuit : les skins paraissent noirs. Mirage de jour garde les couleurs.
-    map: 'Mirage', time: 'Day', rain: 0,
+    // Pour comparer les temps de chargement : caisses.html?eclairage=none utilise l'éclairage neutre de SkinHub.
+    map: LIGHT, time: 'Day', rain: 0,
   });
   if (sp.item.statTrak !== false) q.set('st', 0);
   if (MOBILE) { q.set('scale', 1); q.set('bloom', 0); } // téléphone : moins de pixels, pas de bloom
@@ -222,6 +224,11 @@ function try3D(it) {
   clearTimeout(v3.slowTimer);
   v3.slowTimer = setTimeout(() => { if (v3.shown === sp) note.textContent = 'La connexion est lente : la 3D peut mettre une minute à arriver.'; }, 20000);
   send(sp);
+}
+// Réchauffe le visualiseur dès l'ouverture de la page, sans attendre les données des caisses :
+// moteur, éclairage et shaders se chargent pendant que tu choisis ta caisse.
+function warm3D() {
+  send({ key: 'weapon_ak47:0', item: { weaponType: 'weapon_ak47', paintIndex: 0, float: 0.2, seed: 1, statTrak: false }, zoom: 1 });
 }
 function stop3D() {
   clearTimeout(v3.slowTimer);
@@ -322,8 +329,6 @@ loadCases().then((d) => {
   data = d;
   renderList();
   select(data.cases[0]);
-  // Réchauffe le visualiseur 3D avec le premier skin de la caisse : moteur et éclairage seront prêts au premier tirage
-  const first = data.cases[0].items[0];
-  preload3D({ ...first, caseId: data.cases[0].id, float: 0.2, seed: 1 });
   renderInv();
 }).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });
+warm3D();
