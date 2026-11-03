@@ -444,11 +444,13 @@ a { color: inherit; }
   .game.split .stage > :first-child { order: -2; }
   .game.split .panel { order: -1; }
   .top { gap: 8px; }
-  .brand span { display: none; }
+  /* Téléphone : logo centré en haut, puis le solde sur toute la largeur, puis les jeux */
+  .brand { flex: 1 1 100%; justify-content: center; }
+  .brand br { display: none; }
   .nav { order: 3; flex-basis: 100%; }
   .nav a span { display: none; }
   .nav a { flex: 1 0 auto; justify-content: center; }
-  .wallet { margin-left: auto; }
+  .wallet { flex: 1 1 100%; justify-content: space-between; }
   .lb { font-size: 10px; }
   .lb td { padding: 10px 6px; }
   .lb th { padding: 0 6px 2px; font-size: 9px; }

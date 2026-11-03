@@ -49,9 +49,11 @@ const hermite = (p0, p1, m0, m1, u) => {
 };
 function spinTo(n, ms = 7500) {
   return new Promise((resolve) => {
-    const idx = WHEEL.indexOf(n), target = idx * A;
-    const startRot = wheelRot, dRot = 360 + ((-target - startRot) % 360 + 360) % 360;
-    const done = () => { wheelRot = (startRot + dRot) % 360; ballAngle = 0; draw(wheelRot, 0, 112); resolve(); };
+    // La bille se pose n'importe où dans sa case (pas pile au centre), et la roue s'arrête où elle veut
+    const idx = WHEEL.indexOf(n), off = (Math.random() * 2 - 1) * 0.3 * A, target = idx * A + off;
+    const rEnd = 108 + Math.random() * 8, rest = (Math.random() * 2 - 1) * 70;
+    const startRot = wheelRot, dRot = 360 + ((rest - target - startRot) % 360 + 360) % 360;
+    const done = () => { wheelRot = (startRot + dRot) % 360; ballAngle = wheelRot + target; draw(wheelRot, ballAngle, rEnd); resolve(); };
     if (reduceMotion) { done(); return; }
     const rot = (t) => startRot + dRot * (1 - (1 - t) * (1 - t)); // la roue ralentit jusqu'à l'arrêt
     const rotV = (t) => 2 * dRot * (1 - t);
@@ -92,18 +94,18 @@ function spinTo(n, ms = 7500) {
           const m0 = g.i === 1 ? Math.max(vIn * d, span * 2 - A) : span * 1.3, m1 = span * 0.4;
           rel = target + hermite(g.from * A, g.to * A, m0, m1, u);
           const h = 9 / g.i;
-          r = (g.i === 1 ? 124 - 12 * u : 112) + Math.sin(u * Math.PI) * h;
+          r = (g.i === 1 ? 124 - (124 - rEnd) * u : rEnd) + Math.sin(u * Math.PI) * h;
         } else {
           // la bille tape le bord de la case et oscille un peu avant de repartir
           const u = (t - g.t1) / Math.max(1e-6, g.t2 - g.t1);
           rel = target + g.to * A + Math.sign(g.to - g.from) * A * 0.22 * Math.sin(u * Math.PI * 2.5) * (1 - u);
-          r = 112;
+          r = rEnd;
         }
         ball = R + rel;
       } else {
         const u = (t - TS) / (1 - TS), last = segs[segs.length - 1];
         ball = R + target + Math.sign(last.to - last.from) * A * 0.25 * Math.sin(u * Math.PI * 2) * (1 - u) * (1 - u);
-        r = 112;
+        r = rEnd;
       }
       draw(R, ball, r);
       if (t < 1) requestAnimationFrame(step); else done();

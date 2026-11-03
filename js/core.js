@@ -300,7 +300,7 @@ export function mountShell(active) {
   top.className = 'top';
   const links = GAMES.map((g) => `<a href="${GAME_INFO[g].href}"${g === active ? ' aria-current="page"' : ''}>${pixelIcon(g, 18)}<span>${GAME_INFO[g].name}</span></a>`).join('');
   top.innerHTML = `
-    <a class="brand" href="index.html"${active === 'home' ? ' aria-current="page"' : ''}>${pixelIcon('crown', 22)}<span>CROCO<br>CASINO</span></a>
+    <a class="brand" href="index.html"${active === 'home' ? ' aria-current="page"' : ''}>${pixelIcon('crown', 22)}<span>CROCO<br> CASINO</span></a>
     <nav class="nav" aria-label="Jeux">${links}</nav>
     <div class="wallet">
       <div>
