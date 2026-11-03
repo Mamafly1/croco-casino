@@ -35,6 +35,14 @@
 .tbl .zero { grid-row: 1 / 4; grid-column: 1; background: #1f8a4c; }
 .tbl .chipon { position: absolute; right: -6px; top: -8px; pointer-events: none; z-index: 2; }
 .tbl .chipon .chipsvg { width: 28px; height: 28px; filter: drop-shadow(0 2px 0 rgba(0,0,0,.5)); }
+/* Mises des joueurs du tour : petits jetons de couleur avec l'initiale, en bas à gauche de la case */
+.tbl .pl-bets { position: absolute; left: 2px; bottom: 2px; display: flex; pointer-events: none; z-index: 1; }
+.tbl .pl-bets i { width: 15px; height: 15px; margin-right: -4px; border-radius: 50%; display: grid; place-items: center; background: var(--pc); color: #181818; border: 1.5px solid #181818; font: 800 8.5px/1 var(--font-body); font-style: normal; }
+.tbl .pl-bets i.more { background: #181818; color: #f0f0e6; border-color: #f0f0e6; font-size: 7px; }
+.players li { align-items: center; }
+.pl-who { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; min-width: 0; }
+.pl-who small { grid-column: 2; color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-dot { grid-row: span 2; width: 12px; height: 12px; border-radius: 50%; background: var(--pc); font-style: normal; }
 .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .chipset { display: flex; gap: 6px; flex-wrap: wrap; }
 .chipset button { border: 0; background: none; padding: 2px; border-radius: 50%; }
@@ -98,6 +106,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/roulette.js"></script>
+<script type="module" src="js/pages/roulette.js?v=2"></script>
 </body>
 </html>

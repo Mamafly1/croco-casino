@@ -88,6 +88,7 @@ async function load(done = '') {
           <div><dt>Créé</dt><dd>${when(p.created)}</dd></div>
         </dl>
         <div class="acts">
+          <button class="btn-ghost" data-op="rename">Changer le pseudo</button>
           <button class="btn-ghost" data-op="setBalance">Changer le solde</button>
           <button class="btn-ghost" data-op="addBalance">Ajouter / retirer</button>
           <button class="btn-ghost" data-op="resetDeposits">Débloquer les dépôts du jour</button>
@@ -115,6 +116,11 @@ $('list').addEventListener('click', async (e) => {
     if (v === null) return;
     extra.amount = parseFloat(v.replace(',', '.'));
     if (!Number.isFinite(extra.amount)) { say('Montant invalide.', true); return; }
+  }
+  if (op === 'rename') {
+    const v = prompt(`Nouveau pseudo pour ${name} :`, name);
+    if (v === null || !v.trim() || v.trim() === name) return;
+    extra.newName = v.trim();
   }
   if (op === 'delete' && prompt(`Supprimer définitivement ${name} ? Tape son pseudo pour confirmer.`) !== name) return;
   if (op === 'resetPin' && !confirm(`Effacer le code de ${name} ? Le prochain code tapé deviendra le sien.`)) return;

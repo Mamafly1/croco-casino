@@ -453,4 +453,9 @@ function initDev() {
   window.__devLog();
 }
 if (new URLSearchParams(location.search).has('dev')) initDev();
-$('devOpen').addEventListener('click', () => { initDev(); $('devbox').classList.remove('min'); });
+$('devOpen').addEventListener('click', () => { $('infoBox').hidden = true; initDev(); $('devbox').classList.remove('min'); });
+// Les vraies cotes : dans une fenêtre ouverte par le bouton (i)
+$('infoOpen').addEventListener('click', () => { $('infoBox').hidden = false; $('infoClose').focus(); });
+$('infoClose').addEventListener('click', () => { $('infoBox').hidden = true; });
+$('infoBox').addEventListener('click', (e) => { if (e.target === $('infoBox')) $('infoBox').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('infoBox').hidden = true; });

@@ -160,6 +160,20 @@ export class Casino extends DurableObject {
       this.save(pl); refresh(row.id); this.boardSoon();
       return reply(200, { ok: true, message: `${pl.name} : solde ${pl.p.balance} €` });
     }
+    if (op === 'rename') {
+      const newName = String(msg.newName || '').trim();
+      if (!NAME_RE.test(newName)) return reply(400, { error: 'Pseudo : 2 à 16 caractères.' });
+      if (this.sql.exec('SELECT 1 FROM players WHERE name = ? AND id != ?', newName, row.id).toArray().length) return reply(409, { error: 'Pseudo déjà pris.' });
+      this.sql.exec('UPDATE players SET name = ? WHERE id = ?', newName, row.id);
+      // Ses connexions ouvertes prennent le nouveau nom tout de suite
+      for (const ws of this.ctx.getWebSockets()) {
+        const w = ws.deserializeAttachment();
+        if (w && w.id === row.id) ws.serializeAttachment({ id: w.id, name: newName });
+      }
+      refresh(row.id);
+      this.broadcast({ t: 'board', board: this.board() });
+      return reply(200, { ok: true, message: `Renommé en ${newName}.` });
+    }
     if (op === 'resetDeposits') {
       const pl = this.load(row.id);
       pl.p.depDay = null;

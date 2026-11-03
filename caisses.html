@@ -88,16 +88,11 @@
 <main class="game split">
   <aside class="panel" aria-label="Choix de la caisse">
     <div class="field">
-      <div class="field-head"><span id="clLabel">Caisses CS2</span><span id="caseCount"></span></div>
+      <div class="field-head"><span id="clLabel">Caisses CS2 <button class="info-btn" id="infoOpen" type="button" aria-label="Les vraies cotes">i</button></span><span id="caseCount"></span></div>
       <div class="caselist" id="caselist" role="group" aria-labelledby="clLabel"></div>
     </div>
     <button id="open" class="play" type="button" disabled>Ouvrir</button>
     <p class="msg" id="msg" aria-live="polite"></p>
-    <section class="stats" aria-label="Statistiques">
-      <h2>Les vraies cotes</h2>
-      <p class="odds-note" id="oddsNote"></p>
-      <button class="btn-link small" id="devOpen" type="button">Test 3D (mesure du chargement)</button>
-    </section>
   </aside>
   <section class="stage" aria-label="Ouverture">
     <div class="surface" style="display:grid;gap:14px">
@@ -120,6 +115,15 @@
   </section>
 </main>
 
+<div class="modal" id="infoBox" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+    <div class="sheet-head"><h2 id="infoTitle">Les vraies cotes</h2><button class="x" id="infoClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="step">
+      <p class="odds-note" id="oddsNote"></p>
+      <button class="btn-link small" id="devOpen" type="button">Test 3D (mesure du chargement)</button>
+    </div>
+  </div>
+</div>
 <div class="modal off" id="reveal" inert aria-hidden="true">
   <div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="rvTitle">
     <div class="sheet-head"><h2 id="rvTitle">Tu as obtenu</h2><button class="x" id="rvClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -129,6 +133,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=6"></script>
+<script type="module" src="js/pages/caisses.js?v=7"></script>
 </body>
 </html>

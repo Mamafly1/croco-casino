@@ -210,14 +210,55 @@ async function onlineBet() {
     if (/Solde insuffisant/.test(err.message)) casino.nudgeDeposit();
   }
 }
+// ---------- mises des autres joueurs (en ligne) ----------
+// Chaque joueur a sa couleur ; ses jetons apparaissent en petit sur les cases où il a misé.
+const PCOLORS = ['#3f8cff', '#ff5fb4', '#3ddc5f', '#b07aff', '#ff8a3d', '#22d3ee', '#f0f0e6', '#ffd23f'];
+// Couleur par joueur, dans l'ordre d'arrivée du tour : deux joueurs du même tour n'ont jamais la même
+let colorOf = {};
+function assignColors(r) {
+  colorOf = {};
+  let i = 0;
+  for (const p of (r && r.players) || []) if (p.name !== casino.me.name) colorOf[p.name] = PCOLORS[i++ % PCOLORS.length];
+}
+const pcolor = (name) => colorOf[name] || PCOLORS[0];
+const escN = (n) => String(n).replace(/[<>&"]/g, '');
+function keyLabel(k) {
+  const [kind, a] = k.split(':');
+  return { n: a, red: 'Rouge', black: 'Noir', odd: 'Impair', even: 'Pair', low: '1-18', high: '19-36',
+    dozen: ['1-12', '13-24', '25-36'][a - 1], col: `Colonne ${a}` }[kind] || k;
+}
+function renderTableBets(r) {
+  document.querySelectorAll('#tbl .pl-bets').forEach((x) => x.remove());
+  const players = (r && r.phase !== 'idle' && r.players) || [];
+  const byKey = {};
+  for (const p of players) for (const [k, v] of Object.entries(p.bets || {})) (byKey[k] = byKey[k] || []).push({ name: p.name, v, me: p.name === casino.me.name });
+  for (const [k, list] of Object.entries(byKey)) {
+    const cell = document.querySelector(`#tbl [data-k="${k}"]`);
+    if (!cell) continue;
+    list.sort((a, b) => b.me - a.me || b.v - a.v);
+    const span = document.createElement('span');
+    span.className = 'pl-bets';
+    span.title = list.map((x) => `${x.me ? 'Toi' : x.name} ${eur(x.v)}`).join(', ');
+    span.innerHTML = list.slice(0, 3).map((x) => `<i class="${x.me ? 'me' : ''}" style="--pc:${x.me ? 'var(--gold)' : pcolor(x.name)}">${x.me ? '★' : escN(x.name[0]).toUpperCase()}</i>`).join('')
+      + (list.length > 3 ? `<i class="more">+${list.length - 3}</i>` : '');
+    cell.appendChild(span);
+  }
+}
 function renderPlayers(r) {
   const list = (r && r.players) || [];
   $('playersBox').hidden = !list.length;
-  $('players').innerHTML = list.map((p) => `<li><b>${p.name.replace(/[<>&]/g, '')}</b><span class="num">${eur(p.total)}${p.payout != null ? ` → <span class="${p.payout > 0 ? 'pos' : 'neg'}">${eur(p.payout)}</span>` : ''}</span></li>`).join('');
+  $('players').innerHTML = list.map((p) => {
+    const me = p.name === casino.me.name;
+    const where = Object.entries(p.bets || {}).map(([k, v]) => `${keyLabel(k)} ${eur(v)}`).join(' · ');
+    return `<li><span class="pl-who"><i class="pl-dot" style="--pc:${me ? 'var(--gold)' : pcolor(p.name)}"></i><b>${me ? 'Toi' : escN(p.name)}</b><small>${escN(where)}</small></span>`
+      + `<span class="num">${eur(p.total)}${p.payout != null ? ` → <span class="${p.payout > 0 ? 'pos' : 'neg'}">${eur(p.payout)}</span>` : ''}</span></li>`;
+  }).join('');
 }
 async function onRound(r) {
   if (!r) return;
+  assignColors(r);
   renderPlayers(r);
+  renderTableBets(r);
   drawHistory(r.history || []);
   if (r.id !== lastRoundId && r.phase === 'betting') { myStake = 0; }
   const mine = (r.players || []).find((p) => p.name === casino.me.name);
