@@ -382,7 +382,7 @@ function initDev() {
   const box = document.createElement('div');
   box.id = 'devbox';
   box.className = 'min'; // replié par défaut : le panneau ne cache pas les boutons de la page
-  box.innerHTML = `<b>Test 3D</b><div class="dev-btns"><button type="button" id="devRun">Lancer le test</button><button type="button" id="devCopy">Copier le log</button><button type="button" id="devHide">±</button></div><pre id="devOut"></pre>`;
+  box.innerHTML = `<b>Test 3D</b><div class="dev-btns"><button type="button" id="devRun">Lancer le test</button><button type="button" id="devRot">Essai rotation</button><button type="button" id="devCopy">Copier le log</button><button type="button" id="devHide">±</button></div><pre id="devOut"></pre>`;
   document.body.appendChild(box);
   const st = document.createElement('style');
   st.textContent = `#devbox{position:fixed;z-index:50;left:8px;top:8px;width:min(360px,calc(100vw - 70px));max-height:45vh;display:flex;flex-direction:column;gap:6px;padding:10px;border-radius:10px;background:#000;border:2px solid var(--gold);font:12px/1.4 ui-monospace,monospace;color:#f0f0e6}
@@ -457,6 +457,31 @@ function initDev() {
     results.push('terminé');
     window.__devLog();
     $('devRun').disabled = false;
+  };
+  // Essai : SkinHub accepte-t-il un angle par message (non documenté) ? On ouvre la 3D et on essaie 3 formes.
+  $('devRot').onclick = async () => {
+    if (!data) return;
+    box.classList.remove('min');
+    results.length = 0;
+    const it = { ...data.cases[0].items[0], caseId: data.cases[0].id, float: 0.15, seed: 7 };
+    showModal(true);
+    const sp = spec(it);
+    if (sp.key !== v3.wantedKey) { send(sp); results.push('chargement de l’arme…'); window.__devLog(); await waitReady(); }
+    const tries = [
+      ['settings.camera.yaw/pitch', { settings: { camera: { yaw: 60, pitch: 20 } } }],
+      ['yaw/pitch à la racine', { yaw: -60, pitch: -15 }],
+      ['camera à la racine', { camera: { yaw: 120, pitch: 0 } }],
+    ];
+    for (const [label, patch] of tries) {
+      L('ESSAI ' + label);
+      results.push(`essai « ${label} » : regarde si l’arme tourne…`);
+      window.__devLog();
+      post(patch);
+      await wait(4000);
+    }
+    post({ settings: { camera: { yaw: 0, pitch: 0 } } });
+    results.push('terminé : dis à Claude quel essai a fait tourner l’arme (ou aucun), et copie le log');
+    window.__devLog();
   };
   $('devCopy').onclick = async () => {
     const text = [...env(), '', 'RÉSULTATS', ...results, '', 'JOURNAL', ...log3d].join('\n');
