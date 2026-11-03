@@ -15,6 +15,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/health') return new Response('ok');
+    if (url.pathname === '/admin') return adminRoute(request, env);
     if (url.pathname !== '/ws') return new Response('Croco Casino : rien ici.', { status: 404 });
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('WebSocket attendu', { status: 426 });
     const allowed = String(env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -24,6 +25,26 @@ export default {
     return stub.fetch(request);
   },
 };
+
+// Panneau admin : requêtes POST depuis admin.html, protégées par le secret ADMIN_KEY
+function cors(request, env) {
+  const allowed = String(env.ALLOWED_ORIGINS || '').split(',').map((x) => x.trim()).filter(Boolean);
+  const origin = request.headers.get('Origin') || '';
+  return {
+    'Access-Control-Allow-Origin': !allowed.length || allowed.includes(origin) ? origin || '*' : 'null',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  };
+}
+async function adminRoute(request, env) {
+  const h = cors(request, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+  if (request.method !== 'POST') return new Response('POST attendu', { status: 405, headers: h });
+  const stub = env.CASINO.get(env.CASINO.idFromName('main'));
+  const res = await stub.fetch(new Request('https://do/admin', { method: 'POST', body: await request.text() }));
+  return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': 'application/json' } });
+}
 
 async function sha256(s) {
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -57,6 +78,7 @@ export class Casino extends DurableObject {
   }
 
   async fetch(request) {
+    if (new URL(request.url).pathname === '/admin') return this.admin(request);
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     return new Response(null, { status: 101, webSocket: pair[0] });
@@ -83,6 +105,87 @@ export class Casino extends DurableObject {
   board() {
     return this.sql.exec('SELECT name, score, games FROM players ORDER BY score DESC, id ASC LIMIT 25').toArray()
       .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games) }));
+  }
+
+  // ---------- admin ----------
+  async admin(request) {
+    const reply = (status, obj) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
+    if (!this.env.ADMIN_KEY) return reply(503, { error: 'Le mot de passe admin n’est pas configuré (secret ADMIN_KEY).' });
+    let msg;
+    try { msg = await request.json(); } catch { return reply(400, { error: 'Requête illisible.' }); }
+    const lock = this.adminLock || { n: 0, until: 0 };
+    if (lock.until > Date.now()) return reply(429, { error: 'Trop d’essais, réessaie dans 1 min.' });
+    if ((await sha256(String(msg.key || ''))) !== (await sha256(this.env.ADMIN_KEY))) {
+      lock.n++;
+      if (lock.n >= 5) { lock.n = 0; lock.until = Date.now() + 60000; }
+      this.adminLock = lock;
+      return reply(401, { error: 'Mot de passe admin incorrect.' });
+    }
+    this.adminLock = { n: 0, until: 0 };
+    const byName = (name) => this.sql.exec('SELECT id FROM players WHERE name = ?', String(name || '')).toArray()[0];
+    const refresh = (id) => {
+      // Le joueur concerné voit tout de suite son nouveau solde, tout le monde voit le classement
+      const pl = this.load(id);
+      for (const ws of this.ctx.getWebSockets()) {
+        const who = ws.deserializeAttachment();
+        if (who && who.id === id) { if (pl) this.send(ws, { t: 'me', me: this.me(pl) }); else this.askLogin(ws); }
+      }
+    };
+    const op = msg.op;
+    if (op === 'list') {
+      const rows = this.sql.exec('SELECT id, name, data, score, created, seen, pin IS NOT NULL AS haspin FROM players ORDER BY score DESC').toArray();
+      const devices = Object.fromEntries(this.sql.exec('SELECT player_id, COUNT(*) AS n FROM tokens GROUP BY player_id').toArray().map((r) => [r.player_id, r.n]));
+      return reply(200, { players: rows.map((r) => {
+        const p = JSON.parse(r.data);
+        return { name: r.name, balance: p.balance, deposits: p.deposits, inventory: p.inventory.length, inventoryValue: inventoryValue(p),
+          score: r.score, played: p.played, created: r.created, seen: r.seen, hasPin: !!r.haspin, devices: devices[r.id] || 0,
+          depositedToday: p.depDay ? p.depDay.amount : 0 };
+      }) });
+    }
+    if (op === 'resetAll') {
+      for (const r of this.sql.exec('SELECT id FROM players').toArray()) {
+        const pl = this.load(r.id); pl.p = newPlayer(); this.save(pl); refresh(r.id);
+      }
+      this.feed = []; await this.ctx.storage.put('feed', this.feed);
+      this.broadcast({ t: 'board', board: this.board() });
+      return reply(200, { ok: true, message: 'Tout le monde repart de zéro (comptes et codes gardés).' });
+    }
+    const row = byName(msg.name);
+    if (!row) return reply(404, { error: 'Joueur introuvable.' });
+    if (op === 'setBalance' || op === 'addBalance') {
+      const v = money(Number(msg.amount));
+      if (!Number.isFinite(v)) return reply(400, { error: 'Montant invalide.' });
+      const pl = this.load(row.id);
+      pl.p.balance = money(Math.max(0, op === 'setBalance' ? v : pl.p.balance + v));
+      this.save(pl); refresh(row.id); this.boardSoon();
+      return reply(200, { ok: true, message: `${pl.name} : solde ${pl.p.balance} €` });
+    }
+    if (op === 'resetDeposits') {
+      const pl = this.load(row.id);
+      pl.p.depDay = null;
+      this.save(pl); refresh(row.id);
+      return reply(200, { ok: true, message: `${pl.name} peut de nouveau déposer 100 € aujourd’hui.` });
+    }
+    if (op === 'resetPin') {
+      this.sql.exec('UPDATE players SET pin = NULL, token = ? WHERE id = ?', 'compte:' + crypto.randomUUID(), row.id);
+      this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
+      refresh(row.id);
+      for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
+      return reply(200, { ok: true, message: 'Code effacé : le prochain code tapé deviendra le sien.' });
+    }
+    if (op === 'logout') {
+      this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
+      for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
+      return reply(200, { ok: true, message: 'Déconnecté de tous ses appareils.' });
+    }
+    if (op === 'delete') {
+      this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
+      this.sql.exec('DELETE FROM players WHERE id = ?', row.id);
+      for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
+      this.broadcast({ t: 'board', board: this.board() });
+      return reply(200, { ok: true, message: 'Compte supprimé.' });
+    }
+    return reply(400, { error: 'Action inconnue.' });
   }
 
   // ---------- comptes ----------

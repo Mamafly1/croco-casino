@@ -15,6 +15,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Vérifier que les secrets existent
@@ -31,3 +33,14 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: server
           command: deploy
+      # Mot de passe du panneau admin (admin.html), si le secret ADMIN_KEY existe
+      - name: Mot de passe admin
+        if: env.ADMIN_KEY != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: server
+          command: secret list  # la clé est envoyée par « secrets » juste avant cette commande
+          secrets: |
+            ADMIN_KEY

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Croco Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css">
+<style>
+.adm { max-width: 900px; margin: 0 auto; padding-top: 16px; display: grid; gap: 12px; }
+.adm h1 { margin: 0; font: 16px/1.4 var(--font-pixel); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bar .text-in { flex: 1 1 180px; width: auto; }
+.cards { display: grid; gap: 8px; }
+.pc { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--panel); }
+.pc-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pc-head b { font-size: 16px; }
+.pc dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px 12px; font-size: 12.5px; }
+.pc dt { color: var(--muted); }
+.pc dd { margin: 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pc .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pc .acts button { padding: 7px 10px; font-size: 12.5px; }
+.pc .acts .danger { border-color: var(--red); color: #ff8a84; }
+#out { min-height: 1.2em; margin: 0; font-weight: 700; }
+#out.err { color: var(--lose); }
+#out.okm { color: var(--win); }
+</style>
+</head>
+<body>
+<main class="adm">
+  <div class="bar">
+    <h1>ADMIN</h1>
+    <a class="btn-link" href="index.html">Retour au casino</a>
+  </div>
+  <form class="bar" id="loginForm">
+    <input class="text-in" id="key" type="password" placeholder="Mot de passe admin" autocomplete="current-password">
+    <button class="btn-ghost" type="submit">Afficher les joueurs</button>
+  </form>
+  <p id="out" aria-live="polite"></p>
+  <div class="bar" id="globalActs" hidden>
+    <button class="btn-ghost" id="reload" type="button">Actualiser</button>
+    <button class="btn-ghost" id="resetAll" type="button" style="border-color:var(--red);color:#ff8a84">Remettre tout le monde à zéro</button>
+  </div>
+  <div class="cards" id="list"></div>
+</main>
+<script type="module">
+import { SERVER_URL } from './js/config.js';
+
+const $ = (id) => document.getElementById(id);
+const eur = (n) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' €';
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const when = (t) => (t ? new Date(t).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : 'jamais');
+let key = '';
+try { key = localStorage.getItem('croco-admin-key') || ''; } catch {}
+$('key').value = key;
+
+function say(text, isErr) { $('out').textContent = text; $('out').className = isErr ? 'err' : 'okm'; }
+
+async function call(op, extra = {}) {
+  if (!SERVER_URL) throw new Error('Le site est en mode solo : pas de serveur configuré.');
+  const r = await fetch(SERVER_URL.replace(/\/+$/, '') + '/admin', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, op, ...extra }),
+  });
+  const data = await r.json().catch(() => ({ error: 'Réponse illisible du serveur.' }));
+  if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
+  return data;
+}
+
+async function load(done = '') {
+  try {
+    const { players } = await call('list');
+    try { localStorage.setItem('croco-admin-key', key); } catch {}
+    $('globalActs').hidden = false;
+    $('list').innerHTML = players.length ? players.map((p) => `
+      <div class="pc" data-name="${esc(p.name)}">
+        <div class="pc-head"><b>${esc(p.name)}</b><span class="${p.score >= 0 ? 'pos' : 'neg'}">score ${eur(p.score)}</span></div>
+        <dl>
+          <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
+          <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
+          <div><dt>Déposé aujourd’hui</dt><dd>${eur(p.depositedToday)}</dd></div>
+          <div><dt>Inventaire</dt><dd>${p.inventory} obj. · ${eur(p.inventoryValue)}</dd></div>
+          <div><dt>Parties</dt><dd>${Object.values(p.played || {}).reduce((a, b) => a + b, 0)}</dd></div>
+          <div><dt>Code</dt><dd>${p.hasPin ? 'oui' : 'non'} · ${p.devices} appareil${p.devices > 1 ? 's' : ''}</dd></div>
+          <div><dt>Vu</dt><dd>${when(p.seen)}</dd></div>
+          <div><dt>Créé</dt><dd>${when(p.created)}</dd></div>
+        </dl>
+        <div class="acts">
+          <button class="btn-ghost" data-op="setBalance">Changer le solde</button>
+          <button class="btn-ghost" data-op="addBalance">Ajouter / retirer</button>
+          <button class="btn-ghost" data-op="resetDeposits">Débloquer les dépôts du jour</button>
+          <button class="btn-ghost" data-op="resetPin">Code oublié</button>
+          <button class="btn-ghost" data-op="logout">Déconnecter</button>
+          <button class="btn-ghost danger" data-op="delete">Supprimer</button>
+        </div>
+      </div>`).join('') : '<p class="muted">Aucun joueur.</p>';
+    say(done || `${players.length} joueur${players.length > 1 ? 's' : ''}.`);
+  } catch (e) { say(e.message, true); }
+}
+
+$('loginForm').addEventListener('submit', (e) => { e.preventDefault(); key = $('key').value; load(); });
+$('reload').addEventListener('click', () => load());
+$('resetAll').addEventListener('click', async () => {
+  if (prompt('Tout le monde repart de 0 € (comptes et codes gardés). Tape REMISE pour confirmer.') !== 'REMISE') return;
+  try { load((await call('resetAll')).message); } catch (e) { say(e.message, true); }
+});
+$('list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-op]'); if (!btn) return;
+  const name = btn.closest('.pc').dataset.name, op = btn.dataset.op;
+  const extra = { name };
+  if (op === 'setBalance' || op === 'addBalance') {
+    const v = prompt(op === 'setBalance' ? `Nouveau solde de ${name} (€) :` : `Montant à ajouter à ${name} (€, négatif pour retirer) :`);
+    if (v === null) return;
+    extra.amount = parseFloat(v.replace(',', '.'));
+    if (!Number.isFinite(extra.amount)) { say('Montant invalide.', true); return; }
+  }
+  if (op === 'delete' && prompt(`Supprimer définitivement ${name} ? Tape son pseudo pour confirmer.`) !== name) return;
+  if (op === 'resetPin' && !confirm(`Effacer le code de ${name} ? Le prochain code tapé deviendra le sien.`)) return;
+  try { load((await call(op, extra)).message); } catch (err) { say(err.message, true); }
+});
+if (key) load();
+</script>
+</body>
+</html>

@@ -42,6 +42,14 @@ Ne mets jamais la clé Cloudflare dans un fichier du dépôt : il est public. Se
 
 Variante en ligne de commande, si un jour tu préfères : `cd server`, `npx wrangler login`, `npx wrangler deploy`.
 
+## Panneau admin
+
+`admin.html` (pas de lien dans le menu) permet de voir tous les joueurs, changer un solde, débloquer les
+dépôts du jour, effacer un code oublié, déconnecter ou supprimer un compte, et remettre tout le monde à zéro.
+
+Il est protégé par un mot de passe : crée le secret **`ADMIN_KEY`** sur GitHub (même page que les autres
+secrets), puis relance « Déployer le serveur ». Après 5 mauvais mots de passe, l'admin est bloqué 1 minute.
+
 ## Réglages
 
 - `ALLOWED_ORIGINS` dans `wrangler.toml` : les sites qui ont le droit de se connecter. Si tu changes
