@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css">
+<link rel="stylesheet" href="css/casino.css?v=m1">
 <style>
 .felt { position: relative; padding: 18px 16px; border-radius: 14px 14px 140px 140px / 14px 14px 60px 60px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 18px; min-height: 460px; align-content: space-between; border: 3px solid #3a2a12; box-shadow: inset 0 0 0 2px var(--gold-deep); }
 .zone { display: grid; justify-items: center; gap: 8px; }
@@ -15,21 +15,21 @@
 .tot { padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,.4); color: var(--ink); font: 800 14px var(--font-body); font-variant-numeric: tabular-nums; }
 .cards { display: flex; justify-content: center; min-height: calc(var(--cw) * 1.4); --cw: clamp(54px, 9vw, 80px); }
 .cards .pcard + .pcard { margin-left: calc(var(--cw) * -0.42); }
-.rules { text-align: center; font: 10px/1.6 var(--font-pixel); color: rgba(240,240,230,.55); letter-spacing: .04em; }
+.rules { text-align: center; font: 11px/1.6 var(--font-pixel); color: rgba(240,240,230,.55); letter-spacing: .04em; }
 .hands { display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; }
 .hand { display: grid; justify-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 2px solid transparent; }
 .hand.active { border-color: var(--gold); background: rgba(0,0,0,.18); }
 .hand .res { min-height: 1.3em; font-weight: 800; }
-.acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.acts button { padding: 12px 4px; border: 0; border-radius: 9px; font-weight: 800; background: var(--panel-2); }
+.acts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.acts button { min-height: 48px; padding: 10px 4px; border: 0; border-radius: 9px; font-weight: 800; background: var(--panel-2); }
 .acts button.main { background: var(--gold); color: var(--gold-ink); }
 .acts button:disabled { opacity: .35; cursor: not-allowed; }
-.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 8px; }
 .seat { padding: 8px 10px; border-radius: 10px; background: var(--field); display: grid; gap: 6px; min-width: 0; }
 .seat b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat .cards { --cw: 30px; justify-content: flex-start; min-height: 0; }
 .seat small { color: var(--muted); }
-.seat-row { display: grid; grid-template-columns: 56px 1fr 26px; gap: 6px; align-items: center; } .seat-row b { text-align: right; }
+.seat-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 26px; gap: 6px; align-items: center; } .seat-row b { text-align: right; }
 </style>
 </head>
 <body>
@@ -85,6 +85,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/blackjack.js?v=p2"></script>
+<script type="module" src="js/pages/blackjack.js?v=m1"></script>
 </body>
 </html>
