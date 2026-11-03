@@ -83,6 +83,7 @@ function item(it, tier) {
     f,
     st: !!s.stattrak,
     p: Number(s.paint_index) || 0, // index de peinture pour le visualiseur 3D
+    w: (s.weapon && s.weapon.id) || '', // modèle pour le visualiseur 3D (weapon_ak47, sporty_gloves…)
     ...(it.phase ? { ph: it.phase } : {}),
     ...pricesFor(it.name, f, it.phase),
   };

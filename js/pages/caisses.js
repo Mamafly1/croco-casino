@@ -120,6 +120,7 @@ $('open').addEventListener('click', async () => {
   try {
     const r = await casino.play('cases', 'open', { caseId: sel.id });
     casino.reveal(0); // le prix est déjà débité ; l'objet va dans l'inventaire
+    preload3D(r.item); // la 3D charge pendant que la roulette tourne
     await spinTrack(r.reel);
     showItem(r.item, true);
     renderInv();
@@ -133,48 +134,98 @@ $('open').addEventListener('click', async () => {
 });
 
 // ---------- visualiseur 3D ----------
-// Le visualiseur SkinHub rend l'objet avec le shader du jeu, à son float et son seed. Tant qu'il charge
-// (ou s'il échoue), on montre l'image officielle du skin.
-const SKINHUB = 'https://skinhub.gg/frame';
-let frame = null, onFrame = null, slowTimer = 0;
-function try3D(it) {
+// Le visualiseur SkinHub rend l'objet avec le shader du jeu, à son float et son seed.
+// Son chargement est long (moteur, éclairage, shaders), donc on n'ouvre qu'UN cadre, dès l'arrivée sur la page,
+// et on lui envoie ensuite chaque objet par message : seul le modèle de l'arme est rechargé, pas tout le reste.
+// Le skin gagné est demandé dès le tirage, pendant que la roulette tourne.
+// Tant que la 3D n'est pas prête (ou si elle échoue), la vue montre l'image officielle du skin.
+const SKINHUB = 'https://skinhub.gg', MOBILE = matchMedia('(pointer: coarse), (max-width: 760px)').matches;
+const v3 = { frame: null, listening: false, loadedKey: '', wantedKey: '', pending: null, shown: null, slowTimer: 0 };
+
+// Ce que le visualiseur doit afficher pour un objet (le modèle et la peinture viennent des données de la caisse)
+function spec(it) {
   const c = data && data.cases.find((x) => x.id === it.caseId);
   const src = c && pool(c, it.t).find((x) => x.n === it.n && (x.ph || null) === (it.ph || null));
-  // Éclairage : par défaut SkinHub prend Ancient de nuit, ce qui rend les skins presque noirs.
-  // Mirage de jour donne les vraies couleurs. Sur téléphone, on allège le rendu (moins de pixels, pas de bloom).
-  const q = new URLSearchParams({ hash: it.n, hostloading: 1, map: 'Mirage', time: 'Day', rain: 0 });
-  if (matchMedia('(pointer: coarse), (max-width: 760px)').matches) { q.set('scale', 1); q.set('bloom', 0); }
-  if (src) q.set('paint', src.p); // indispensable pour la phase d'un Doppler
-  if (it.float != null) q.set('float', it.float);
-  if (it.seed != null) q.set('seed', it.seed);
-  if (it.st) q.set('st', 0);
-  if (/Gloves|Hand Wraps/.test(it.n)) q.set('zoom', 0.75); // la paire est trop large pour le cadre
-  const scene = $('scene'), note = $('m3dNote');
-  scene.classList.add('loading3d');
-  frame = document.createElement('iframe');
-  frame.className = 'skinframe';
-  frame.title = `Modèle 3D : ${it.n}`;
-  frame.src = `${SKINHUB}?${q}`;
-  slowTimer = setTimeout(() => { note.textContent = 'La connexion est lente : la 3D peut mettre une minute ou deux à arriver.'; }, 20000);
-  onFrame = (e) => {
-    if (e.source !== frame.contentWindow || !e.data || e.data.channel !== 'skinhub-viewer') return;
-    if (e.data.type === 'hello' && e.data.problems && e.data.problems.length) console.warn('SkinHub', e.data.problems);
-    if (e.data.type === 'ready' || e.data.type === 'error') clearTimeout(slowTimer);
-    if (e.data.type === 'ready') {
-      scene.classList.remove('loading3d');
-      scene.classList.add('has3d');
-      note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. Tourne-le à la souris ou au doigt, molette pour zoomer.';
-    } else if (e.data.type === 'error') {
-      scene.classList.remove('loading3d');
-      note.textContent = 'Le modèle 3D n’a pas pu se charger : voici l’image officielle du skin.';
-    }
+  if (!src || !src.w) return null;
+  return {
+    key: src.w + ':' + src.p,
+    item: { weaponType: src.w, paintIndex: src.p, float: it.float ?? 0, seed: it.seed ?? 0, statTrak: it.st ? 0 : false },
+    zoom: /Gloves|Hand Wraps/.test(it.n) ? 0.75 : 1, // la paire de gants est trop large pour le cadre
   };
-  addEventListener('message', onFrame);
-  scene.appendChild(frame);
+}
+function post(patch) {
+  v3.frame.contentWindow.postMessage({ channel: 'skinhub-viewer', v: 2, from: 'host', type: 'set', patch }, '*'); // rien de secret dans le message
+}
+function createFrame(sp) {
+  const q = new URLSearchParams({
+    weapon: sp.item.weaponType, paint: sp.item.paintIndex, float: sp.item.float, seed: sp.item.seed,
+    zoom: sp.zoom, hostloading: 1, origin: location.origin,
+    // Par défaut SkinHub éclaire avec Ancient de nuit : les skins paraissent noirs. Mirage de jour garde les couleurs.
+    map: 'Mirage', time: 'Day', rain: 0,
+  });
+  if (sp.item.statTrak !== false) q.set('st', 0);
+  if (MOBILE) { q.set('scale', 1); q.set('bloom', 0); } // téléphone : moins de pixels, pas de bloom
+  v3.frame = document.createElement('iframe');
+  v3.frame.className = 'skinframe';
+  v3.frame.title = 'Modèle 3D';
+  v3.frame.src = `${SKINHUB}/frame?${q}`;
+  v3.wantedKey = sp.key;
+  $('scene').appendChild(v3.frame);
+}
+addEventListener('message', (e) => {
+  if (!v3.frame || e.source !== v3.frame.contentWindow) return;
+  const m = e.data;
+  if (!m || m.channel !== 'skinhub-viewer' || m.from !== 'viewer') return;
+  if (m.type === 'hello') {
+    if (m.problems && m.problems.length) console.warn('SkinHub', m.problems);
+    v3.listening = true;
+    if (v3.pending) { const p = v3.pending; v3.pending = null; send(p); }
+  } else if (m.type === 'ready') {
+    v3.loadedKey = v3.wantedKey;
+    refresh();
+  } else if (m.type === 'error') {
+    console.warn('SkinHub', m.error);
+    if (m.error && m.error.code === 'render-failed' && v3.shown) {
+      clearTimeout(v3.slowTimer);
+      $('scene').classList.remove('loading3d');
+      const note = $('m3dNote');
+      if (note) note.textContent = 'Le modèle 3D n’a pas pu se charger : voici l’image officielle du skin.';
+    }
+  }
+});
+function send(sp) {
+  if (!v3.frame) { createFrame(sp); return; }
+  if (!v3.listening) { v3.pending = sp; return; }
+  if (sp.key !== v3.wantedKey) { v3.wantedKey = sp.key; v3.loadedKey = ''; } // nouveau modèle : on attend « ready »
+  post({ item: sp.item, settings: { camera: { defaultZoom: sp.zoom } } });
+  refresh();
+}
+// Demande un objet au visualiseur (sans l'afficher) : appelé dès le tirage, et pour réchauffer la page.
+function preload3D(it) { const sp = spec(it); if (sp) send(sp); }
+
+// Affiche la 3D dans la fenêtre de l'objet dès qu'elle est prête pour cet objet
+function refresh() {
+  const sc = $('scene'), note = $('m3dNote');
+  if (!v3.shown || !note) return;
+  const ok = v3.loadedKey && v3.loadedKey === v3.wantedKey && v3.wantedKey === v3.shown.key;
+  sc.classList.toggle('has3d', !!ok);
+  sc.classList.toggle('loading3d', !ok);
+  if (ok) {
+    clearTimeout(v3.slowTimer);
+    note.innerHTML = 'Rendu 3D par <a href="https://skinhub.gg" target="_blank" rel="noopener">SkinHub</a>, avec le shader du jeu. Tourne-le à la souris ou au doigt, molette pour zoomer.';
+  }
+}
+function try3D(it) {
+  const sp = spec(it), note = $('m3dNote');
+  if (!sp) { note.textContent = 'Pas de modèle 3D pour cet objet : voici l’image officielle.'; return; }
+  v3.shown = sp;
+  clearTimeout(v3.slowTimer);
+  v3.slowTimer = setTimeout(() => { if (v3.shown === sp) note.textContent = 'La connexion est lente : la 3D peut mettre une minute à arriver.'; }, 20000);
+  send(sp);
 }
 function stop3D() {
-  clearTimeout(slowTimer);
-  if (frame) { removeEventListener('message', onFrame); frame.remove(); frame = null; }
+  clearTimeout(v3.slowTimer);
+  v3.shown = null;
   $('scene').classList.remove('has3d', 'loading3d');
 }
 
@@ -212,19 +263,20 @@ function showItem(it, fresh) {
     <div class="btn2"><button class="btn-ghost" id="keep" type="button">Garder</button><button class="btn-main" id="sellOne" type="button">Vendre ${eur(it.value)}</button></div>`;
   $('keep').addEventListener('click', closeReveal);
   $('sellOne').addEventListener('click', () => sell(it.uid).then(closeReveal));
-  m.hidden = false;
+  m.classList.remove('off'); m.inert = false; m.removeAttribute('aria-hidden');
   $('keep').focus();
   stop3D();
   try3D(it);
 }
 function closeReveal() {
   stop3D();
-  $('reveal').hidden = true;
+  const m = $('reveal');
+  m.classList.add('off'); m.inert = true; m.setAttribute('aria-hidden', 'true');
   $('model').innerHTML = '';
 }
 $('rvClose').addEventListener('click', closeReveal);
 $('reveal').addEventListener('click', (e) => { if (e.target === $('reveal')) closeReveal(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('reveal').hidden) closeReveal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('reveal').classList.contains('off')) closeReveal(); });
 
 // ---------- inventaire ----------
 async function sell(uid) {
@@ -270,5 +322,8 @@ loadCases().then((d) => {
   data = d;
   renderList();
   select(data.cases[0]);
+  // Réchauffe le visualiseur 3D avec le premier skin de la caisse : moteur et éclairage seront prêts au premier tirage
+  const first = data.cases[0].items[0];
+  preload3D({ ...first, caseId: data.cases[0].id, float: 0.2, seed: 1 });
   renderInv();
 }).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });

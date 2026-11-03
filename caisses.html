@@ -51,6 +51,8 @@
    color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
 .skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
 .scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
+/* Fenêtre fermée : rangée hors de l'écran au lieu d'être masquée, pour que le cadre 3D reste chargé */
+#reveal.off { position: fixed; left: -300vw; top: 0; right: auto; width: 100vw; pointer-events: none; opacity: 0; }
 .scene.has3d .model { display: none; }
 .hint3d { display: none; position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
 .scene.loading3d .hint3d { display: block; }
@@ -104,7 +106,7 @@
   </section>
 </main>
 
-<div class="modal" id="reveal" hidden>
+<div class="modal off" id="reveal" inert aria-hidden="true">
   <div class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="rvTitle">
     <div class="sheet-head"><h2 id="rvTitle">Tu as obtenu</h2><button class="x" id="rvClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="viewer">
