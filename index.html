@@ -62,7 +62,11 @@ $('tiles').innerHTML = Object.entries(GAME_INFO).map(([g, info]) =>
   `<a class="tile" href="${info.href}">${pixelIcon(g, 54)}<b>${info.name.toUpperCase()}</b><small>${DESC[g][0]}</small><span class="rtp">${DESC[g][1]}</span></a>`).join('');
 mountBoard($('board'), { limit: 10 });
 mountFeed($('feed'), { limit: 10 });
-const on = () => { $('online').textContent = casino.online && casino.status === 'online' ? '· ' + casino.onlineCount + ' connecté' + (casino.onlineCount > 1 ? 's' : '') : casino.online ? '' : '· mode solo'; };
+const on = () => {
+  const n = casino.onlineCount;
+  $('online').textContent = casino.online && casino.status === 'online' ? `· ${n} joueur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}` : casino.online ? '' : '· mode solo';
+  $('online').title = 'Joueurs différents qui ont joué dans les 5 dernières minutes';
+};
 casino.on('online', on).on('status', on); on();
 </script>
 </body>

@@ -168,7 +168,7 @@ export class Casino extends DurableObject {
       // Ses connexions ouvertes prennent le nouveau nom tout de suite
       for (const ws of this.ctx.getWebSockets()) {
         const w = ws.deserializeAttachment();
-        if (w && w.id === row.id) ws.serializeAttachment({ id: w.id, name: newName });
+        if (w && w.id === row.id) ws.serializeAttachment({ ...w, name: newName });
       }
       refresh(row.id);
       this.broadcast({ t: 'board', board: this.board() });
@@ -202,6 +202,18 @@ export class Casino extends DurableObject {
     return reply(400, { error: 'Action inconnue.' });
   }
 
+  // Joueurs actifs : joueurs DIFFÉRENTS, connectés, qui ont joué ou ouvert le site dans les 5 dernières minutes.
+  // (Deux onglets du même joueur, un écran de connexion ou un téléphone en veille ne comptent pas en plus.)
+  activeCount(except = null) {
+    const ids = new Set(), since = Date.now() - 5 * 60000;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === except) continue;
+      const w = ws.deserializeAttachment();
+      if (w && w.id && (w.at || 0) > since) ids.add(w.id);
+    }
+    return ids.size;
+  }
+
   // ---------- comptes ----------
   playerList() {
     return this.sql.exec('SELECT name, games FROM players ORDER BY seen DESC, name LIMIT 300').toArray()
@@ -226,12 +238,12 @@ export class Casino extends DurableObject {
     const pl = this.load(id);
     if (!pl) return this.askLogin(ws);
     this.sql.exec('UPDATE players SET seen = ? WHERE id = ?', Date.now(), id);
-    ws.serializeAttachment({ id: pl.id, name: pl.name });
+    ws.serializeAttachment({ id: pl.id, name: pl.name, at: Date.now() });
     this.send(ws, {
       t: 'welcome', me: this.me(pl), board: this.board(), feed: this.feed,
-      round: await this.roundView(), table: [...this.table.values()], online: this.ctx.getWebSockets().length,
+      round: await this.roundView(), table: [...this.table.values()], online: this.activeCount(),
     });
-    this.broadcast({ t: 'online', n: this.ctx.getWebSockets().length });
+    this.broadcast({ t: 'online', n: this.activeCount() });
   }
   // Appareil déjà connu : on entre directement
   async hello(ws, msg) {
@@ -294,6 +306,12 @@ export class Casino extends DurableObject {
     if (!this.allow(who.id)) return this.send(ws, { t: 'res', id: msg.id, ok: false, error: 'Doucement : trop de requêtes.' });
     const pl = this.load(who.id);
     if (!pl) return;
+    if (Date.now() - (who.at || 0) > 60000) {
+      const wasActive = this.activeCount();
+      ws.serializeAttachment({ ...who, at: Date.now() });
+      const n = this.activeCount();
+      if (n !== wasActive) this.broadcast({ t: 'online', n });
+    }
     try {
       let res;
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
@@ -312,7 +330,7 @@ export class Casino extends DurableObject {
   }
   async webSocketClose(ws) {
     try { ws.close(); } catch {}
-    this.broadcast({ t: 'online', n: this.ctx.getWebSockets().length - 1 });
+    this.broadcast({ t: 'online', n: this.activeCount(ws) });
   }
   async webSocketError(ws) { await this.webSocketClose(ws); }
 
