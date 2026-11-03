@@ -48,19 +48,14 @@
 .scene { position: relative; min-height: 300px; display: grid; place-items: center; background:
   radial-gradient(42% 34% at 50% 50%, color-mix(in srgb, var(--tc) 60%, transparent), transparent 100%),
   radial-gradient(80% 70% at 50% 45%, #33332f, transparent 75%),
-  linear-gradient(180deg, #1c1c1a, #101010); overflow: hidden; overflow: clip; perspective: 1100px; }
-.scene::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 13%; height: 16px; border-radius: 50%; background: rgba(0, 0, 0, 0.6); filter: blur(10px); pointer-events: none; animation: shadowFloat 4s ease-in-out infinite; }
+  linear-gradient(180deg, #1c1c1a, #101010); overflow: hidden; overflow: clip; }
+.scene::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 13%; height: 16px; border-radius: 50%; background: rgba(0, 0, 0, 0.6); filter: blur(10px); pointer-events: none; }
 .model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; }
 .model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
 /* Le haut du cadre SkinHub (avec son logo, retiré avec leur accord) dépasse et reste masqué par .scene.
    color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
 .skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
 .scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
-/* L'arme flotte doucement et s'incline vers le curseur (variables --ry/--rx mises par la page) */
-.skinframe, .scene .model { transform: rotateY(calc(var(--ry, 0) * 1deg)) rotateX(calc(var(--rx, 0) * 1deg)) translateY(var(--fy, 0px)); transition: transform 0.35s ease-out, opacity 0.3s; animation: weaponFloat 4s ease-in-out infinite; }
-@keyframes weaponFloat { 0%, 100% { --fy: 0px; } 50% { --fy: -7px; } }
-@keyframes shadowFloat { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.9); opacity: 0.75; } }
-@property --fy { syntax: '<length>'; inherits: false; initial-value: 0px; }
 /* Fenêtre fermée : laissée à l'écran mais quasi invisible, derrière la page, au lieu d'être masquée ou poussée hors
    de l'écran. Sinon le navigateur met le cadre 3D en pause et le skin gagné ne charge pas pendant la roulette. */
 #reveal.off { z-index: -1; opacity: 0.01; pointer-events: none; }
@@ -71,11 +66,12 @@
 .specs { padding: 16px; display: grid; gap: 10px; align-content: start; }
 .specs h3 { margin: 0; font-size: 17px; line-height: 1.3; }
 .rar { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 12px; color: #181818; background: var(--tc); }
-.floatbar { position: relative; height: 12px; border-radius: 4px; overflow: hidden; display: flex; }
+.floatbar { position: relative; height: 14px; border-radius: 4px; display: flex; }
 .floatbar i { height: 100%; }
-.floatpin { position: relative; height: 12px; }
-.floatpin b { position: absolute; top: -2px; width: 3px; height: 14px; margin-left: -1.5px; background: var(--ink); }
-.floatpin span { position: absolute; top: 0; height: 4px; border-radius: 2px; background: rgba(240,240,230,.35); }
+.floatbar i:first-child { border-radius: 4px 0 0 4px; }
+.floatbar i:nth-child(5) { border-radius: 0 4px 4px 0; }
+.floatbar .fout { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(24,24,24,.82) 0 4px, rgba(24,24,24,.6) 4px 8px); }
+.floatbar .fmark { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); box-shadow: 0 0 0 1.5px #181818; }
 .kv { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -143,6 +139,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=10"></script>
+<script type="module" src="js/pages/caisses.js?v=11"></script>
 </body>
 </html>

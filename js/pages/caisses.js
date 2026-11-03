@@ -265,30 +265,20 @@ function try3D(it) {
 function warm3D() {
   send({ key: 'weapon_ak47:0', item: { weaponType: 'weapon_ak47', paintIndex: 0, float: 0.2, seed: 1, statTrak: false }, zoom: 1 });
 }
-// L'arme s'incline doucement vers le curseur tant qu'on ne la tient pas.
-// (Quand le curseur passe sur la 3D, la page ne le voit plus : on la remet droite, et SkinHub prend la main.)
-function tilt(x, y) { const sc = $('scene'); sc.style.setProperty('--ry', x.toFixed(2)); sc.style.setProperty('--rx', y.toFixed(2)); }
-document.addEventListener('mousemove', (e) => {
-  if ($('reveal').classList.contains('off') || reduceMotion) return;
-  const r = $('scene').getBoundingClientRect();
-  const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width * 0.9)));
-  const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height * 0.9)));
-  tilt(nx * 9, -ny * 6);
-});
-$('scene').addEventListener('mouseenter', () => tilt(0, 0));
-$('reveal').addEventListener('mouseleave', () => tilt(0, 0));
-
 function stop3D() {
   clearTimeout(v3.slowTimer);
   v3.shown = null;
   $('scene').classList.remove('has3d', 'loading3d');
 }
 
+// Barre d'usure : les zones que ce skin ne peut pas atteindre sont grisées et hachurées,
+// le trait blanc montre le float tiré.
 function floatBar(it) {
   const segs = [['#3ddc5f', 0, 0.07], ['#a7e05a', 0.07, 0.15], ['#ffbf17', 0.15, 0.38], ['#ff8a3d', 0.38, 0.45], ['#de0607', 0.45, 1]];
   const bar = segs.map(([c, a, b]) => `<i style="width:${(b - a) * 100}%;background:${c}"></i>`).join('');
   const [lo, hi] = it.range;
-  return `<div class="floatbar" aria-hidden="true">${bar}</div><div class="floatpin" aria-hidden="true"><span style="left:${lo * 100}%;width:${(hi - lo) * 100}%"></span><b style="left:${it.float * 100}%"></b></div>`;
+  const out = (lo > 0 ? `<span class="fout" style="left:0;width:${lo * 100}%"></span>` : '') + (hi < 1 ? `<span class="fout" style="left:${hi * 100}%;right:0"></span>` : '');
+  return `<div class="floatbar" aria-hidden="true">${bar}${out}<b class="fmark" style="left:${it.float * 100}%"></b></div>`;
 }
 
 function showItem(it, fresh) {
