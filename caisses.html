@@ -44,13 +44,23 @@
 .invbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
 /* visualiseur 3D */
 .viewer { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0; }
-.scene { position: relative; min-height: 300px; display: grid; place-items: center; background: radial-gradient(60% 50% at 50% 55%, color-mix(in srgb, var(--tc) 35%, transparent), transparent 70%), #121212; overflow: hidden; overflow: clip; }
+/* Scène 3D : halo de la couleur de la rareté derrière l'arme, sol plus clair et ombre portée, pour qu'elle ressorte */
+.scene { position: relative; min-height: 300px; display: grid; place-items: center; background:
+  radial-gradient(42% 34% at 50% 50%, color-mix(in srgb, var(--tc) 60%, transparent), transparent 100%),
+  radial-gradient(80% 70% at 50% 45%, #33332f, transparent 75%),
+  linear-gradient(180deg, #1c1c1a, #101010); overflow: hidden; overflow: clip; perspective: 1100px; }
+.scene::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 13%; height: 16px; border-radius: 50%; background: rgba(0, 0, 0, 0.6); filter: blur(10px); pointer-events: none; animation: shadowFloat 4s ease-in-out infinite; }
 .model { position: relative; width: min(82%, 340px); aspect-ratio: 4 / 3; }
 .model img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; user-select: none; }
 /* Le haut du cadre SkinHub (avec son logo, retiré avec leur accord) dépasse et reste masqué par .scene.
    color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
 .skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
 .scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
+/* L'arme flotte doucement et s'incline vers le curseur (variables --ry/--rx mises par la page) */
+.skinframe, .scene .model { transform: rotateY(calc(var(--ry, 0) * 1deg)) rotateX(calc(var(--rx, 0) * 1deg)) translateY(var(--fy, 0px)); transition: transform 0.35s ease-out, opacity 0.3s; animation: weaponFloat 4s ease-in-out infinite; }
+@keyframes weaponFloat { 0%, 100% { --fy: 0px; } 50% { --fy: -7px; } }
+@keyframes shadowFloat { 0%, 100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(0.9); opacity: 0.75; } }
+@property --fy { syntax: '<length>'; inherits: false; initial-value: 0px; }
 /* Fenêtre fermée : laissée à l'écran mais quasi invisible, derrière la page, au lieu d'être masquée ou poussée hors
    de l'écran. Sinon le navigateur met le cadre 3D en pause et le skin gagné ne charge pas pendant la roulette. */
 #reveal.off { z-index: -1; opacity: 0.01; pointer-events: none; }
@@ -133,6 +143,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=9"></script>
+<script type="module" src="js/pages/caisses.js?v=10"></script>
 </body>
 </html>

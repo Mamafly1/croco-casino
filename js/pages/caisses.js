@@ -265,6 +265,19 @@ function try3D(it) {
 function warm3D() {
   send({ key: 'weapon_ak47:0', item: { weaponType: 'weapon_ak47', paintIndex: 0, float: 0.2, seed: 1, statTrak: false }, zoom: 1 });
 }
+// L'arme s'incline doucement vers le curseur tant qu'on ne la tient pas.
+// (Quand le curseur passe sur la 3D, la page ne le voit plus : on la remet droite, et SkinHub prend la main.)
+function tilt(x, y) { const sc = $('scene'); sc.style.setProperty('--ry', x.toFixed(2)); sc.style.setProperty('--rx', y.toFixed(2)); }
+document.addEventListener('mousemove', (e) => {
+  if ($('reveal').classList.contains('off') || reduceMotion) return;
+  const r = $('scene').getBoundingClientRect();
+  const nx = Math.max(-1, Math.min(1, (e.clientX - (r.left + r.width / 2)) / (r.width * 0.9)));
+  const ny = Math.max(-1, Math.min(1, (e.clientY - (r.top + r.height / 2)) / (r.height * 0.9)));
+  tilt(nx * 9, -ny * 6);
+});
+$('scene').addEventListener('mouseenter', () => tilt(0, 0));
+$('reveal').addEventListener('mouseleave', () => tilt(0, 0));
+
 function stop3D() {
   clearTimeout(v3.slowTimer);
   v3.shown = null;
