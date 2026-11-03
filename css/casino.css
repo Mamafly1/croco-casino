@@ -347,6 +347,7 @@ a { color: inherit; }
 .otp-hint b { color: var(--ink); font-size: 16px; letter-spacing: 0.2em; }
 .otp { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 24px; font-weight: 800; letter-spacing: 0.5em; text-align: center; font-variant-numeric: tabular-nums; }
 .err { margin: 0; min-height: 1.2em; font-size: 13px; font-weight: 700; color: var(--lose); }
+#payErr { font-size: 11px; text-align: center; min-height: 0; }
 .done { justify-items: center; text-align: center; }
 .done-ico { width: 56px; height: 56px; }
 .receipt { width: 100%; text-align: left; }

@@ -8,6 +8,7 @@ import * as cases from './cases.js';
 
 export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots'];
 export const PACKS = [10, 20, 50, 100];
+export const DAILY_DEPOSIT = 100; // € par jour et par joueur
 export const MIN_BET = 0.1;
 export const MAX_BET = 1000;
 export const MAX_INVENTORY = 300;
@@ -96,6 +97,14 @@ export function run(p, game, action, params = {}, ctx) {
   if (game === 'wallet' && action === 'deposit') {
     const amount = PACKS[params.pack];
     if (!amount) throw new GameError('Montant inconnu.');
+    // Plafond de dépôt : 100 € par jour (heure française), comme une carte bancaire
+    const day = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+    if (!p.depDay || p.depDay.day !== day) p.depDay = { day, amount: 0 };
+    const left = money(DAILY_DEPOSIT - p.depDay.amount);
+    if (amount > left + 1e-9) {
+      throw new GameError(`Message de la banque\u00a0: paiement refusé. Solde restant\u00a0: ${left.toFixed(2).replace('.', ',')}\u00a0€`);
+    }
+    p.depDay.amount = money(p.depDay.amount + amount);
     p.balance = money(p.balance + amount);
     p.deposits = money(p.deposits + amount);
     return out({ amount, payout: amount });

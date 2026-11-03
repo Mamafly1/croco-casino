@@ -355,6 +355,7 @@ function buildShop() {
       </div>
       <button class="btn-main" id="payBtn" type="submit">Payer</button>
       <button class="btn-link" id="backPack" type="button">Changer le montant</button>
+      <p class="err small" id="payErr" aria-live="polite"></p>
     </form>
     <div class="step wait" id="stepWait" hidden><div class="spinner" aria-hidden="true"></div><p id="waitText" aria-live="polite">Connexion à la banque fictive…</p></div>
     <form class="step" id="stepOtp" hidden>
@@ -394,6 +395,7 @@ function buildShop() {
   });
   $('backPack').addEventListener('click', () => show('stepPack'));
   $('stepPay').addEventListener('submit', (e) => {
+    $('payErr').textContent = '';
     e.preventDefault();
     show('stepWait');
     $('waitText').textContent = 'Connexion à la banque fictive…';
@@ -416,8 +418,9 @@ function buildShop() {
         $('doneBtn').focus();
         countUp(before, casino.shownBalance());
       } catch (err) {
-        show('stepOtp');
-        $('otpErr').textContent = err.message;
+        // Refus de la banque (plafond du jour) : retour à l'écran de paiement, message en petit rouge en bas
+        show('stepPay');
+        $('payErr').textContent = err.message;
       }
     }, 900);
   });
@@ -430,6 +433,7 @@ function openShop() {
   lastFocus = document.activeElement;
   m.hidden = false;
   m._show('stepPack');
+  $('payErr').textContent = '';
   (m.querySelector('input[name="pack"]:checked') || $('shopClose')).focus();
 }
 function closeShop() {
