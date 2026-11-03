@@ -3,7 +3,7 @@
 Casino de démonstration, **argent fictif uniquement** : Plinko, roulette européenne, blackjack,
 ouverture de caisses CS2 et machine à sous, avec un solde commun, un classement et un fil en direct.
 
-En ligne : <https://mamafly1.github.io/croco-plinko/>
+En ligne : <https://mamafly1.github.io/croco-casino/>
 
 ## Contenu
 

@@ -34,7 +34,7 @@ Le serveur tourne chez Cloudflare, pas sur ton PC. C'est GitHub qui l'envoie, ri
    ```
 
    GitHub Pages republie le site, et tout le monde joue ensemble sur
-   <https://mamafly1.github.io/croco-plinko/>.
+   <https://mamafly1.github.io/croco-casino/>.
 
 Ensuite, chaque modification du serveur poussée sur `main` est renvoyée automatiquement.
 
