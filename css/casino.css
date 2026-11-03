@@ -109,7 +109,9 @@ a { color: inherit; }
   border-radius: 10px;
   background: var(--panel);
 }
-.wallet-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.wallet-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.wallet { min-width: 0; }
+.wallet > div { min-width: 0; }
 .demo, .net {
   margin-left: 2px;
   padding: 1px 5px;

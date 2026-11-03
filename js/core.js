@@ -293,7 +293,6 @@ export function switchPlayer() {
 }
 
 // ---------- en-tête ----------
-const SIM_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>';
 const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 export function mountShell(active) {
@@ -305,7 +304,7 @@ export function mountShell(active) {
     <nav class="nav" aria-label="Jeux">${links}</nav>
     <div class="wallet">
       <div>
-        <div class="wallet-label">Solde <span class="demo">Démo</span> <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
+        <div class="wallet-label">Solde <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
       </div>
       <button id="topup" class="topup" type="button">
@@ -352,7 +351,6 @@ function buildShop() {
   m.innerHTML = `
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
     <div class="sheet-head"><h2 id="shopTitle">Déposer des fonds</h2><button class="x" id="shopClose" type="button" aria-label="Fermer">${X_ICON}</button></div>
-    <p class="sim">${SIM_ICON} Simulation : aucun vrai paiement. N’entre aucune vraie donnée.</p>
     <form class="step" id="stepPack">
       <div class="steps-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
       <div class="field-head"><span>Montant du dépôt</span></div>
@@ -365,20 +363,20 @@ function buildShop() {
       <dl class="summary"><div><dt>Dépôt</dt><dd id="sumHT">0,00 €</dd></div><div><dt>Frais</dt><dd>0,00 €</dd></div><div class="total"><dt>Total</dt><dd id="sumTTC">0,00 €</dd></div></dl>
       <div class="field-head"><span>Carte enregistrée</span></div>
       <label class="method"><input type="radio" name="method" value="card" checked><span><b>Carte •••• 4821</b><small>Expire 09/28</small></span></label>
-      <div class="card" aria-label="Carte fictive se terminant par 4821">
+      <div class="card" aria-label="Carte se terminant par 4821">
         <div class="card-top"><span>CROCO BANK</span><svg class="chip" viewBox="0 0 38 28" aria-hidden="true"><rect x="1" y="1" width="36" height="26" rx="5" fill="#ffbf17" stroke="#b07a00"/><path d="M1 10h12M1 18h12M25 10h12M25 18h12M13 1v26M25 1v26" stroke="#b07a00" fill="none"/></svg></div>
         <div class="card-num">5832 •••• •••• 4821</div>
-        <div class="card-bottom"><span><small>TITULAIRE</small>J. DUPONT</span><span><small>EXPIRE</small>09/28</span></div>
+        <div class="card-bottom"><span><small>TITULAIRE</small><span id="cardName"></span></span><span><small>EXPIRE</small>09/28</span></div>
       </div>
       <button class="btn-main" id="payBtn" type="submit">Payer</button>
       <button class="btn-link" id="backPack" type="button">Changer le montant</button>
       <p class="err small" id="payErr" aria-live="polite"></p>
     </form>
-    <div class="step wait" id="stepWait" hidden><div class="spinner" aria-hidden="true"></div><p id="waitText" aria-live="polite">Connexion à la banque fictive…</p></div>
+    <div class="step wait" id="stepWait" hidden><div class="spinner" aria-hidden="true"></div><p id="waitText" aria-live="polite">Connexion à la banque…</p></div>
     <form class="step" id="stepOtp" hidden>
       <div class="steps-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></div>
       <h3 class="h3">Confirme le paiement</h3>
-      <p class="otp-hint">Simulation : aucun SMS n’est envoyé. Entre un code fictif, par exemple <b>1234</b>.</p>
+      <p class="otp-hint">Entre n’importe quel code à 4 chiffres, par exemple <b>1234</b>.</p>
       <label for="otp" class="field-head"><span>Code de confirmation</span></label>
       <input class="otp" id="otp" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
       <p class="err" id="otpErr" aria-live="polite"></p>
@@ -415,8 +413,8 @@ function buildShop() {
     $('payErr').textContent = '';
     e.preventDefault();
     show('stepWait');
-    $('waitText').textContent = 'Connexion à la banque fictive…';
-    setTimeout(() => { $('waitText').textContent = 'Autorisation fictive…'; }, 800);
+    $('waitText').textContent = 'Connexion à la banque…';
+    setTimeout(() => { $('waitText').textContent = 'Autorisation…'; }, 800);
     setTimeout(() => { $('otp').value = ''; $('otpErr').textContent = ''; show('stepOtp'); $('otp').focus(); }, 1700);
   });
   $('stepOtp').addEventListener('submit', (e) => {
@@ -445,7 +443,9 @@ function buildShop() {
   $('doneBtn').addEventListener('click', closeShop);
 }
 
+const CARD_INITIAL = 'ABCDEFGHJKLMNPRSTV'[Math.floor(Math.random() * 18)];
 function openShop() {
+  $('cardName').textContent = `${CARD_INITIAL}. ${casino.me.name || 'Joueur'}`;
   const m = $('shop');
   lastFocus = document.activeElement;
   m.hidden = false;
