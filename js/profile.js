@@ -27,7 +27,23 @@ function box() {
   return m;
 }
 
+// Profil en direct : tant qu'il est ouvert, il se recharge quand ce joueur joue (fil), quand le classement bouge
+// ou quand c'est le tien et que ton solde change.
+let current = null, refreshTimer = 0;
+function refreshSoon() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    const m = $('profileBox');
+    if (!current || !m || m.hidden) return;
+    try { render(await casino.profile(current)); } catch { /* garde l'affichage actuel */ }
+  }, 700);
+}
+casino.on('feed', (e) => { if (e && e.name === current) refreshSoon(); });
+casino.on('board', () => refreshSoon());
+casino.on('me', (me) => { if (me && me.name === current) refreshSoon(); });
+
 export async function openProfile(name) {
+  current = name;
   const m = box();
   $('profTitle').textContent = name;
   $('profBody').innerHTML = '<p class="muted">Chargement…</p>';
@@ -40,6 +56,7 @@ export async function openProfile(name) {
 }
 
 function render(p) {
+  current = p.name;
   $('profTitle').innerHTML = `${esc(p.name)}${p.rank ? ` <span class="muted">#${p.rank}</span>` : ''}`;
   const games = GAMES.filter((g) => p.played[g]);
   const total = games.reduce((s, g) => s + p.played[g], 0);

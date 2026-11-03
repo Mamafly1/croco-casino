@@ -98,7 +98,8 @@ function seats(list) {
   $('seats').innerHTML = others.map((s) => {
     const h = s.hand;
     const status = h.phase === 'done' ? h.hands.map((x) => RES[x.result]).join(' / ') : 'joue…';
-    return `<div class="seat"><b>${esc(s.name)}</b><div class="cards">${h.hands[0].cards.map((c) => cardSVG(c)).join('')}</div><small>${h.hands.map((x) => x.total).join(' / ')} · ${status}</small></div>`;
+    const row = (label, cards, total) => `<div class="seat-row"><small>${label}</small><div class="cards">${cards.map((c) => cardSVG(c)).join('')}</div><b class="num">${total}</b></div>`;
+    return `<div class="seat"><b>${esc(s.name)}</b>${row('Croupier', h.dealer, h.dealerTotal)}${h.hands.map((x, i) => row(h.hands.length > 1 ? `Main ${i + 1}` : 'Joueur', x.cards, x.total)).join('')}<small>${status}</small></div>`;
   }).join('');
 }
 casino.on('table', seats);

@@ -109,6 +109,8 @@ function spinTrack(reel) {
 $('open').addEventListener('click', async () => {
   if (!sel || opening) return;
   opening = true;
+  // Tant que la roulette tourne, l'inventaire n'affiche pas le nouvel objet (sinon il dévoile le résultat)
+  hiddenNew = new Set((casino.me.inventory || []).map((x) => x.uid));
   $('open').disabled = true;
   $('msg').textContent = '';
   try {
@@ -116,6 +118,7 @@ $('open').addEventListener('click', async () => {
     casino.reveal(0); // le prix est déjà débité ; l'objet va dans l'inventaire
     preload3D(r.item); // la 3D charge pendant que la roulette tourne
     await spinTrack(r.reel);
+    hiddenNew = null;
     showItem(r.item, true);
     renderInv();
   } catch (err) {
@@ -123,6 +126,7 @@ $('open').addEventListener('click', async () => {
     if (/Solde insuffisant/.test(err.message)) casino.nudgeDeposit();
   } finally {
     opening = false;
+    if (hiddenNew) { hiddenNew = null; renderInv(); }
     $('open').disabled = !sel;
   }
 });
@@ -398,10 +402,13 @@ async function sell(uid) {
     $('msg').textContent = err.message;
   }
 }
+let hiddenNew = null;
 function renderInv() {
-  const inv = casino.me.inventory || [];
+  const all = casino.me.inventory || [];
+  const inv = hiddenNew ? all.filter((x) => hiddenNew.has(x.uid)) : all;
   $('tabInv').textContent = `Inventaire (${inv.length})`;
-  $('invSum').textContent = inv.length ? `${inv.length} objet${inv.length > 1 ? 's' : ''} · valeur ${eur(casino.me.inventoryValue || 0)}` : 'Inventaire vide : ouvre une caisse.';
+  const val = inv.reduce((t, x) => t + x.value, 0);
+  $('invSum').textContent = inv.length ? `${inv.length} objet${inv.length > 1 ? 's' : ''} · valeur ${eur(val)}` : 'Inventaire vide : ouvre une caisse.';
   $('sellAll').disabled = !inv.length;
   if (!data) return;
   $('inv').innerHTML = inv.map((it) => `<button type="button" class="it" data-uid="${it.uid}" style="--tc:${tc(it.t)}">${it.st ? '<span class="st">ST</span>' : ''}${imgTag(it.i, it.n, '128fx96f')}<b title="${esc(it.n)}">${esc(it.n)}</b><small>${it.wear || 'Sans usure'}${it.float != null ? ' · ' + it.float.toFixed(4) : ''}</small><small style="color:var(--gold)">${eur(it.value)}</small></button>`).join('');

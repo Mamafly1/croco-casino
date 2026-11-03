@@ -24,11 +24,12 @@
 .acts button { padding: 12px 4px; border: 0; border-radius: 9px; font-weight: 800; background: var(--panel-2); }
 .acts button.main { background: var(--gold); color: var(--gold-ink); }
 .acts button:disabled { opacity: .35; cursor: not-allowed; }
-.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.seats { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
 .seat { padding: 8px 10px; border-radius: 10px; background: var(--field); display: grid; gap: 6px; min-width: 0; }
 .seat b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat .cards { --cw: 30px; justify-content: flex-start; min-height: 0; }
 .seat small { color: var(--muted); }
+.seat-row { display: grid; grid-template-columns: 56px 1fr 26px; gap: 6px; align-items: center; } .seat-row b { text-align: right; }
 </style>
 </head>
 <body>
@@ -84,6 +85,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/blackjack.js?v=p1"></script>
+<script type="module" src="js/pages/blackjack.js?v=p2"></script>
 </body>
 </html>
