@@ -62,7 +62,7 @@ function render(p) {
 
 // Courbe du solde en escalier (le solde change par à-coups) ; survol : le mouvement le plus proche
 function chart(el, hist) {
-  if (hist.length < 2) { el.innerHTML = '<p class="muted">Pas encore assez de parties.</p>'; return; }
+  if (!hist.length) { el.innerHTML = '<p class="muted">Aucune partie enregistrée.</p>'; return; }
   const pts = [{ b: hist[0].b - hist[0].d, at: hist[0].at, start: true }, ...hist];
   const W = 640, H = 180, L = 46, R = 8, T = 10, B = 18;
   const vals = pts.map((x) => x.b);
