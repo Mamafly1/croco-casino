@@ -124,9 +124,9 @@ export class Casino extends DurableObject {
   }
   async register(ws, msg) {
     const name = String(msg.name || '').trim(), pin = String(msg.pin || '');
-    if (!NAME_RE.test(name)) return this.askLogin(ws, 'Pseudo : 2 à 16 lettres ou chiffres.');
+    if (!NAME_RE.test(name)) return this.askLogin(ws, 'Pseudo : 2 à 16 caractères.');
     if (!/^\d{4}$/.test(pin)) return this.askLogin(ws, 'Le code fait 4 chiffres.');
-    if (this.sql.exec('SELECT 1 FROM players WHERE name = ?', name).toArray().length) return this.askLogin(ws, 'Ce pseudo est déjà pris : clique dessus dans la liste.');
+    if (this.sql.exec('SELECT 1 FROM players WHERE name = ?', name).toArray().length) return this.askLogin(ws, 'Pseudo déjà pris.');
     const salt = crypto.randomUUID();
     this.sql.exec('INSERT INTO players (name, token, data, created, pin) VALUES (?, ?, ?, ?, ?)',
       name, 'compte:' + crypto.randomUUID(), JSON.stringify(newPlayer()), Date.now(), `${salt}:${await this.pinHash(pin, salt)}`);
@@ -139,7 +139,7 @@ export class Casino extends DurableObject {
     const row = this.sql.exec('SELECT id, name, pin FROM players WHERE name = ?', name).toArray()[0];
     if (!row) return this.askLogin(ws, 'Joueur inconnu.');
     const key = row.name.toLowerCase(), f = this.fails.get(key) || { n: 0, until: 0 };
-    if (f.until > Date.now()) return this.askLogin(ws, 'Trop d’essais : attends une minute.');
+    if (f.until > Date.now()) return this.askLogin(ws, 'Trop d’essais, réessaie dans 1 min.');
     if (!row.pin) {
       // Compte créé avant les codes : le premier code tapé devient le sien
       if (!/^\d{4}$/.test(pin)) return this.askLogin(ws, 'Le code fait 4 chiffres.');
@@ -151,7 +151,7 @@ export class Casino extends DurableObject {
         f.n++;
         if (f.n >= 5) { f.n = 0; f.until = Date.now() + 60000; }
         this.fails.set(key, f);
-        return this.askLogin(ws, f.until > Date.now() ? 'Trop d’essais : attends une minute.' : 'Code incorrect.');
+        return this.askLogin(ws, f.until > Date.now() ? 'Trop d’essais, réessaie dans 1 min.' : 'Code incorrect.');
       }
     }
     this.fails.delete(key);

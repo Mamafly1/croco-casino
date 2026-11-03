@@ -209,16 +209,15 @@ function showLogin(players, error) {
         <div class="sheet-head"><h2 id="loginTitle">Qui joue ?</h2></div>
         <div class="step">
           <div class="who-list" id="whoList"></div>
-          <button class="btn-ghost" id="whoNew" type="button">+ Nouveau joueur</button>
+          <button class="btn-ghost" id="whoNew" type="button">+ Nouveau</button>
           <div id="whoForm" class="who-form" hidden>
             <label class="field-head" for="whoName"><span>Pseudo</span></label>
             <input class="text-in" id="whoName" maxlength="16" autocomplete="nickname">
-            <label class="field-head" for="whoPin"><span id="whoPinLabel">Ton code (4 chiffres)</span></label>
+            <label class="field-head" for="whoPin"><span id="whoPinLabel">Code</span></label>
             <input class="otp" id="whoPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
             <p class="err" id="whoErr" aria-live="polite"></p>
             <button class="btn-main" type="submit" id="whoGo">Entrer</button>
           </div>
-          <p class="muted small">Ce téléphone s’en souviendra : tu n’auras plus à le refaire ici.</p>
         </div>
       </form>`;
     document.body.appendChild(box);
@@ -243,7 +242,7 @@ function showLogin(players, error) {
   }
   $('whoList').innerHTML = players.length
     ? players.map((p) => `<button type="button" class="who-btn" data-name="${esc(p.name)}" aria-pressed="${p.name === loginPick}">${esc(p.name)}</button>`).join('')
-    : '<p class="muted">Personne pour l’instant : crée le premier joueur.</p>';
+    : '';
   box.hidden = false;
   $('whoGo').disabled = false;
   if (!players.length && !loginPick) pickLogin('', true);
@@ -256,8 +255,8 @@ function pickLogin(name, isNew) {
   $('whoForm').hidden = false;
   $('whoName').hidden = !isNew;
   document.querySelector('label[for="whoName"]').hidden = !isNew;
-  $('whoPinLabel').textContent = isNew ? 'Choisis un code (4 chiffres), à retenir' : `Code de ${name}`;
-  $('whoGo').textContent = isNew ? 'Créer et entrer' : 'Entrer';
+  $('whoPinLabel').textContent = isNew ? 'Code (4 chiffres)' : 'Code';
+  $('whoGo').textContent = isNew ? 'Créer' : 'Entrer';
   $('whoErr').textContent = '';
   $('whoPin').value = '';
   document.querySelectorAll('#whoList .who-btn').forEach((b) => b.setAttribute('aria-pressed', String(!isNew && b.dataset.name === name)));
@@ -341,7 +340,7 @@ function buildShop() {
       <div class="steps-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
       <div class="field-head"><span>Montant du dépôt</span></div>
       <div class="packs">${PACKS.map((p, i) => `<label class="pack">${i === 1 ? '<span class="tag">Populaire</span>' : ''}<input type="radio" name="pack" value="${i}"${i === chosen ? ' checked' : ''}><span class="cr">${nf0.format(p)} <small>€</small></span><span class="price">Crédité immédiatement</span></label>`).join('')}</div>
-      <p class="muted small">Les dépôts sont retirés de ton score : déposer ne fait pas monter au classement.</p>
+      <p class="muted small">Les dépôts ne comptent pas au classement.</p>
       <button class="btn-main" type="submit">Continuer</button>
     </form>
     <form class="step" id="stepPay" hidden>
