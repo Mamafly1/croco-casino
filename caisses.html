@@ -51,8 +51,9 @@
    color-scheme : sans ça, le navigateur peint un fond blanc derrière le cadre transparent. */
 .skinframe { --crop: 56px; position: absolute; left: 0; top: calc(-1 * var(--crop)); width: 100%; height: calc(100% + var(--crop)); border: 0; background: transparent; color-scheme: light; opacity: 0; pointer-events: none; }
 .scene.has3d .skinframe { opacity: 1; pointer-events: auto; }
-/* Fenêtre fermée : rangée hors de l'écran au lieu d'être masquée, pour que le cadre 3D reste chargé */
-#reveal.off { position: fixed; left: -300vw; top: 0; right: auto; width: 100vw; pointer-events: none; opacity: 0; }
+/* Fenêtre fermée : laissée à l'écran mais quasi invisible, derrière la page, au lieu d'être masquée ou poussée hors
+   de l'écran. Sinon le navigateur met le cadre 3D en pause et le skin gagné ne charge pas pendant la roulette. */
+#reveal.off { z-index: -1; opacity: 0.01; pointer-events: none; }
 .scene.has3d .model { display: none; }
 .hint3d { display: none; position: absolute; bottom: 8px; left: 0; right: 0; margin: 0; text-align: center; font-size: 11px; color: var(--muted); }
 .scene.loading3d .hint3d { display: block; }
