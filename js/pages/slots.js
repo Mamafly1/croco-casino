@@ -133,23 +133,26 @@ async function spinOnce() {
   }
 }
 
+// autoLeft = tours restants APRÈS celui en cours ; autoOn reste vrai jusqu'à la fin du dernier tour
+let autoOn = false;
 function label() {
   const p = $('play');
-  if (autoLeft) { p.textContent = `Arrêter (${autoLeft} restants)`; p.classList.add('stop'); }
+  if (autoOn) { p.textContent = `Arrêter (${autoLeft} restant${autoLeft > 1 ? 's' : ''})`; p.classList.add('stop'); }
   else { p.textContent = autoN > 1 ? `Lancer ×${autoN}` : 'Lancer'; p.classList.remove('stop'); }
 }
 async function run() {
-  if (autoLeft) { autoLeft = 0; label(); return; }
+  if (autoOn) { autoLeft = 0; label(); return; } // s'arrête après le tour en cours
   if (spinning) return;
   if (autoN === 1) { await spinOnce(); return; }
+  autoOn = true;
   autoLeft = autoN;
-  label();
   while (autoLeft > 0) {
     autoLeft--;
     label();
-    if (!(await spinOnce())) { autoLeft = 0; break; }
-    await new Promise((r) => setTimeout(r, 450));
+    if (!(await spinOnce())) break;
+    if (autoLeft > 0) await new Promise((r) => setTimeout(r, 450));
   }
+  autoOn = false;
   autoLeft = 0;
   label();
 }
