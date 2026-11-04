@@ -1,5 +1,5 @@
 // Page Fusée : le multiplicateur monte, tu retires avant l'explosion.
-import { casino, mountShell, $, eur, nfx, reduceMotion } from '../core.js';
+import { casino, mountShell, $, eur, reduceMotion } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { mult, timeTo } from '../engine/crash.js';
 
@@ -7,7 +7,8 @@ mountShell('crash');
 mountFeed($('feed'), { game: 'crash', limit: 8 });
 const bet = betControl();
 const stats = sessionStats();
-const fx = (m) => '×' + nfx.format(m);
+const fx2 = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fx = (m) => '×' + fx2.format(m);
 
 $('oddsNote').innerHTML = 'La fusée explose à un point tiré au hasard au décollage. Elle dépasse ×2 une fois sur 2,02, ×10 une fois sur 10,1, ×100 une fois sur 101. ' +
   '1 fusée sur 100 explose dès le départ (×1,00). Quel que soit le moment où tu retires, le jeu garde <strong>1 %</strong> de ce qui est misé (retour 99 %).';
@@ -38,8 +39,8 @@ function draw() {
   for (const [x, y, s] of stars) { ctx.fillStyle = 'rgba(240,240,230,.6)'; ctx.fillRect(((x * W - el * 0.02 * s) % W + W) % W, y * H, s, s); }
   if (state === 'idle') { rocket(W * 0.12, H * 0.85, 0.9, Math.max(4, W / 90), false); return; }
   const m = state === 'boom' && flight ? flight.point : mult(el);
-  // courbe : temps en x, multiplicateur en y (échelles qui s'agrandissent)
-  const tMax = Math.max(8000, el * 1.15), mMax = Math.max(2, m * 1.25);
+  // courbe : temps en x, multiplicateur en y ; les échelles grandissent pour garder la fusée vers le milieu-droit
+  const tMax = Math.max(8000, el * 1.4), mMax = Math.max(2, 1 + (m - 1) * 1.5);
   const X = (t) => 30 + (t / tMax) * (W - 60), Y = (v) => H - 30 - ((v - 1) / (mMax - 1)) * (H - 80);
   ctx.strokeStyle = state === 'boom' ? '#de0607' : '#ffbf17'; ctx.lineWidth = 4; ctx.beginPath();
   for (let t = 0; t <= el; t += Math.max(50, el / 120)) { const v = mult(t); t === 0 ? ctx.moveTo(X(t), Y(v)) : ctx.lineTo(X(t), Y(v)); }
@@ -68,7 +69,7 @@ function boom() {
   const p = flight.point;
   $('mult').textContent = fx(p);
   $('mult').className = 'mult ' + (cashed ? 'cashed' : 'boom');
-  $('sub').textContent = cashed ? `Retiré à ${fx(cashed.mult)} : +${eur(cashed.payout)}` : `Boum à ${fx(p)}`;
+  $('sub').textContent = cashed ? `Retiré à ${fx(cashed.mult)} : +${eur(cashed.payout - flight.bet)}` : `Boum à ${fx(p)}`;
   hist.unshift(p); hist.length = Math.min(hist.length, 14);
   $('points').innerHTML = hist.map((v) => `<span class="${v < 2 ? 'lo' : v >= 10 ? 'hi' : ''}">${fx(v)}</span>`).join('');
   stats.add(flight.bet, cashed ? cashed.payout : 0, cashed ? cashed.mult : 0);
@@ -86,7 +87,7 @@ function settle(r) {
     cashed = { mult: r.mult, payout: r.payout };
     state = 'after';
     $('mult').className = 'mult cashed';
-    $('sub').textContent = `Retiré à ${fx(r.mult)} : +${eur(r.payout)}`;
+    $('sub').textContent = `Retiré à ${fx(r.mult)} : +${eur(r.payout - flight.bet)}`;
     $('play').textContent = 'Retiré !';
     $('play').disabled = true;
     endAt = r.point;

@@ -351,6 +351,7 @@ export function mountShell(active) {
         <div class="wallet-label">Solde <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
       </div>
+      <button class="work-btn gif-btn" id="gifBtn" type="button" title="Envoyer un gif à un joueur" aria-label="Envoyer un gif">GIF</button>
       <a class="work-btn" href="travail.html" title="Travailler (remplit ton compte en banque)" aria-label="Travailler"${active === 'work' ? ' aria-current="page"' : ''}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>
       </a>
@@ -362,6 +363,7 @@ export function mountShell(active) {
   document.body.prepend(top);
   buildShop();
   $('topup').addEventListener('click', openShop);
+  $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('whoChip').addEventListener('click', () => { if (confirm(`Changer de joueur ? (${casino.me.name})`)) switchPlayer(); });
   renderWallet();
