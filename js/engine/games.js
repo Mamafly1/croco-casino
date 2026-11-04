@@ -12,7 +12,7 @@ import { COMPANIES, FEE, marks } from './market.js';
 export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots', 'crash', 'rps', 'stocks'];
 export const PACKS = [10, 20, 50, 100]; // montants proposés au dépôt (pris sur le compte en banque)
 // Gifs envoyés sur l'écran des autres : prix par gif selon le mode d'apparition
-export const GIF_PRICES = { dvd: 5, gravity: 5, full: 20 };
+export const GIF_PRICES = { dvd: 1.5, gravity: 2.5, full: 10 };
 export const GIF_MODES = { dvd: 'DVD', gravity: 'Gravité', full: 'Plein écran' };
 export const GIF_MAX_SEND = 30;
 export const RPS_MULT = 1.97; // contre le croco : gagné ×1,97, égalité remboursée → retour 99 %

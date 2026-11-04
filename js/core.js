@@ -379,7 +379,7 @@ function renderWallet() {
     const s = casino.status;
     n.className = 'net ' + s;
     n.textContent = s === 'solo' ? 'Solo' : s === 'online' ? 'En ligne' : s === 'connecting' ? 'Connexion…' : 'Hors ligne';
-    n.title = s === 'solo' ? 'Aucun serveur configuré : ton solde reste dans ce navigateur.' : '';
+    n.title = s === 'solo' ? 'Solo : aucun serveur configuré, ton solde reste dans ce navigateur.' : n.textContent;
   }
   const w = $('whoChip');
   if (w) {

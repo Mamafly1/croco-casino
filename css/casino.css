@@ -143,7 +143,7 @@ a { color: inherit; }
 .work-btn { flex: none; display: grid; place-items: center; width: 38px; height: 34px; border-radius: 8px; background: var(--panel-2); color: var(--gold); }
 .work-btn svg { width: 18px; height: 18px; }
 .gif-btn { border: 0; font: 9px var(--font-pixel); color: #ff6fd8; cursor: pointer; }
-.work-btn[aria-current="page"] { box-shadow: 0 0 0 2px var(--gold); }
+.work-btn[aria-current="page"] { background: var(--gold); color: var(--gold-ink); }
 .bank-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--field); font-size: 13.5px; }
 .bank-line .btn-link { min-height: 36px; padding: 4px 6px; }
 .topup svg { width: 15px; height: 15px; }
@@ -496,6 +496,13 @@ a { color: inherit; }
   .tabs button, .seg button, .topup, .nav a, .brand { min-height: 44px; }
   .work-btn { width: 40px; height: 44px; }
   .wallet { gap: 6px; }
+  /* Téléphone : « Solde ● pseudo » sur une seule ligne ; l'état de connexion devient une pastille de couleur */
+  .wallet-label { flex-wrap: nowrap; min-width: 0; }
+  .wallet .net { flex: none; width: 9px; height: 9px; padding: 0; margin: 0 2px; border-radius: 50%; font-size: 0; background: var(--muted); }
+  .wallet .net.online { background: #3ddc5f; }
+  .wallet .net.offline { background: #ff6f6f; }
+  .wallet .net.solo { background: var(--gold); }
+  .who-chip { min-width: 0; margin-left: 2px; }
   .wallet > div:first-child { flex: 1; }
   .betrow button { min-width: 44px; min-height: 44px; }
   .chips button { height: 44px; min-width: 44px; }
