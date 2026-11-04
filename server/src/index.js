@@ -433,12 +433,21 @@ export class Casino extends DurableObject {
       return reply(200, { ok: true, message: 'Déconnecté de tous ses appareils.' });
     }
     if (op === 'delete') {
+      const gone = this.sql.exec('SELECT name FROM players WHERE id = ?', row.id).one().name;
       this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
       this.sql.exec('DELETE FROM players WHERE id = ?', row.id);
       this.sql.exec('DELETE FROM hist WHERE player_id = ?', row.id);
+      this.sql.exec('DELETE FROM records WHERE player_id = ?', row.id); // ses classements
       this.sql.exec('DELETE FROM gifts WHERE to_id = ?', row.id);
+      this.feed = this.feed.filter((e) => e.name !== gone); // ses lignes du fil en direct
+      await this.ctx.storage.put('feed', this.feed);
+      this.duels = this.duels.filter((d) => d.fromId !== row.id);
+      await this.ctx.storage.put('duels', this.duels);
       for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
       this.broadcast(this.boardMsg());
+      this.broadcast({ t: 'feedAll', feed: this.feed });
+      this.broadcast({ t: 'duels', duels: this.duelView() });
+      this.broadcast(this.online());
       return reply(200, { ok: true, message: 'Compte supprimé.' });
     }
     return reply(400, { error: 'Action inconnue.' });

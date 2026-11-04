@@ -1,0 +1,34 @@
+# Test à lancer à la main (onglet Actions) : mesure le rendement réel du Plinko sur le serveur en ligne
+# avec un compte de test, qui est supprimé à la fin (avec ses records et ses lignes du fil en direct).
+name: Test du rendement Plinko
+
+on:
+  workflow_dispatch:
+    inputs:
+      drops:
+        description: Nombre de lâchers
+        default: '2500'
+      risk:
+        description: Risque (low, medium ou high)
+        default: medium
+
+jobs:
+  rtp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm i --no-save --silent ws@8.18.0
+      - name: Mesure sur le serveur en ligne
+        env:
+          DROPS: ${{ inputs.drops }}
+          RISK: ${{ inputs.risk }}
+        run: node tools/rtp-live.mjs
+      - name: Supprimer le compte de test
+        if: always()
+        env:
+          ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+        run: node tools/rtp-live.mjs --cleanup
