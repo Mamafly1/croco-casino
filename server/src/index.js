@@ -15,7 +15,16 @@ const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
 const ROUND_MS = 30000;   // temps pour jouer une manche de chifoumi entre joueurs
 const WIN_POINTS = 3;     // points pour gagner une partie de chifoumi
 // Couleurs possibles pour sa carte au classement (sinon : couleur du rang)
-const CARD_COLORS = ['#4b8cff', '#ff6fb5', '#ffbf17', '#de0607', '#3ddc5f', '#a66bff', '#2fd6d6', '#f0f0e6'];
+// Plusieurs nuances par couleur, toutes différentes des couleurs de rang ; une couleur n'appartient qu'à un joueur
+const CARD_COLORS = [
+  '#8ab4ff', '#1e5bd8', '#6fd3ff', // bleus
+  '#ffb3d9', '#c2187a', '#ff8fa3', // roses
+  '#ffe066', '#ff8c1a', '#c99700', // jaunes et orange
+  '#ff6b6b', '#a30d0d', '#ff4f1f', // rouges
+  '#a8f07a', '#138a36', '#00c9a7', // verts
+  '#c7a3ff', '#7a3dff', '#d94dff', // violets
+  '#f0f0e6', '#9a9a90', // blanc et gris
+];
 // Classements secondaires : chacun a un titre, donné à celui qui est en tête
 const BOARDS = [
   { key: 'win', label: 'Le plus gros gain en une seule partie', col: 'GAIN', title: 'Le Gros Coup', unit: 'eur' },
@@ -311,6 +320,12 @@ export class Casino extends DurableObject {
     this.broadcast(this.online());
     return null;
   }
+  // couleurs déjà prises par les autres joueurs : { couleur: pseudo }
+  takenColors(id) {
+    const out = {};
+    for (const r of this.sql.exec("SELECT name, style FROM players WHERE id != ? AND style LIKE '%color%'", id).toArray()) { const c = colorOf(r.style); if (c) out[c] = r.name; }
+    return out;
+  }
   styleOf(id) { try { return JSON.parse(this.sql.exec('SELECT style FROM players WHERE id = ?', id).one().style || '{}'); } catch { return {}; } }
   // Réglages du joueur : pseudo, couleur de sa carte au classement, titres affichés
   async account(pl, action, params) {
@@ -324,7 +339,11 @@ export class Casino extends DurableObject {
     }
     if (action === 'style') {
       const st = this.styleOf(pl.id);
-      if ('color' in params) st.color = CARD_COLORS.includes(params.color) ? params.color : null;
+      if ('color' in params) {
+        const c = CARD_COLORS.includes(params.color) ? params.color : null;
+        if (c && this.sql.exec('SELECT 1 FROM players WHERE id != ? AND style LIKE ?', pl.id, `%"color":"${c}"%`).toArray().length) throw new GameError('Cette couleur est déjà prise par un autre joueur.');
+        st.color = c;
+      }
       if ('titles' in params) st.titles = Array.isArray(params.titles) ? params.titles.map(String).slice(0, 10) : null;
       this.sql.exec('UPDATE players SET style = ? WHERE id = ?', JSON.stringify(st), pl.id);
       this.boardSoon();
@@ -456,7 +475,7 @@ export class Casino extends DurableObject {
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
       titles: this.shownTitles(this.boardData().titles[row.name] || [], row.style), heldTitles: this.boardData().titles[row.name] || [],
-      style: JSON.parse(row.style || '{}'), colors: CARD_COLORS, online: this.activeNames().includes(row.name),
+      style: JSON.parse(row.style || '{}'), colors: CARD_COLORS, takenColors: this.takenColors(row.id), online: this.activeNames().includes(row.name),
       inventoryValue: inventoryValue(p), played: p.played,
       inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,

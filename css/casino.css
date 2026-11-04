@@ -619,3 +619,9 @@ details.odds > .paytable { margin-top: 10px; }
 .duel-offer { margin: 0; font-size: 15px; line-height: 1.5; }
 .offer-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .offer-btns > :only-child { grid-column: 1 / -1; }
+
+/* Page cachée tant qu'elle n'est pas construite (au plus tard 4 s, au cas où) */
+body:not(.ready) > * { visibility: hidden; animation: showLate 0s 4s forwards; }
+@keyframes showLate { to { visibility: visible; } }
+/* couleur déjà prise par un autre joueur */
+.sw.taken { opacity: 0.25; cursor: not-allowed; background: linear-gradient(135deg, transparent 45%, #181818 45%, #181818 55%, transparent 55%), var(--sw); }

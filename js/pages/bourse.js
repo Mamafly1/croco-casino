@@ -6,7 +6,7 @@ import { COMPANIES, FEE } from '../engine/market.js';
 mountShell('stocks');
 mountFeed($('feed'), { game: 'stocks', limit: 8 });
 // Montant en euros pour acheter ou vendre (minimum 10 € à l'achat)
-const amount = betControl({ initial: 10 });
+const amount = betControl({ initial: 10, min: 10 });
 function setQty() {
   if (!mk) return;
   const a = amount.get(), price = mk.prices[sel];
@@ -67,7 +67,25 @@ function chart() {
   $('chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cours sur ${span / 60} h">
     ${ticks.map((v) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="tick" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${nf2.format(v)}</text>`).join('')}
     <path d="${d}L${x(h.length - 1)},${H - B}L${L},${H - B}Z" fill="${col}" opacity=".12"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>
-    <text class="tick" x="${L}" y="${H - 4}">il y a ${span >= 60 ? span / 60 + ' h' : span + ' min'}</text><text class="tick" x="${W - R}" y="${H - 4}" text-anchor="end">maintenant</text></svg>`;
+    <text class="tick" x="${L}" y="${H - 4}">il y a ${span >= 60 ? span / 60 + ' h' : span + ' min'}</text><text class="tick" x="${W - R}" y="${H - 4}" text-anchor="end">maintenant</text>
+    <line class="cross" id="bx" y1="${T}" y2="${H - B}" visibility="hidden"/><circle class="dot" id="bd" r="5" fill="${col}" visibility="hidden"/>
+    <rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/></svg><div class="tip" id="btip" hidden></div>`;
+  // au survol (ou au doigt) : le cours exact, l'heure et l'écart avec le début de la période
+  const svg = $('chart').querySelector('svg'), tip = $('btip');
+  const show = (clientX) => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(h.length - 1, Math.round((((clientX - r.left) / r.width) * W - L) / (W - L - R) * (h.length - 1))));
+    const at = new Date((mk.t - (h.length - 1 - i)) * 60000);
+    const d = h[0] ? ((h[i] - h[0]) / h[0]) * 100 : 0;
+    $('bx').setAttribute('x1', x(i)); $('bx').setAttribute('x2', x(i)); $('bx').setAttribute('visibility', 'visible');
+    $('bd').setAttribute('cx', x(i)); $('bd').setAttribute('cy', y(h[i])); $('bd').setAttribute('visibility', 'visible');
+    tip.innerHTML = `<b>${nf2.format(h[i])} €</b><small>${at.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} · <span class="${d >= 0 ? 'up' : 'down'}">${pctTxt(d)}</span></small>`;
+    tip.hidden = false;
+    tip.style.left = Math.max(0, Math.min(r.width - tip.offsetWidth, (x(i) / W) * r.width - tip.offsetWidth / 2)) + 'px';
+  };
+  svg.addEventListener('pointermove', (e) => show(e.clientX));
+  svg.addEventListener('pointerdown', (e) => show(e.clientX));
+  svg.addEventListener('pointerleave', () => { tip.hidden = true; $('bx').setAttribute('visibility', 'hidden'); $('bd').setAttribute('visibility', 'hidden'); });
 }
 function holdings() {
   const st = casino.me.stocks || {}, h = st[sel];

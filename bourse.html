@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m20">
+<link rel="stylesheet" href="css/casino.css?v=m21">
 <style>
 .cos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .co { display: grid; gap: 6px; padding: 10px; border: 2px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-align: left; min-width: 0; cursor: pointer; }
@@ -25,6 +25,11 @@
 .chart2 svg { width: 100%; height: auto; display: block; }
 .chart2 .grid { stroke: var(--line); opacity: 0.6; }
 .chart2 .tick { fill: var(--muted); font-size: 11px; }
+.chart2 svg { touch-action: pan-y; }
+.chart2 .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart2 .dot { stroke: var(--panel); stroke-width: 2; }
+.chart2 .tip { position: absolute; top: 0; display: grid; gap: 1px; padding: 6px 9px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; pointer-events: none; white-space: nowrap; }
+.chart2 .tip small { color: var(--muted); }
 .big { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .big b { font: clamp(16px, 4vw, 24px) var(--font-pixel); }
 .news { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -76,6 +81,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/bourse.js?v=m20"></script>
+<script type="module" src="js/pages/bourse.js?v=m21"></script>
 </body>
 </html>

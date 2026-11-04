@@ -31,7 +31,7 @@ function box() {
   $('profBody').addEventListener('click', (e) => {
     const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
     const sw = e.target.closest('[data-color]');
-    if (sw) { last.style = { ...(last.style || {}), color: sw.dataset.color || null }; render(last); saveStyle({ color: sw.dataset.color || null }); return; }
+    if (sw && !sw.disabled) { last.style = { ...(last.style || {}), color: sw.dataset.color || null }; render(last); saveStyle({ color: sw.dataset.color || null }); return; }
     const act = e.target.closest('[data-act]');
     if (act && act.dataset.act === 'update') { act.textContent = 'Mise à jour…'; forceUpdate(); return; }
     if (act && act.dataset.act === 'logout') { if (confirm('Te déconnecter de cet appareil ? Il faudra retaper ton code.')) { m.hidden = true; switchPlayer(); } return; }
@@ -140,7 +140,7 @@ function settings(p) {
     <div class="field"><div class="field-head"><span>Couleur de ta carte au classement</span></div>
       <div class="swatches" role="group" aria-label="Couleur de ta carte">
         <button type="button" data-color="" class="sw auto" aria-pressed="${!st.color}" title="Couleur du rang">Auto</button>
-        ${(p.colors || []).map((c) => `<button type="button" data-color="${c}" class="sw" style="--sw:${c}" aria-pressed="${st.color === c}" aria-label="Couleur ${c}"></button>`).join('')}
+        ${(p.colors || []).map((c) => { const by = (p.takenColors || {})[c]; return `<button type="button" data-color="${c}" class="sw${by ? ' taken' : ''}" style="--sw:${c}" aria-pressed="${st.color === c}"${by ? ` disabled title="Déjà prise par ${esc(by)}" aria-label="Couleur prise par ${esc(by)}"` : ` aria-label="Couleur ${c}"`}></button>`; }).join('')}
       </div></div>
     <div class="field"><div class="field-head"><span>Titres affichés à côté de ton pseudo</span></div>
       ${held.length ? `<div class="set-titles">${held.map((t) => `<label><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}</div>`

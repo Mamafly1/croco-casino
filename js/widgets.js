@@ -28,11 +28,11 @@ export function mountBoard(el, { limit = 10 } = {}) {
       rows = [{ name: me.name, score: me.score, games: GAMES.filter((g) => me.played[g]) }];
       note = 'Mode solo : les classements partagés apparaîtront quand le serveur sera branché.';
     } else if (casino.status !== 'online' && !rows.length) note = 'Connexion au classement…';
-    else note = 'Solde + inventaire + actions. Les gifs envoyés le font baisser.';
+    else note = '';
     const mine = casino.online && me.rank && me.rank > limit ? `<p class="lb-note">Ta place : ${me.rank} · ${fmtScore(me.score)}</p>` : '';
     const general = { title: 'ARGENT TOTAL', html: table('<th>JOUEUR</th><th class="r">ARGENT</th><th class="r">JEUX</th>', rows.map((r, i) => row(r, i,
       (r.titles || []).length ? `<span class="ttls">${r.titles.map(esc).join(' · ')}</span>` : '',
-      `<td class="r">${fmtScore(r.score)}</td><td><div class="ico">${gamesCell(r.games || [])}</div></td>`)).join(''), 3) + mine + `<p class="lb-note">${note}</p>` };
+      `<td class="r">${fmtScore(r.score)}</td><td><div class="ico">${gamesCell(r.games || [])}</div></td>`)).join(''), 3) + mine + `${note ? `<p class="lb-note">${note}</p>` : ''}` };
     const others = casino.online ? (casino.boards || []).map((b) => ({
       title: b.title.toUpperCase(),
       html: `<p class="lb-sub">${esc(b.label)}</p>` + table(`<th>JOUEUR</th><th class="r">${esc(b.col || '')}</th>`, b.rows.map((r, i) => row(r, i, '', `<td class="r">${fmtUnit(r.v, b.unit)}</td>`)).join(''), 2),
@@ -121,9 +121,13 @@ export function feedText(e) {
   }
 }
 
+// Seulement les parties des 10 dernières minutes ; si aucun autre joueur n'a joué pendant ce temps, la section disparaît
 export function mountFeed(el, { game = null, limit = 12 } = {}) {
+  const box = el.closest('section');
   const draw = () => {
-    const list = casino.feed.filter((e) => !game || e.game === game).slice(0, limit);
+    const since = Date.now() - 10 * 60000;
+    const list = casino.feed.filter((e) => (!game || e.game === game) && (e.at || 0) > since).slice(0, limit);
+    if (box) box.hidden = !list.some((e) => e.name !== casino.me.name);
     if (!list.length) { el.innerHTML = '<p class="feed-empty">Rien pour l’instant. Les parties de tout le monde s’affichent ici.</p>'; return; }
     el.innerHTML = '<ul class="feed">' + list.map((e) => {
       const net = e.game === 'cases' ? e.payout : e.payout - e.bet;
@@ -134,7 +138,8 @@ export function mountFeed(el, { game = null, limit = 12 } = {}) {
       return `<li>${pixelIcon(e.game, 18)}<button type="button" class="who" data-name="${esc(e.name)}">${esc(e.name)}</button><span class="what">${esc(feedText(e))}</span><span class="amt ${cls}">${amt}</span></li>`;
     }).join('') + '</ul>';
   };
-  casino.on('feed', draw).on('feeds', draw);
+  casino.on('feed', draw).on('feeds', draw).on('me', draw);
+  setInterval(draw, 30000); // les parties trop vieilles s'en vont
   el.addEventListener('click', (e) => { const b = e.target.closest('button.who'); if (b) openProfile(b.dataset.name); });
   draw();
 }
@@ -192,20 +197,20 @@ export function cardSVG(code, cls = '') {
 }
 
 // ---------- champ de mise (½, 2×, max) ----------
-export function betControl({ input = 'bet', half = 'half', double = 'double', max = 'betMax', initial = 1 } = {}) {
+export function betControl({ input = 'bet', half = 'half', double = 'double', max = 'betMax', initial = 1, min = 0.1 } = {}) {
   const el = document.getElementById(input);
   let bet = initial;
   const write = () => { el.value = nf2.format(bet).replace(/\s/g, ''); };
   const read = () => {
     let v = parseFloat(String(el.value).replace(/\s/g, '').replace(',', '.'));
-    if (!isFinite(v) || v < 0.1) v = 0.1;
+    if (!isFinite(v) || v < min) v = min;
     bet = Math.min(1000, Math.round(v * 100) / 100);
   };
   el.addEventListener('change', () => { read(); write(); });
-  document.getElementById(half).addEventListener('click', () => { read(); bet = Math.max(0.1, Math.round(bet / 2 * 100) / 100); write(); });
+  document.getElementById(half).addEventListener('click', () => { read(); bet = Math.max(min, Math.round(bet / 2 * 100) / 100); write(); });
   document.getElementById(double).addEventListener('click', () => {
     read();
-    bet = Math.max(0.1, Math.min(1000, Math.round(bet * 200) / 100, Math.floor(casino.shownBalance() * 100) / 100 || 0.1));
+    bet = Math.max(min, Math.min(Math.max(1000, min), Math.round(bet * 200) / 100, Math.floor(casino.shownBalance() * 100) / 100 || min));
     write();
   });
   const showMax = () => { const m = document.getElementById(max); if (m) m.textContent = 'max ' + eur(casino.shownBalance()); };

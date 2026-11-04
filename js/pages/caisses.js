@@ -1,11 +1,11 @@
 // Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve,
 // prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
-import { casino, mountShell, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
+import { casino, mountShell, pageReady, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
 import { img, imgTag } from '../steamimg.js';
 import { mountFeed, floatBar } from '../widgets.js';
 import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
 
-mountShell('cases');
+mountShell('cases', { wait: true }); // la page s'affiche quand la liste des caisses est chargée
 mountFeed($('feed'), { game: 'cases', limit: 8 });
 
 let data = null, sel = null, opening = false;
@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m20');
+    const v = await import('../viewer3d.js?v=m21');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -442,7 +442,8 @@ loadCases().then((d) => {
   renderList();
   select(data.cases[0]);
   renderInv();
-}).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; });
+  pageReady();
+}).catch(() => { $('msg').textContent = 'Impossible de charger la liste des caisses.'; pageReady(); });
 if (casino.online) { warm3D(); casino.on('status', (st) => { if (st === 'online') preloadNext(); }); }
 
 // ---------- banc de test 3D (caisses.html?dev=1) ----------

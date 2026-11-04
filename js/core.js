@@ -362,7 +362,11 @@ export function switchPlayer() {
 // ---------- en-tête ----------
 export const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
-export function mountShell(active) {
+// La page reste cachée tant qu'elle n'est pas construite (sinon on voit une version à moitié faite pendant le chargement).
+// Les pages qui attendent des données (caisses) passent { wait: true } et appellent pageReady() elles-mêmes.
+export function pageReady() { requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready'))); }
+export function mountShell(active, { wait = false } = {}) {
+  if (!wait) pageReady();
   const top = document.createElement('header');
   top.className = 'top';
   const links = GAMES.map((g) => `<a href="${GAME_INFO[g].href}" title="${GAME_INFO[g].name}"${g === active ? ' aria-current="page"' : ''}>${pixelIcon(g, 18)}<span>${GAME_INFO[g].short || GAME_INFO[g].name}</span></a>`).join('');
