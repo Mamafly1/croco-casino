@@ -206,6 +206,14 @@ function request(msg) {
   });
 }
 
+// Signe de vie toutes les 30 s tant que la page est visible : c'est ce qui te fait apparaître « en ligne »
+let pingT = 0;
+function ping() { if (ws && ws.readyState === 1 && document.visibilityState === 'visible') ws.send('{"t":"ping"}'); }
+function startPing() {
+  if (pingT) return;
+  pingT = setInterval(ping, 30000);
+  document.addEventListener('visibilitychange', ping);
+}
 function setStatus(s) { casino.status = s; emit('status', s); renderWallet(); }
 
 function connect() {
@@ -224,6 +232,7 @@ function connect() {
       local.name = m.me.name; saveLocal();
       closeLogin();
       setStatus('online');
+      startPing();
       emit('me', m.me); emit('board', m.board); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online); emit('duels', casino.duels);
     } else if (m.t === 'login') {
       showLogin(m.players || [], m.error || '');

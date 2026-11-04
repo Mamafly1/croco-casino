@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m10">
+<link rel="stylesheet" href="css/casino.css?v=m11">
 <style>
 .lobby { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .hero { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; padding: 22px 18px; border-radius: 12px; background: var(--panel); }
@@ -66,8 +66,8 @@ mountBoard($('board'), { limit: 10 });
 mountFeed($('feed'), { limit: 10 });
 const on = () => {
   const n = casino.onlineCount;
-  $('online').textContent = casino.online && casino.status === 'online' ? `· ${n} joueur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}` : casino.online ? '' : '· mode solo';
-  $('online').title = 'Joueurs différents qui ont joué dans les 5 dernières minutes';
+  $('online').textContent = casino.online && casino.status === 'online' ? `· ${n} en ligne` : casino.online ? '' : '· mode solo';
+  $('online').title = 'Joueurs qui ont le site ouvert en ce moment';
   $('onlineRow').innerHTML = (casino.onlineNames || []).map((n) => `<button type="button" data-to="${esc(n)}" title="Envoyer un gif à ${esc(n)}">${esc(n)}</button>`).join('');
 };
 $('onlineRow').addEventListener('click', (e) => {

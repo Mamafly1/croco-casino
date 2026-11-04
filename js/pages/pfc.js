@@ -64,7 +64,7 @@ function setMode(m) {
   mode = m;
   $('tabBot').setAttribute('aria-pressed', String(m === 'bot'));
   $('tabDuel').setAttribute('aria-pressed', String(m === 'duel'));
-  $('toBox').hidden = m !== 'duel'; $('play').hidden = m !== 'duel'; $('duelBox').hidden = m !== 'duel';
+  $('toBox').hidden = m !== 'duel'; $('play').hidden = m !== 'duel';
   $('moveLabel').textContent = m === 'duel' ? 'Ton coup (caché jusqu’au duel)' : 'Ton coup : touche pour jouer';
   renderMoves();
   if (m === 'duel') fillPlayers();
@@ -89,14 +89,16 @@ $('play').addEventListener('click', async () => {
     toast(`Défi lancé (${eur(b)}) : ${NAME[move]}`);
   } catch (err) { $('msg').textContent = err.message; }
 });
+// Les défis restent visibles quel que soit l'onglet (ceux qui te sont adressés en premier)
 function renderDuels() {
-  const me = casino.me.name, list = casino.duels || [];
+  $('duelBox').hidden = !casino.online;
+  const me = casino.me.name, list = (casino.duels || []).slice().sort((a, b) => (b.to === me) - (a.to === me));
   $('duels').innerHTML = list.length ? list.map((d) => {
     const mine = d.from === me, forOther = d.to && d.to !== me && !mine;
-    return `<div class="duel"><div class="duel-head"><span>${esc(d.from)}${d.to ? ` → ${esc(d.to)}` : ''}</span><span>${eur(d.bet)}</span></div>
+    return `<div class="duel"${d.to === me ? ' style="outline:2px solid var(--gold)"' : ''}><div class="duel-head"><span>${esc(d.from)}${d.to === me ? ' te défie !' : d.to ? ` → ${esc(d.to)}` : ' (défi ouvert)'}</span><span>${eur(d.bet)}</span></div>
       ${mine ? `<button class="btn-ghost" type="button" data-cancel="${d.id}">Annuler mon défi</button>` : forOther ? '<span class="muted small">Défi réservé à quelqu’un d’autre</span>'
       : `<div class="moves">${RPS_MOVES.map((m) => `<button type="button" data-acc="${d.id}" data-m="${m}">${hand(m)}${NAME[m]}</button>`).join('')}</div>`}</div>`;
-  }).join('') : '<p class="muted">Aucun défi pour l’instant. Lance le tien !</p>';
+  }).join('') : '<p class="muted">Aucun défi pour l’instant. Lance le tien avec l’onglet « Défier un joueur ».</p>';
 }
 $('duels').addEventListener('click', async (e) => {
   const c = e.target.closest('[data-cancel]'), a = e.target.closest('[data-acc]');

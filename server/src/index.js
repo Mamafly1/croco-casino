@@ -330,7 +330,8 @@ export class Casino extends DurableObject {
   // (Deux onglets du même joueur, un écran de connexion ou un téléphone en veille ne comptent pas en plus.)
   activeCount(except = null) { return this.activeNames(except).length; }
   activeNames(except = null) {
-    const names = new Map(), since = Date.now() - 5 * 60000;
+    // en ligne = page du site ouverte et visible : le navigateur envoie un signe de vie toutes les 30 s
+    const names = new Map(), since = Date.now() - 75000;
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === except) continue;
       const w = ws.deserializeAttachment();
@@ -453,6 +454,12 @@ export class Casino extends DurableObject {
     if (msg.t === 'logout') return this.logout(ws, msg);
     const who = ws.deserializeAttachment();
     if (!who) return this.askLogin(ws);
+    if (msg.t === 'ping') {
+      const was = this.activeNames().join('|');
+      ws.serializeAttachment({ ...who, at: Date.now() });
+      if (this.activeNames().join('|') !== was) this.broadcast(this.online());
+      return;
+    }
     if (msg.t === 'gifrm') { this.sql.exec('DELETE FROM gifts WHERE id = ? AND to_id = ?', Number(msg.gid), who.id); return; }
     if (msg.t === 'players') {
       const on = new Set(this.activeNames());
@@ -612,7 +619,7 @@ export class Casino extends DurableObject {
       const d = { id: crypto.randomUUID().slice(0, 8), from: pl.name, fromId: pl.id, bet, move, to, at: Date.now() };
       this.duels.push(d);
       await this.saveDuels();
-      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie à pierre-feuille-ciseaux (${bet} €)` }); }
+      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie au chifoumi (${String(bet).replace('.', ',')} €) : va dans Chifoumi pour répondre` }); }
       return { result: { duel: d.id, bet, payout: 0 } };
     }
     const d = this.duels.find((x) => x.id === params.id);
