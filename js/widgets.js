@@ -31,8 +31,8 @@ export function mountBoard(el, { limit = 10 } = {}) {
     else note = 'Solde + inventaire + actions. Les gifs envoyés le font baisser.';
     const mine = casino.online && me.rank && me.rank > limit ? `<p class="lb-note">Ta place : ${me.rank} · ${fmtScore(me.score)}</p>` : '';
     const general = { title: 'ARGENT TOTAL', html: table('<th>JOUEUR</th><th class="r">ARGENT</th><th class="r">JEUX</th>', rows.map((r, i) => row(r, i,
-      (r.titles || []).length ? `<span class="ttls">${r.titles.map((t) => `<small class="ttl">${esc(t)}</small>`).join('')}</span>` : '',
-      `<td class="r">${fmtScore(r.score)}</td><td><div class="ico">${(r.games || []).map((g) => pixelIcon(g, 16, GAME_INFO[g] ? GAME_INFO[g].name : g)).join('') || '<span style="color:#666">-</span>'}</div></td>`)).join(''), 3) + mine + `<p class="lb-note">${note}</p>` };
+      (r.titles || []).length ? `<span class="ttls">${r.titles.map(esc).join(' · ')}</span>` : '',
+      `<td class="r">${fmtScore(r.score)}</td><td><div class="ico">${gamesCell(r.games || [])}</div></td>`)).join(''), 3) + mine + `<p class="lb-note">${note}</p>` };
     const others = casino.online ? (casino.boards || []).map((b) => ({
       title: b.title.toUpperCase(),
       html: `<p class="lb-sub">${esc(b.label)}</p>` + table(`<th>JOUEUR</th><th class="r">${esc(b.col || '')}</th>`, b.rows.map((r, i) => row(r, i, '', `<td class="r">${fmtUnit(r.v, b.unit)}</td>`)).join(''), 2),
@@ -40,16 +40,16 @@ export function mountBoard(el, { limit = 10 } = {}) {
     return [general, ...others];
   };
 
-  // le carrousel prend la hauteur du classement affiché (pas de grand vide sous un classement court)
-  const fit = () => { const s = track.children[idx]; if (s) track.style.height = s.offsetHeight + 'px'; };
+  // position d'un classement dans le carrousel (il y a un écart entre deux classements)
+  const posOf = (i) => (track.children[i] ? track.children[i].offsetLeft - track.children[0].offsetLeft : 0);
+  const step = () => (track.children[1] ? posOf(1) : track.clientWidth) || 1;
   const setDots = () => {
-    fit();
     dots.querySelectorAll('button').forEach((d, i) => { d.classList.toggle('on', i === idx); d.setAttribute('aria-current', String(i === idx)); });
     el.querySelectorAll('.lb-arrow').forEach((a) => { a.disabled = a.dataset.dir === '-1' ? idx === 0 : idx >= dots.children.length - 1; });
   };
   const go = (i) => {
     idx = Math.max(0, Math.min(dots.children.length - 1, i));
-    track.scrollTo({ left: idx * track.clientWidth, behavior: reduceMotion ? 'auto' : 'smooth' });
+    track.scrollTo({ left: posOf(idx), behavior: reduceMotion ? 'auto' : 'smooth' });
     setDots();
   };
   const draw = () => {
@@ -58,19 +58,19 @@ export function mountBoard(el, { limit = 10 } = {}) {
     dots.innerHTML = list.map((s, i) => `<button type="button" data-i="${i}" aria-label="${esc(s.title)}"><i></i></button>`).join('');
     el.querySelector('.lb-nav').hidden = list.length < 2;
     if (idx >= list.length) idx = 0;
-    track.scrollLeft = idx * track.clientWidth; // garder le classement affiché quand les données changent
+    track.scrollLeft = posOf(idx); // garder le classement affiché quand les données changent
     setDots();
   };
   // le point actif suit le glissement du doigt
   let raf = 0;
   track.addEventListener('scroll', () => {
     if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); if (i !== idx) { idx = i; setDots(); } });
+    raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(track.scrollLeft / step()); if (i !== idx) { idx = i; setDots(); } });
   }, { passive: true });
   dots.addEventListener('click', (e) => { const d = e.target.closest('button[data-i]'); if (d) go(+d.dataset.i); });
   el.querySelectorAll('.lb-arrow').forEach((a) => a.addEventListener('click', () => go(idx + Number(a.dataset.dir))));
   track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(idx + 1); if (e.key === 'ArrowLeft') go(idx - 1); });
-  addEventListener('resize', () => { track.scrollLeft = idx * track.clientWidth; });
+  addEventListener('resize', () => { track.scrollLeft = posOf(idx); });
   casino.on('board', draw).on('boards', draw).on('me', draw).on('status', draw);
   const open = (e) => { const tr = e.target.closest('tr[data-name]'); if (tr) openProfile(tr.dataset.name); };
   track.addEventListener('click', open);
@@ -78,6 +78,11 @@ export function mountBoard(el, { limit = 10 } = {}) {
   draw();
 }
 
+// Jeux joués : 2 icônes, puis « +N » en gris pour les autres
+function gamesCell(games) {
+  if (!games.length) return '<span class="more">-</span>';
+  return games.slice(0, 2).map((g) => pixelIcon(g, 16, GAME_INFO[g] ? GAME_INFO[g].name : g)).join('') + (games.length > 2 ? `<span class="more" title="${games.slice(2).map((g) => (GAME_INFO[g] ? GAME_INFO[g].name : g)).join(', ')}">+${games.length - 2}</span>` : '');
+}
 function fmtUnit(v, unit) {
   if (unit === 'eur') return eur(v);
   if (unit === 'x') return '×' + nfx.format(v);

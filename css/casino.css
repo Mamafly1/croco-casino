@@ -389,10 +389,10 @@ a { color: inherit; }
 .lb { width: 100%; border-collapse: separate; border-spacing: 0 8px; font-family: var(--font-pixel); font-size: 11px; }
 .lb th { padding: 0 10px 2px; color: #fff; font-weight: 400; text-align: left; font-size: 10px; letter-spacing: 0.05em; }
 .lb th.r, .lb td.r { text-align: right; }
-.lb td { padding: 12px 10px; color: #fff; border-block: 2px solid var(--c, #fff); background: #050505; white-space: nowrap; }
+.lb td { padding: 12px 8px; color: #fff; border-block: 2px solid var(--c, #fff); background: #050505; white-space: nowrap; }
 .lb td:first-child { border-left: 2px solid var(--c, #fff); }
 .lb td:last-child { border-right: 2px solid var(--c, #fff); }
-.lb td.name { max-width: 0; width: 46%; overflow: hidden; text-overflow: ellipsis; }
+.lb td.name { max-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lb .rk { color: var(--c); margin-right: 8px; }
 .lb .ico { display: flex; gap: 5px; justify-content: flex-end; }
 .lb tr.me td { background: #141414; }
@@ -576,16 +576,18 @@ details.odds > .paytable { margin-top: 10px; }
 
 /* titres des classements, à côté du pseudo */
 .ttl { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--gold); color: var(--gold-ink); font: 9px/1.7 var(--font-pixel); letter-spacing: 0.02em; vertical-align: middle; white-space: nowrap; }
-.lb .ttls { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; white-space: normal; }
-.lb .ttls .ttl { margin-left: 0; }
+.lb .ttls { display: block; margin-top: 5px; white-space: normal; overflow-wrap: anywhere; font: 700 11.5px/1.3 var(--font-body); color: var(--gold); letter-spacing: 0; }
+.lb .more { color: #8a8a80; font-size: 10px; align-self: center; }
+.dot-on { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%; background: #5a5a54; vertical-align: middle; }
+.dot-on.on { background: #3ddc5f; box-shadow: 0 0 0 3px rgba(61, 220, 95, 0.2); }
 
 /* classements en carrousel : on glisse d'un classement à l'autre, les points montrent où on en est */
-.lb-track { display: flex; align-items: flex-start; transition: height 0.25s ease; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
+.lb-track { display: flex; align-items: flex-start; gap: 40px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
 .lb-track::-webkit-scrollbar { display: none; }
 .lb-track:focus-visible { box-shadow: 0 0 0 2px var(--gold); border-radius: 8px; }
 .lb-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
 .lb-sub { margin: -10px 0 4px; color: #b5b5aa; font-size: 13px; text-align: center; line-height: 1.4; }
-.lb.two td.name { width: 70%; }
+.lb td.name, .lb.two td.name { width: 100%; } /* le pseudo prend toute la place libre */
 .lb-nav { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 12px; }
 .lb-arrow { width: 44px; height: 44px; flex: none; border: 0; border-radius: 8px; background: none; color: #fff; font: 22px/1 var(--font-pixel); cursor: pointer; }
 .lb-arrow:disabled { opacity: 0.25; cursor: default; }

@@ -414,7 +414,7 @@ export class Casino extends DurableObject {
     const hist = this.sql.exec('SELECT at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
-      titles: this.boardData().titles[row.name] || [],
+      titles: this.boardData().titles[row.name] || [], online: this.activeNames().includes(row.name),
       inventoryValue: inventoryValue(p), played: p.played,
       inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,
@@ -614,6 +614,7 @@ export class Casino extends DurableObject {
   sendGifs(pl, params, ctx) {
     const target = this.sql.exec('SELECT id, name FROM players WHERE name = ?', String(params.to || '')).toArray()[0];
     if (!target) throw new GameError('Joueur introuvable.');
+    if (target.id !== pl.id && !this.activeNames().includes(target.name)) throw new GameError(`${target.name} n’est pas en ligne : les gifs ne s’envoient qu’aux joueurs connectés.`);
     const g = params.gif || {};
     const url = String(g.url || '');
     if (url.length > 2000 || !/^https?:\/\//.test(url)) throw new GameError('Lien de gif invalide.');

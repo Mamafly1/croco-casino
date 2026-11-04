@@ -474,8 +474,10 @@ export async function openGifSender(toName = '') {
     playersCache = await casino.players();
   } catch { playersCache = playersCache || [{ name: casino.me.name, online: true }]; }
   const me = casino.me.name;
-  $('gifTo').innerHTML = playersCache.map((p) => `<option value="${esc(p.name)}">${p.online ? '● ' : ''}${esc(p.name)}${p.name === me ? ' (toi)' : ''}${p.online ? ' · en ligne' : ''}</option>`).join('');
-  const def = toName || (playersCache.find((p) => p.online && p.name !== me) || playersCache.find((p) => p.name !== me) || {}).name || me;
+  // seulement les joueurs en ligne (toi compris, pour tester)
+  const on = playersCache.filter((p) => p.online || p.name === me);
+  $('gifTo').innerHTML = on.map((p) => `<option value="${esc(p.name)}">● ${esc(p.name)}${p.name === me ? ' (toi)' : ''}</option>`).join('');
+  const def = (toName && on.some((p) => p.name === toName) && toName) || (on.find((p) => p.name !== me) || {}).name || me;
   $('gifTo').value = def;
   startList('');
 }
