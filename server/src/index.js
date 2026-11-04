@@ -209,7 +209,7 @@ export class Casino extends DurableObject {
     return {
       name: pl.name, balance: p.balance, deposits: p.deposits, score: sc, rank,
       inventory: p.inventory, inventoryValue: inventoryValue(p), played: p.played, bj: bjView(p.bj),
-      gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p),
+      gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p), bank: p.bank || 0,
     };
   }
   board() {
@@ -249,7 +249,7 @@ export class Casino extends DurableObject {
         const p = JSON.parse(r.data);
         return { name: r.name, balance: p.balance, deposits: p.deposits, inventory: p.inventory.length, inventoryValue: inventoryValue(p),
           score: r.score, played: p.played, created: r.created, seen: r.seen, hasPin: !!r.haspin, devices: devices[r.id] || 0,
-          workToday: p.work && p.work.day === workDay() ? p.work.tasks.filter((t) => t.done).reduce((a, t) => a + t.pay, 0) : 0 };
+          bank: p.bank || 0, workToday: p.work && p.work.day === workDay() ? p.work.tasks.filter((t) => t.done).reduce((a, t) => a + t.pay, 0) : 0 };
       }) });
     }
     if (op === 'resetAll') {

@@ -16,7 +16,7 @@ export function mountBoard(el, { limit = 10 } = {}) {
     } else if (casino.status !== 'online' && !rows.length) {
       note = 'Connexion au classement…';
     } else {
-      note = 'Score = solde + inventaire + actions − salaires. Travailler ne fait pas grimper, envoyer des gifs ne fait pas baisser.';
+      note = 'Score = solde + inventaire + actions − dépôts. Déposer ne fait pas grimper, envoyer des gifs ne fait pas baisser.';
     }
     const body = rows.map((r, i) => `
       <tr class="${r.name === me.name ? 'me' : ''}" data-name="${esc(r.name)}" tabindex="0" title="Voir le profil">

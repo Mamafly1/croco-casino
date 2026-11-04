@@ -10,6 +10,7 @@ import * as work from './work.js';
 import { COMPANIES, FEE, marks } from './market.js';
 
 export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots', 'crash', 'rps', 'stocks'];
+export const PACKS = [10, 20, 50, 100]; // montants proposés au dépôt (pris sur le compte en banque)
 // Gifs envoyés sur l'écran des autres : prix par gif selon le mode d'apparition
 export const GIF_PRICES = { dvd: 5, gravity: 5, full: 20 };
 export const GIF_MODES = { dvd: 'DVD', gravity: 'Gravité', full: 'Plein écran' };
@@ -21,7 +22,7 @@ export const MAX_BET = 1000;
 export const MAX_INVENTORY = 300;
 
 export class GameError extends Error {}
-const BROKE = 'Solde insuffisant : va faire ton travail du jour pour gagner de l’argent.';
+const BROKE = 'Solde insuffisant. Fais un dépôt pour jouer.';
 
 export const money = (x) => Math.round(x * 100) / 100;
 
@@ -70,7 +71,7 @@ export function historyLabel(game, action, params, result, feed) {
 }
 
 export function newPlayer() {
-  return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null, gifs: {}, spent: 0, stocks: {}, crash: null, work: null };
+  return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null, gifs: {}, spent: 0, stocks: {}, crash: null, work: null, bank: 0 };
 }
 
 export function inventoryValue(p) {
@@ -84,7 +85,7 @@ export function stocksValue(p, prices = marks) {
   return money(v);
 }
 
-// Score du classement : ce que tu possèdes moins ce que tu as gagné en travaillant.
+// Score du classement : ce que tu possèdes au casino moins ce que tu y as déposé (l'argent en banque ne compte pas).
 // L'argent dépensé en gifs ne fait pas perdre de points : il reste compté (sinon personne n'en enverrait).
 export function score(p) {
   return money(p.balance + inventoryValue(p) + stocksValue(p) + (p.spent || 0) - p.deposits);
@@ -132,23 +133,36 @@ export function run(p, game, action, params = {}, ctx) {
   if (!p.gifs) p.gifs = {};
   if (!p.stocks) p.stocks = {};
   if (!p.spent) p.spent = 0;
+  if (!p.bank) p.bank = 0;
   const now = ctx.now || Date.now();
+
+  // ---------- dépôt : de ton compte en banque (rempli par le travail) vers le casino ----------
+  if (game === 'wallet' && action === 'deposit') {
+    const amount = params.pack === 'all' ? money(p.bank) : PACKS[params.pack];
+    if (!amount) throw new GameError(params.pack === 'all' ? 'Ton compte en banque est vide : va travailler.' : 'Montant inconnu.');
+    if (amount > p.bank + 1e-9) {
+      throw new GameError(`Message de la banque\u00a0: paiement refusé. Solde restant\u00a0: ${p.bank.toFixed(2).replace('.', ',')}\u00a0€`);
+    }
+    p.bank = money(p.bank - amount);
+    p.balance = money(p.balance + amount);
+    p.deposits = money(p.deposits + amount);
+    return out({ amount, bank: p.bank, payout: amount });
+  }
 
   // ---------- travail du jour ----------
   if (game === 'work') {
     const day = work.workDay(now);
     if (!p.work || p.work.day !== day) p.work = work.newDay(rng, day);
-    if (action === 'today') return out({ ...p.work, payout: 0 });
+    if (action === 'today') return out({ ...p.work, bank: p.bank, payout: 0 });
     if (action === 'submit') {
       const t = p.work.tasks[Number(params.i)];
       if (!t) throw new GameError('Tâche inconnue.');
       if (t.done) throw new GameError('Tâche déjà faite aujourd’hui.');
       if (!work.checkTask(t.type, t.seed, params.ans)) throw new GameError('Ce n’est pas encore ça : vérifie et réessaie.');
       t.done = true;
-      // la paie compte comme un dépôt : elle ne fait pas monter au classement, seuls les jeux comptent
-      p.balance = money(p.balance + t.pay);
-      p.deposits = money(p.deposits + t.pay);
-      return out({ ...p.work, title: work.TASKS[t.type].title, pay: t.pay, payout: 0 });
+      // la paie arrive sur le compte en banque ; on la dépose ensuite au casino (bouton Déposer)
+      p.bank = money(p.bank + t.pay);
+      return out({ ...p.work, title: work.TASKS[t.type].title, pay: t.pay, bank: p.bank, payout: 0 });
     }
   }
 

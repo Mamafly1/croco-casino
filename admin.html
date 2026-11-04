@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m7">
+<link rel="stylesheet" href="css/casino.css?v=m8">
 <style>
 .adm { max-width: 900px; margin: 0 auto; padding-top: 16px; display: grid; gap: 12px; }
 .adm h1 { margin: 0; font: 16px/1.4 var(--font-pixel); }
@@ -80,6 +80,7 @@ async function load(done = '') {
         <dl>
           <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
           <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
+          <div><dt>En banque</dt><dd>${eur(p.bank || 0)}</dd></div>
           <div><dt>Travail du jour</dt><dd>${eur(p.workToday || 0)}</dd></div>
           <div><dt>Inventaire</dt><dd>${p.inventory} obj. · ${eur(p.inventoryValue)}</dd></div>
           <div><dt>Parties</dt><dd>${Object.values(p.played || {}).reduce((a, b) => a + b, 0)}</dd></div>

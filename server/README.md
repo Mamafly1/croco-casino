@@ -63,7 +63,7 @@ secrets) et relance « Déployer le serveur ». Sans ce secret, seuls le gif du 
 - Le serveur ne garde ni mot de passe ni e-mail : chaque navigateur reçoit un jeton aléatoire
   (stocké chez le joueur) lié à son pseudo. Si quelqu’un efface les données de son navigateur,
   il repart avec un nouveau pseudo.
-- Argent fictif uniquement : aucun paiement n’existe. L’argent se gagne avec le travail du jour (3 tâches, 90 à 120 €).
+- Argent fictif uniquement : aucun paiement n’existe. Le travail du jour (3 tâches, 90 à 120 €) remplit le compte en banque, et le dépôt simulé le verse au casino.
 
 ## Tester en local
 

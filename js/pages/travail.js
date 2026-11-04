@@ -17,13 +17,16 @@ async function load() {
 }
 if (!casino.online) load();
 casino.on('status', (s) => { if (s === 'online') load(); });
+casino.on('me', (me) => { const b = $('bankNow'); if (b) b.textContent = eur(me.bank || 0); });
 
 function renderJobs() {
   const total = day.tasks.reduce((s, t) => s + t.pay, 0), got = day.tasks.filter((t) => t.done).reduce((s, t) => s + t.pay, 0);
   const left = day.tasks.filter((t) => !t.done).length;
-  $('dayInfo').innerHTML = left
-    ? `3 tâches aujourd’hui, payées <b>${eur(total)}</b> en tout. Déjà gagné : <b>${eur(got)}</b>. Les tâches changent à minuit.`
-    : `Journée finie : tu as gagné <b>${eur(got)}</b>. Reviens demain pour de nouvelles tâches.`;
+  $('dayInfo').innerHTML = (left
+    ? `3 tâches aujourd’hui, payées <b>${eur(total)}</b> en tout sur ton compte en banque. Déjà gagné : <b>${eur(got)}</b>. Les tâches changent à minuit.`
+    : `Journée finie : tu as gagné <b>${eur(got)}</b>. Reviens demain pour de nouvelles tâches.`) +
+    `<span class="bank-line" style="margin-top:8px"><span>Compte en banque : <b id="bankNow">${eur(casino.me.bank || 0)}</b></span><button class="btn-main" id="depNow" type="button" style="width:auto;padding:8px 14px">Déposer au casino</button></span>`;
+  $('depNow').addEventListener('click', () => casino.openDeposit());
   $('jobs').innerHTML = day.tasks.map((t, i) => {
     const k = makeTask(t.type, t.seed);
     return `<button type="button" class="job${t.done ? ' done' : ''}${i === open ? ' on' : ''}" data-i="${i}"${t.done ? ' disabled' : ''}>
@@ -55,7 +58,7 @@ async function submit() {
   try {
     const r = await casino.play('work', 'submit', { i, ans: answer() });
     day = r;
-    toast(`Tâche réussie : +${eur(t.pay)}`);
+    toast(`Tâche réussie : +${eur(t.pay)} sur ton compte en banque`);
     open = -1;
     $('task').hidden = true;
     renderJobs();

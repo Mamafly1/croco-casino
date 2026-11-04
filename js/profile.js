@@ -86,7 +86,7 @@ function render(p) {
       <div><dt>Score</dt><dd class="${p.score > 0.004 ? 'pos' : p.score < -0.004 ? 'neg' : ''}">${signed(p.score)}</dd></div>
       <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
-      <div><dt>Salaires</dt><dd>${eur(p.deposits)}</dd></div>
+      <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
     </dl>
     ${total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>'}
     <h3 class="h-label">Solde</h3>
