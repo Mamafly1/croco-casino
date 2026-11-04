@@ -15,7 +15,7 @@ jobs:
           node-version: 22
       - name: Santé et recherche de gifs
         run: |
-          curl -sS -m 20 -w "\nHTTP %{http_code}\n" https://croco-casino.mamafly123compte.workers.dev/health || true
+          curl -sS -m 20 -w "\nHTTP %{http_code}\n" https://croco-casino.mamafly123compte.workers.dev/health 2>&1 || true
           curl -sS -m 20 -H "Origin: https://mamafly1.github.io" "https://croco-casino.mamafly123compte.workers.dev/gifs?q=aura&per=2" | head -c 1500 || true
           echo
       - name: Test WebSocket avec le journal du serveur
@@ -25,7 +25,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           npm i --no-save --silent ws@8.18.0 wrangler@3.90.0 >/dev/null 2>&1 || true
-          (npx wrangler tail croco-casino --format pretty > ../tail.log 2>&1 &)
+          timeout 60 npx wrangler tail croco-casino --format pretty > ../tail.log 2>&1 < /dev/null &
+          TAIL=$!
           sleep 15
           cat > ../wscheck.cjs <<'JS'
           const WebSocket = require('./server/node_modules/ws');
@@ -39,7 +40,8 @@ jobs:
           ws.on('error', (e) => console.log('erreur', e.message));
           setTimeout(() => { console.log('fin du test'); ws.close(); process.exit(0); }, 10000);
           JS
-          cd .. && node wscheck.cjs || true
+          cd .. && timeout 20 node wscheck.cjs || true
           sleep 8
+          kill $TAIL 2>/dev/null || true
           echo "----- journal du serveur -----"
           head -c 20000 tail.log || true

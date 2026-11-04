@@ -28,31 +28,15 @@ jobs:
             echo "::error::Ajoute le secret CLOUDFLARE_API_TOKEN au dépôt (voir server/README.md)."
             exit 1
           fi
+      # Les clés (ADMIN_KEY pour admin.html, KLIPY_KEY pour la recherche de gifs) sont envoyées AVANT la mise en ligne,
+      # dans la même étape : la mise en ligne reste la dernière opération, avec la base de données branchée.
+      # (Envoyer les clés après coup créait une version du serveur sans sa base : plus personne ne pouvait se connecter.)
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: server
           command: deploy
-      # Mot de passe du panneau admin (admin.html), si le secret ADMIN_KEY existe
-      - name: Mot de passe admin
-        if: env.ADMIN_KEY != ''
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: secret list  # la clé est envoyée par « secrets » juste avant cette commande
           secrets: |
             ADMIN_KEY
-      # Clé de l'API Klipy pour la recherche de gifs, si le secret KLIPY_KEY existe
-      - name: Clé Klipy
-        if: env.KLIPY_KEY != ''
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: server
-          command: secret list
-          secrets: |
             KLIPY_KEY
