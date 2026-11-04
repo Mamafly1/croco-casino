@@ -625,3 +625,15 @@ body:not(.ready) > * { visibility: hidden; animation: showLate 0s 4s forwards; }
 @keyframes showLate { to { visibility: visible; } }
 /* couleur déjà prise par un autre joueur */
 .sw.taken { opacity: 0.25; cursor: not-allowed; background: linear-gradient(135deg, transparent 45%, #181818 45%, #181818 55%, transparent 55%), var(--sw); }
+
+/* boutons Accepter / Refuser (défis) : vert et rouge, en police pixel */
+.btn-pix { min-height: 48px; padding: 12px 10px; border: 0; border-radius: 8px; color: #fff; font: 12px/1.4 var(--font-pixel); letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.15s ease; }
+.btn-pix.yes { background: #178033; box-shadow: 0 3px 0 #0b4a1c; }
+.btn-pix.no { background: #c40d0d; box-shadow: 0 3px 0 #6e0606; }
+.btn-pix:hover { filter: brightness(1.1); }
+.btn-pix:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.btn-pix:disabled { opacity: 0.5; cursor: not-allowed; }
+/* mise à jour dispo : pastille verte sur le bouton profil, bouton doré dans les réglages */
+.me-btn { position: relative; }
+.me-btn.has-update::after { content: ""; position: absolute; top: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; background: #3ddc5f; border: 2px solid var(--panel); }
+.btn-ghost.upd { width: 100%; border-color: var(--gold); color: var(--gold); }

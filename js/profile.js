@@ -1,5 +1,5 @@
 // Fenêtre de profil d'un joueur : stats, courbe du solde (survol = ce qui l'a fait bouger), inventaire CS.
-import { casino, eur, esc, nf0, $, loadCases, forceUpdate, switchPlayer, toast } from './core.js';
+import { casino, eur, esc, nf0, $, loadCases, forceUpdate, checkUpdate, hasUpdate, switchPlayer, toast } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { GAMES } from './engine/games.js';
 import { TIER_INFO, WEARS, ODDS, wearProbs } from './engine/cases.js';
@@ -128,6 +128,8 @@ function render(p) {
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
   chart($('profChart'), p.hist || []);
+  // on vérifie s'il y a une nouvelle version (au plus une fois par minute) et on met la ligne à jour
+  if (mine) checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
 }
 
 // Réglages, sur son propre profil : pseudo, couleur de sa carte au classement, titres affichés, mise à jour, déconnexion
@@ -145,12 +147,14 @@ function settings(p) {
     <div class="field"><div class="field-head"><span>Titres affichés à côté de ton pseudo</span></div>
       ${held.length ? `<div class="set-titles">${held.map((t) => `<label><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}</div>`
         : '<p class="muted small" style="margin:0">Pas encore de titre : sois premier d’un classement pour en gagner un.</p>'}</div>` : ''}
-    <div class="set-row">
-      <button class="btn-ghost" type="button" data-act="update">Forcer la mise à jour</button>
-      ${online ? '<button class="btn-ghost danger" type="button" data-act="logout">Se déconnecter</button>' : ''}
-    </div>
+    <div id="updRow">${updHtml()}</div>
+    ${online ? '<div class="set-row"><button class="btn-ghost danger" type="button" data-act="logout">Se déconnecter</button></div>' : ''}
   </section>`;
 }
+// Mise à jour : le bouton n'apparaît que si une nouvelle version est détectée
+const updHtml = () => (hasUpdate()
+  ? '<button class="btn-ghost upd" type="button" data-act="update">Nouvelle version disponible : mettre à jour</button>'
+  : '<p class="muted small" style="margin:0">Pas de mise à jour détectée.</p>');
 async function saveStyle(patch) {
   try { await casino.play('account', 'style', patch); refreshSoon(); } catch (e) { toast(e.message); }
 }

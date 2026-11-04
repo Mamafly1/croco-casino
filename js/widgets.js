@@ -40,49 +40,63 @@ export function mountBoard(el, { limit = 10 } = {}) {
     return [general, ...others];
   };
 
-  // position d'un classement dans le carrousel (il y a un écart entre deux classements)
-  const posOf = (i) => (track.children[i] ? track.children[i].offsetLeft - track.children[0].offsetLeft : 0);
+  // Carrousel sans fin : une copie du dernier classement est placée avant le premier, et une copie du premier après le dernier.
+  // Quand on arrive sur une copie, on saute sans animation sur le vrai classement : on a l'impression que ça continue.
+  let n = 0;
+  const dom = (i) => track.children[i];
+  const posOf = (d) => (dom(d) ? dom(d).offsetLeft - dom(0).offsetLeft : 0); // d = place dans le carrousel (copies comprises)
   const step = () => (track.children[1] ? posOf(1) : track.clientWidth) || 1;
-  const setDots = () => {
-    dots.querySelectorAll('button').forEach((d, i) => { d.classList.toggle('on', i === idx); d.setAttribute('aria-current', String(i === idx)); });
+  const place = () => (n > 1 ? idx + 1 : idx); // place du classement affiché
+  const jump = (d) => {
+    track.style.scrollSnapType = 'none';
+    track.scrollLeft = posOf(d);
+    requestAnimationFrame(() => { track.style.scrollSnapType = ''; });
   };
-  // le carrousel boucle : après le dernier on revient au premier, avant le premier on va au dernier
+  const setDots = () => {
+    dots.querySelectorAll('button').forEach((x, i) => { x.classList.toggle('on', i === idx); x.setAttribute('aria-current', String(i === idx)); });
+  };
   const go = (i) => {
-    const n = dots.children.length || 1;
+    if (n < 2) return;
+    const from = idx;
     idx = ((i % n) + n) % n;
-    track.scrollTo({ left: posOf(idx), behavior: reduceMotion ? 'auto' : 'smooth' });
+    // le chemin le plus court : de la fin vers le début (ou l'inverse), on passe par la copie voisine
+    let target = idx + 1;
+    if (from === n - 1 && i >= n) target = n + 1;
+    else if (from === 0 && i < 0) target = 0;
+    const far = Math.abs(target - (from + 1)) > 1; // plusieurs classements d'écart : saut direct, pas de long défilement
+    if (far || reduceMotion) jump(target); else track.scrollTo({ left: posOf(target), behavior: 'smooth' });
     setDots();
   };
   const draw = () => {
     const list = slides();
-    track.innerHTML = list.map((s, i) => `<section class="lb-slide" aria-label="${esc(s.title)} (${i + 1} sur ${list.length})"><h2>${esc(s.title)}</h2>${s.html}</section>`).join('');
+    n = list.length;
+    const sec = (s, i, copy) => `<section class="lb-slide"${copy ? ' aria-hidden="true" inert' : ` aria-label="${esc(s.title)} (${i + 1} sur ${n})"`}><h2>${esc(s.title)}</h2>${s.html}</section>`;
+    track.innerHTML = (n > 1 ? sec(list[n - 1], n - 1, true) : '') + list.map((s, i) => sec(s, i, false)).join('') + (n > 1 ? sec(list[0], 0, true) : '');
     dots.innerHTML = list.map((s, i) => `<button type="button" data-i="${i}" aria-label="${esc(s.title)}"><i></i></button>`).join('');
-    el.querySelector('.lb-nav').hidden = list.length < 2;
-    if (idx >= list.length) idx = 0;
-    track.scrollLeft = posOf(idx); // garder le classement affiché quand les données changent
+    el.querySelector('.lb-nav').hidden = n < 2;
+    if (idx >= n) idx = 0;
+    jump(place()); // garder le classement affiché quand les données changent
     setDots();
   };
-  // le point actif suit le glissement du doigt
-  let raf = 0;
+  // le point actif suit le glissement du doigt ; quand ça s'arrête sur une copie, on saute sur le vrai classement
+  let raf = 0, settle = 0;
   track.addEventListener('scroll', () => {
+    if (n > 1) { clearTimeout(settle); settle = setTimeout(() => {
+      const d = Math.round(track.scrollLeft / step());
+      if (d === 0) jump(n); else if (d === n + 1) jump(1);
+    }, 90); }
     if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; const i = Math.round(track.scrollLeft / step()); if (i !== idx) { idx = i; setDots(); } });
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const d = Math.round(track.scrollLeft / step());
+      const i = n > 1 ? ((d - 1) % n + n) % n : 0;
+      if (i !== idx) { idx = i; setDots(); }
+    });
   }, { passive: true });
   dots.addEventListener('click', (e) => { const d = e.target.closest('button[data-i]'); if (d) go(+d.dataset.i); });
   el.querySelectorAll('.lb-arrow').forEach((a) => a.addEventListener('click', () => go(idx + Number(a.dataset.dir))));
   track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(idx + 1); if (e.key === 'ArrowLeft') go(idx - 1); });
-  // glisser encore vers la droite sur le dernier (ou vers la gauche sur le premier) fait le tour
-  let tx = null, ty = 0, from = 0;
-  track.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; from = idx; }, { passive: true });
-  track.addEventListener('touchend', (e) => {
-    if (tx == null) return;
-    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty, n = dots.children.length;
-    tx = null;
-    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
-    if (from === n - 1 && dx < 0 && idx === n - 1) go(0);
-    else if (from === 0 && dx > 0 && idx === 0) go(n - 1);
-  }, { passive: true });
-  addEventListener('resize', () => { track.scrollLeft = posOf(idx); });
+  addEventListener('resize', () => jump(place()));
   casino.on('board', draw).on('boards', draw).on('me', draw).on('status', draw);
   const open = (e) => { const tr = e.target.closest('tr[data-name]'); if (tr) openProfile(tr.dataset.name); };
   track.addEventListener('click', open);

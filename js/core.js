@@ -391,6 +391,7 @@ export function mountShell(active, { wait = false } = {}) {
   buildShop();
   $('topup').addEventListener('click', openShop);
   setupInstall();
+  watchUpdates();
   $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('meBtn').addEventListener('click', () => import('./profile.js').then((m) => m.openProfile(casino.me.name)));
@@ -602,7 +603,7 @@ function duelOffer(d) {
     <div class="sheet-head"><h2 id="doTitle">Défi au chifoumi</h2><button class="x" type="button" data-close aria-label="Fermer">${X_ICON}</button></div>
     <div class="step">
       <p class="duel-offer"><b>${esc(d.from)}</b> te défie en 3 points pour <b>${eur(d.bet)}</b>. Le gagnant prend les deux mises.</p>
-      <div class="offer-btns"><button class="btn-ghost" type="button" data-no>Refuser</button><button class="btn-main" type="button" data-yes>Accepter</button></div>
+      <div class="offer-btns"><button class="btn-pix no" type="button" data-no>Refuser</button><button class="btn-pix yes" type="button" data-yes>Accepter</button></div>
       <p class="muted small" id="doMsg">Tu peux toujours accepter plus tard depuis le menu Chifoumi.</p>
     </div></div>`;
   document.body.appendChild(m);
@@ -623,6 +624,30 @@ function duelOffer(d) {
       m.querySelectorAll('button').forEach((b) => { b.disabled = false; });
     }
   });
+}
+
+// ---------- mises à jour du site ----------
+// Chaque publication change le numéro de version dans les liens des pages (casino.css?v=…).
+// On compare celui de la page ouverte avec celui de l'accueil actuellement en ligne.
+const pageVersion = () => { const l = document.querySelector('link[href*="casino.css"]'); const m = l && /[?&]v=([^&]+)/.exec(l.getAttribute('href')); return m ? m[1] : ''; };
+let updateAvailable = false, lastCheck = 0;
+export const hasUpdate = () => updateAvailable;
+export async function checkUpdate(force = false) {
+  if (!force && Date.now() - lastCheck < 60000) return updateAvailable;
+  lastCheck = Date.now();
+  try {
+    const r = await fetch('index.html', { cache: 'no-store' });
+    const m = /casino\.css\?v=([^"'&]+)/.exec(await r.text());
+    const mine = pageVersion();
+    updateAvailable = !!(m && mine && m[1] !== mine);
+  } catch { /* hors ligne : on ne change rien */ }
+  const b = $('meBtn'); if (b) b.classList.toggle('has-update', updateAvailable);
+  return updateAvailable;
+}
+function watchUpdates() {
+  setTimeout(() => checkUpdate(true), 4000);
+  setInterval(() => { if (!document.hidden) checkUpdate(true); }, 5 * 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
 }
 
 // ---------- paramètres ----------
