@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m12">
+<link rel="stylesheet" href="css/casino.css?v=m13">
 <style>
 .felt { position: relative; padding: 18px 16px; border-radius: 14px 14px 140px 140px / 14px 14px 60px 60px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 18px; min-height: 460px; align-content: space-between; border: 3px solid #3a2a12; box-shadow: inset 0 0 0 2px var(--gold-deep); }
 .zone { display: grid; justify-items: center; gap: 8px; }
@@ -59,8 +59,9 @@
         <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
         <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
       </dl>
-      <h2>Les vraies cotes</h2>
-      <p class="odds-note">6 jeux de 52 cartes, rebattus à chaque main. Le croupier tire jusqu’à 16 et reste à partir de 17. Blackjack payé <strong>3 contre 2</strong>, victoire 1 contre 1, égalité remboursée. Tu peux doubler sur tes deux premières cartes et séparer une paire une fois.<br>En jouant la <strong>stratégie de base</strong>, la banque garde environ <strong>0,5 %</strong>. En jouant « au feeling », c’est souvent 2 à 5 %.</p>
+      <details class="odds"><summary><h2>Les vraies cotes</h2></summary>
+        <p class="odds-note">6 jeux de 52 cartes, rebattus à chaque main. Le croupier tire jusqu’à 16 et reste à partir de 17. Blackjack payé <strong>3 contre 2</strong>, victoire 1 contre 1, égalité remboursée. Tu peux doubler sur tes deux premières cartes et séparer une paire une fois.<br>En jouant la <strong>stratégie de base</strong>, la banque garde environ <strong>0,5 %</strong>. En jouant « au feeling », c’est souvent 2 à 5 %.</p>
+      </details>
     </section>
   </aside>
   <section class="stage" aria-label="Table de blackjack">
@@ -85,6 +86,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/blackjack.js?v=m12"></script>
+<script type="module" src="js/pages/blackjack.js?v=m13"></script>
 </body>
 </html>

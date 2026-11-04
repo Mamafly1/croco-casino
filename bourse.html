@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m12">
+<link rel="stylesheet" href="css/casino.css?v=m13">
 <style>
 .cos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .co { display: grid; gap: 6px; padding: 10px; border: 2px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-align: left; min-width: 0; cursor: pointer; }
@@ -49,8 +49,9 @@
     <section class="stats" aria-label="Mes actions">
       <h2>Mon portefeuille</h2>
       <div class="hold" id="wallet2"></div>
-      <h2>Comment ça marche</h2>
-      <p class="odds-note">Le cours de chaque entreprise bouge toutes les minutes, au hasard, et des actus le font parfois sauter de 4 à 16 %. Il revient doucement vers sa valeur de départ sur la durée. Frais : <strong>1 %</strong> à l’achat et 1 % à la vente. Tes actions comptent dans ton score au cours du moment.</p>
+      <details class="odds"><summary><h2>Comment ça marche</h2></summary>
+        <p class="odds-note">Le cours de chaque entreprise bouge toutes les minutes, au hasard, et des actus le font parfois sauter de 4 à 16 %. Il revient doucement vers sa valeur de départ sur la durée. Frais : <strong>1 %</strong> à l’achat et 1 % à la vente. Tes actions comptent dans ton score au cours du moment.</p>
+      </details>
     </section>
   </aside>
   <section class="stage" aria-label="Bourse">
@@ -70,6 +71,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/bourse.js?v=m12"></script>
+<script type="module" src="js/pages/bourse.js?v=m13"></script>
 </body>
 </html>

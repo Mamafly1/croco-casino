@@ -560,3 +560,16 @@ a { color: inherit; }
 .online-row button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #3ddc5f; }
 .gif-send .btn2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .gif-send .btn2 .btn-ghost { font-size: 13px; }
+
+/* « Les vraies cotes » : repliées par défaut, la flèche › tourne vers le bas à l'ouverture */
+:root { interpolate-size: allow-keywords; }
+details.odds > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; user-select: none; -webkit-user-select: none; }
+details.odds > summary::-webkit-details-marker { display: none; }
+details.odds > summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 3px 0 2px; border-right: 2.5px solid var(--muted); border-bottom: 2.5px solid var(--muted); transform: rotate(-45deg); transition: transform 0.25s ease; }
+details.odds[open] > summary::before { transform: rotate(45deg); }
+details.odds > summary h2 { margin: 0; }
+details.odds > summary:hover h2, details.odds > summary:hover::before { color: var(--ink); border-color: var(--ink); }
+details.odds::details-content { block-size: 0; overflow: clip; transition: block-size 0.3s ease, content-visibility 0.3s allow-discrete; }
+details.odds[open]::details-content { block-size: auto; }
+details.odds > :not(summary) { margin-top: 4px; }
+details.odds > .paytable { margin-top: 10px; }

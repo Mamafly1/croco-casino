@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m12">
+<link rel="stylesheet" href="css/casino.css?v=m13">
 <style>
 .felt { padding: 16px; border-radius: 14px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 14px; min-width: 0; }
 .wheel-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: center; }
@@ -79,8 +79,9 @@
         <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
         <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
       </dl>
-      <h2>Les vraies cotes</h2>
-      <p class="odds-note">37 cases : 1 à 36 et un seul zéro. Un numéro paie 35 contre 1 et sort <strong>1 fois sur 37</strong>. Rouge/noir, pair/impair, 1-18/19-36 paient 1 contre 1 mais gagnent <strong>18 fois sur 37</strong> (le zéro fait perdre). Douzaines et colonnes : 2 contre 1, <strong>12 fois sur 37</strong>. Quelle que soit la mise, la banque garde <strong>2,7 %</strong> sur la durée.</p>
+      <details class="odds"><summary><h2>Les vraies cotes</h2></summary>
+        <p class="odds-note">37 cases : 1 à 36 et un seul zéro. Un numéro paie 35 contre 1 et sort <strong>1 fois sur 37</strong>. Rouge/noir, pair/impair, 1-18/19-36 paient 1 contre 1 mais gagnent <strong>18 fois sur 37</strong> (le zéro fait perdre). Douzaines et colonnes : 2 contre 1, <strong>12 fois sur 37</strong>. Quelle que soit la mise, la banque garde <strong>2,7 %</strong> sur la durée.</p>
+      </details>
     </section>
   </aside>
   <section class="stage" aria-label="Table de roulette">
@@ -106,6 +107,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/roulette.js?v=m12"></script>
+<script type="module" src="js/pages/roulette.js?v=m13"></script>
 </body>
 </html>
