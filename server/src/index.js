@@ -14,6 +14,16 @@ const BET_MS = 15000;   // durée des mises d'un tour de roulette
 const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
 const ROUND_MS = 30000;   // temps pour jouer une manche de chifoumi entre joueurs
 const WIN_POINTS = 3;     // points pour gagner une partie de chifoumi
+// Classements secondaires : chacun a un titre, donné à celui qui est en tête
+const BOARDS = [
+  { key: 'win', label: 'Gros coup', title: 'Le Gros Coup', unit: 'eur' },
+  { key: 'mult', label: 'Meilleur multiplicateur', title: 'Kamikaze', unit: 'x' },
+  { key: 'rps', label: 'Roi du chifoumi', title: 'Maître Caillou', unit: 'n' },
+  { key: 'tasks', label: 'Bosseur', title: 'Le Stagiaire', unit: 'n' },
+  { key: 'stock', label: 'Bourse : gains réalisés', title: 'Yomi Denzel', unit: 'eur' },
+  { key: 'gifts', label: 'Dépenses en gifs', title: 'Sonion', unit: 'eur' },
+  { key: 'parties', label: 'Parties jouées', title: 'The Gambler', unit: 'n' },
+];
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
 export default {
@@ -134,6 +144,8 @@ async function sha256(s) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+const totalPlayed = (p) => Object.values(p.played || {}).reduce((a, b) => a + b, 0);
+
 export class Casino extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -168,6 +180,8 @@ export class Casino extends DurableObject {
       created INTEGER NOT NULL, expires INTEGER NOT NULL DEFAULT 0)`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS gifts_to ON gifts(to_id, id)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data BLOB NOT NULL, created INTEGER NOT NULL)');
+    // Compteurs des classements (record = maximum, ou total cumulé)
+    this.sql.exec('CREATE TABLE IF NOT EXISTS records (player_id INTEGER NOT NULL, k TEXT NOT NULL, v REAL NOT NULL DEFAULT 0, PRIMARY KEY (player_id, k))');
     this.duels = [];
     this.matches = [];
     this.mk = null;
@@ -176,7 +190,45 @@ export class Casino extends DurableObject {
       this.matches = (await ctx.storage.get('matches')) || [];
       this.mk = (await ctx.storage.get('market')) || newMarket(Date.now());
       setMarks(this.mk.prices);
+      // Une seule fois : compteurs de départ à partir de l'historique, et score recalculé en « argent total »
+      if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v2'").toArray().length) {
+        for (const r of this.sql.exec('SELECT id, data FROM players').toArray()) {
+          const p = JSON.parse(r.data);
+          const parties = Object.values(p.played || {}).reduce((a, b) => a + b, 0);
+          if (parties) this.rec(r.id, 'parties', parties);
+          if (p.spent) this.rec(r.id, 'gifts', p.spent);
+          this.sql.exec('UPDATE players SET score = ? WHERE id = ?', score(p), r.id);
+        }
+        this.rec(0, '_v2', 1);
+      }
     });
+  }
+
+  // Compteur d'un joueur : mode 'max' garde le plus haut, sinon on additionne
+  rec(id, k, v, mode = 'add') {
+    const op = mode === 'max' ? 'MAX(records.v, excluded.v)' : 'records.v + excluded.v';
+    this.sql.exec(`INSERT INTO records (player_id, k, v) VALUES (?, ?, ?) ON CONFLICT(player_id, k) DO UPDATE SET v = ${op}`, id, k, v);
+  }
+  // Ce qui se passe après chaque action : records et compteurs
+  track(id, game, action, res, played) {
+    const f = res.feed || {}, r = res.result || {};
+    if (f.bet > 0 && f.payout > f.bet) this.rec(id, 'mult', money(f.payout / f.bet), 'max'); // seulement les gains
+    if (played > 0 && !(game === 'rps' && action !== 'bot')) this.rec(id, 'parties', played); // un duel est compté à sa fin
+    if (game === 'rps' && f.outcome === 'win') this.rec(id, 'rps', 1);
+    if (game === 'work' && action === 'submit' && r.pay) this.rec(id, 'tasks', r.pay > 0 ? 1 : 0);
+    if (game === 'stocks' && f.act === 'sell') this.rec(id, 'stock', f.gain || 0);
+    if (game === 'gifs' && r.cost) this.rec(id, 'gifts', r.cost);
+  }
+  // Têtes de classement, et titres détenus (pour l'affichage à côté du pseudo)
+  boardData() {
+    const list = BOARDS.map((b) => ({
+      key: b.key, label: b.label, title: b.title, unit: b.unit,
+      rows: this.sql.exec('SELECT r.v AS v, p.name AS name FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 3', b.key).toArray()
+        .map((x) => ({ name: x.name, v: x.v })),
+    }));
+    const titles = {};
+    for (const b of list) if (b.rows[0]) (titles[b.rows[0].name] ||= []).push(b.title);
+    return { list, titles };
   }
 
   async fetch(request) {
@@ -217,9 +269,11 @@ export class Casino extends DurableObject {
     };
   }
   board() {
+    const titles = this.boardData().titles;
     return this.sql.exec('SELECT name, score, games FROM players ORDER BY score DESC, id ASC LIMIT 25').toArray()
-      .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games) }));
+      .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games), titles: titles[r.name] || [] }));
   }
+  boardMsg() { return { t: 'board', board: this.board(), boards: this.boardData().list }; }
 
   // ---------- admin ----------
   async admin(request) {
@@ -262,7 +316,7 @@ export class Casino extends DurableObject {
       }
       this.feed = []; await this.ctx.storage.put('feed', this.feed);
       this.sql.exec('DELETE FROM hist');
-      this.broadcast({ t: 'board', board: this.board() });
+      this.broadcast(this.boardMsg());
       return reply(200, { ok: true, message: 'Tout le monde repart de zéro (comptes et codes gardés).' });
     }
     const row = byName(msg.name);
@@ -294,7 +348,7 @@ export class Casino extends DurableObject {
       const r = await this.getRound();
       if (r.bets && r.bets[row.id]) { r.bets[row.id].name = newName; await this.ctx.storage.put('round', r); }
       refresh(row.id);
-      this.broadcast({ t: 'board', board: this.board() });
+      this.broadcast(this.boardMsg());
       this.broadcast({ t: 'feedAll', feed: this.feed });
       this.broadcast({ t: 'table', table: [...this.table.values()] });
       this.broadcast({ t: 'round', round: await this.roundView(r) });
@@ -324,7 +378,7 @@ export class Casino extends DurableObject {
       this.sql.exec('DELETE FROM hist WHERE player_id = ?', row.id);
       this.sql.exec('DELETE FROM gifts WHERE to_id = ?', row.id);
       for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
-      this.broadcast({ t: 'board', board: this.board() });
+      this.broadcast(this.boardMsg());
       return reply(200, { ok: true, message: 'Compte supprimé.' });
     }
     return reply(400, { error: 'Action inconnue.' });
@@ -348,6 +402,7 @@ export class Casino extends DurableObject {
   addHist(id, d, b, l, g) {
     if (!d) return;
     this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
+    if (d > 0 && g !== 'wallet' && g !== 'admin') this.rec(id, 'win', money(d), 'max'); // dépôts et ajustements ne sont pas des gains
     if (Math.random() < 0.05) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 500)', id, id);
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde
@@ -359,6 +414,7 @@ export class Casino extends DurableObject {
     const hist = this.sql.exec('SELECT at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
+      titles: this.boardData().titles[row.name] || [],
       inventoryValue: inventoryValue(p), played: p.played,
       inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,
@@ -391,7 +447,7 @@ export class Casino extends DurableObject {
     this.sql.exec('UPDATE players SET seen = ? WHERE id = ?', Date.now(), id);
     ws.serializeAttachment({ id: pl.id, name: pl.name, at: Date.now() });
     this.send(ws, {
-      t: 'welcome', me: this.me(pl), board: this.board(), feed: this.feed,
+      t: 'welcome', me: this.me(pl), board: this.board(), boards: this.boardData().list, feed: this.feed,
       round: await this.roundView(), table: [...this.table.values()], online: this.activeCount(), onlineNames: this.activeNames(),
       duels: this.duelView(),
     });
@@ -494,7 +550,7 @@ export class Casino extends DurableObject {
     }
     try {
       let res;
-      const before = pl.p.balance;
+      const before = pl.p.balance, playedBefore = totalPlayed(pl.p);
       const ctx = { rng, caseList: caseData.cases, now: Date.now() };
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
       else if (msg.game === 'roulette') throw new GameError('En ligne, la roulette se joue en tours partagés.');
@@ -507,6 +563,7 @@ export class Casino extends DurableObject {
       this.save(pl);
       this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
       if (msg.game === 'crash' && msg.action === 'start') this.crashTimer(pl.id);
+      this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore);
       this.send(ws, { t: 'res', id: msg.id, ok: true, result: res.result, me: this.me(pl) });
       if (msg.game === 'blackjack') this.updateTable(pl);
       if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
@@ -544,7 +601,7 @@ export class Casino extends DurableObject {
   }
   boardSoon() {
     if (this.boardTimer) return;
-    this.boardTimer = setTimeout(() => { this.boardTimer = 0; this.broadcast({ t: 'board', board: this.board() }); }, 1200);
+    this.boardTimer = setTimeout(() => { this.boardTimer = 0; this.broadcast(this.boardMsg()); }, 1200);
   }
   updateTable(pl) {
     const v = bjView(pl.p.bj);
@@ -661,6 +718,8 @@ export class Casino extends DurableObject {
       const pay = w === -1 ? m.bet : w === k ? money(m.bet * 2) : 0, b0 = P.p.balance;
       P.p.balance = money(b0 + pay);
       P.p.played.rps = (P.p.played.rps || 0) + 1;
+      this.rec(P.id, 'parties', 1);
+      if (w === k) this.rec(P.id, 'rps', 1);
       const outcome = w === -1 ? 'draw' : w === k ? 'win' : 'lose';
       const label = `Chifoumi contre ${m.p[1 - k].name} : ${w === -1 ? 'annulé' : outcome === 'win' ? 'gagné' : 'perdu'} (${m.score[k]}–${m.score[1 - k]})`;
       if (cur) mine = { outcome, label, payout: pay };
@@ -812,7 +871,7 @@ export class Casino extends DurableObject {
         if (who && r.bets[who.id]) { const pl = this.load(who.id); if (pl) this.send(ws, { t: 'me', me: this.me(pl) }); }
       }
       for (const e of events) this.pushFeed(e);
-      this.broadcast({ t: 'board', board: this.board() });
+      this.broadcast(this.boardMsg());
     } else if (r.phase === 'spun') {
       r.phase = 'idle'; r.bets = {}; r.endsAt = 0;
       await this.ctx.storage.put('round', r);

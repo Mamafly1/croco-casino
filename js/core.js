@@ -79,6 +79,7 @@ export const casino = {
   round: null,
   table: [],
   duels: [],
+  boards: [],
   onlineCount: 0,
   onlineNames: [],
   pending: 0, // gains pas encore montrés (animation en cours)
@@ -228,13 +229,13 @@ function connect() {
     try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 'welcome') {
       everConnected = true; retry = 0;
-      casino.me = m.me; casino.board = m.board; casino.feed = m.feed; casino.round = m.round; casino.table = m.table; casino.onlineCount = m.online;
+      casino.me = m.me; casino.board = m.board; casino.boards = m.boards || []; casino.feed = m.feed; casino.round = m.round; casino.table = m.table; casino.onlineCount = m.online;
       casino.onlineNames = m.onlineNames || []; casino.duels = m.duels || [];
       local.name = m.me.name; saveLocal();
       closeLogin();
       setStatus('online');
       startPing();
-      emit('me', m.me); emit('board', m.board); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online); emit('duels', casino.duels);
+      emit('me', m.me); emit('board', m.board); emit('boards', casino.boards); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online); emit('duels', casino.duels);
     } else if (m.t === 'login') {
       showLogin(m.players || [], m.error || '');
     } else if (m.t === 'res') {
@@ -245,7 +246,7 @@ function connect() {
     } else if (m.t === 'me') { casino.me = m.me; emit('me', m.me); renderWallet(); }
     else if (m.t === 'feed') addFeed(m.e);
     else if (m.t === 'feedAll') { casino.feed = m.feed; emit('feeds', m.feed); }
-    else if (m.t === 'board') { casino.board = m.board; emit('board', m.board); }
+    else if (m.t === 'board') { casino.board = m.board; if (m.boards) casino.boards = m.boards; emit('board', m.board); emit('boards', casino.boards); }
     else if (m.t === 'round') { casino.round = m.round; emit('round', m.round); }
     else if (m.t === 'table') { casino.table = m.table; emit('table', m.table); }
     else if (m.t === 'online') { casino.onlineCount = m.n; casino.onlineNames = m.names || []; emit('online', m.n); }

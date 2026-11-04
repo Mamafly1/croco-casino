@@ -85,10 +85,9 @@ export function stocksValue(p, prices = marks) {
   return money(v);
 }
 
-// Score du classement : ce que tu possèdes au casino moins ce que tu y as déposé (l'argent en banque ne compte pas).
-// L'argent dépensé en gifs ne fait pas perdre de points : il reste compté (sinon personne n'en enverrait).
+// Classement général « Argent total » : solde + inventaire + actions. Les dépôts ne se soustraient plus.
 export function score(p) {
-  return money(p.balance + inventoryValue(p) + stocksValue(p) + (p.spent || 0) - p.deposits);
+  return money(p.balance + inventoryValue(p) + stocksValue(p));
 }
 
 export function readBet(p, raw) {

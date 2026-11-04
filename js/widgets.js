@@ -1,5 +1,5 @@
 // Éléments partagés : classement, fil en direct, cartes à jouer en SVG.
-import { casino, eur, esc, nf2, nfx } from './core.js';
+import { casino, eur, esc, nf0, nf2, nfx } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { openProfile } from './profile.js';
 import { GAMES, GIF_MODES } from './engine/games.js';
@@ -16,20 +16,20 @@ export function mountBoard(el, { limit = 10 } = {}) {
     } else if (casino.status !== 'online' && !rows.length) {
       note = 'Connexion au classement…';
     } else {
-      note = 'Score = solde + inventaire + actions − dépôts. Déposer ne fait pas grimper, envoyer des gifs ne fait pas baisser.';
+      note = 'Argent total = solde + inventaire + actions. Les gifs envoyés le font baisser.';
     }
     const body = rows.map((r, i) => `
       <tr class="${r.name === me.name ? 'me' : ''}" data-name="${esc(r.name)}" tabindex="0" title="Voir le profil">
-        <td class="name"><span class="rk">${i + 1}</span>${esc(r.name.toUpperCase())}</td>
+        <td class="name"><span class="rk">${i + 1}</span>${esc(r.name.toUpperCase())}${(r.titles || []).map((t) => `<small class="ttl">${esc(t)}</small>`).join('')}</td>
         <td class="r">${fmtScore(r.score)}</td>
         <td><div class="ico">${(r.games || []).map((g) => pixelIcon(g, 16, GAME_INFO[g] ? GAME_INFO[g].name : g)).join('') || '<span style="color:#666">-</span>'}</div></td>
       </tr>`).join('');
     const mine = casino.online && me.rank && me.rank > limit
       ? `<p class="lb-note">Ta place : ${me.rank} · ${fmtScore(me.score)}</p>` : '';
     el.innerHTML = `
-      <h2>CLASSEMENT</h2>
+      <h2>ARGENT TOTAL</h2>
       <table class="lb">
-        <thead><tr><th>JOUEUR</th><th class="r">SCORE</th><th class="r" style="text-align:right">JEUX</th></tr></thead>
+        <thead><tr><th>JOUEUR</th><th class="r">ARGENT</th><th class="r" style="text-align:right">JEUX</th></tr></thead>
         <tbody>${body || '<tr><td colspan="3" style="text-align:center">PERSONNE ENCORE</td></tr>'}</tbody>
       </table>${mine}<p class="lb-note">${note}</p>`;
   };
@@ -38,6 +38,29 @@ export function mountBoard(el, { limit = 10 } = {}) {
   el.addEventListener('click', open);
   el.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(e); });
   draw();
+}
+
+// Classements secondaires : une carte par classement, titre en gros, top 3 dessous
+export function mountBoards(el) {
+  const draw = () => {
+    if (!casino.online) { el.innerHTML = '<p class="muted small">Les classements apparaissent quand le serveur est branché.</p>'; return; }
+    const list = casino.boards || [];
+    el.innerHTML = list.length ? list.map((b) => `
+      <section class="bcard">
+        <div class="bcard-head"><b>${esc(b.title)}</b><small>${esc(b.label)}</small></div>
+        ${b.rows.length ? `<ol class="blist">${b.rows.map((r, i) => `
+          <li class="${r.name === casino.me.name ? 'me' : ''}"><span class="rk">${i + 1}</span><button type="button" class="who" data-name="${esc(r.name)}">${esc(r.name)}</button><span class="bv">${fmtUnit(r.v, b.unit)}</span></li>`).join('')}</ol>`
+          : '<p class="muted small">Personne encore</p>'}
+      </section>`).join('') : '<p class="muted small">Chargement…</p>';
+  };
+  casino.on('boards', draw).on('me', draw).on('status', draw);
+  el.addEventListener('click', (e) => { const b = e.target.closest('button.who'); if (b) openProfile(b.dataset.name); });
+  draw();
+}
+function fmtUnit(v, unit) {
+  if (unit === 'eur') return eur(v);
+  if (unit === 'x') return '×' + nfx.format(v);
+  return nf0.format(v);
 }
 
 function fmtScore(s) {

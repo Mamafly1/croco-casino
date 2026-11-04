@@ -573,3 +573,17 @@ details.odds::details-content { block-size: 0; overflow: clip; transition: block
 details.odds[open]::details-content { block-size: auto; }
 details.odds > :not(summary) { margin-top: 4px; }
 details.odds > .paytable { margin-top: 10px; }
+
+/* classements secondaires et titres */
+.ttl { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--gold); color: var(--gold-ink); font: 9px/1.7 var(--font-pixel); letter-spacing: 0.02em; vertical-align: middle; white-space: nowrap; }
+.bcards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 10px; min-width: 0; }
+.bcard { padding: 12px; border-radius: 12px; background: var(--panel); display: grid; gap: 8px; align-content: start; min-width: 0; }
+.bcard-head { display: grid; gap: 2px; }
+.bcard-head b { font: 13px/1.5 var(--font-pixel); color: var(--gold); }
+.bcard-head small { color: var(--muted); font-weight: 700; font-size: 12px; }
+.blist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.blist li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border-radius: 7px; background: var(--field); font-size: 13px; }
+.blist li.me { outline: 1px solid var(--gold); }
+.blist .rk { font: 10px var(--font-pixel); color: var(--muted); width: 14px; flex: none; }
+.blist .who { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); font-weight: 800; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.blist .bv { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }

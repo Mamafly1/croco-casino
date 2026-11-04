@@ -75,7 +75,7 @@ function render(p) {
   current = p.name; last = p;
   if (view.kind === 'games') return renderGames(p);
   if (view.kind === 'item') { const it = p.inventory.find((x) => (view.uid ? x.uid === view.uid : x.n === view.it.n && x.float === view.it.float)); if (it) return renderItem(p, it); view = { kind: 'main' }; }
-  $('profTitle').innerHTML = `${esc(p.name)}${p.rank ? ` <span class="muted">#${p.rank}</span>` : ''}`;
+  $('profTitle').innerHTML = `${esc(p.name)}${p.rank ? ` <span class="muted">#${p.rank}</span>` : ''}${(p.titles || []).map((t) => ` <small class="ttl">${esc(t)}</small>`).join('')}`;
   const games = GAMES.filter((g) => p.played[g]);
   const total = games.reduce((s, g) => s + p.played[g], 0);
   const mine = p.name === casino.me.name, stock = mine ? casino.me.gifs || {} : null;
@@ -83,7 +83,7 @@ function render(p) {
     ${casino.online || mine ? `<button class="btn-main" type="button" data-gif>Envoyer un gif${mine ? ' (à toi-même)' : ` à ${esc(p.name)}`}</button>` : ''}
     ${stock ? `<p class="muted small" style="margin:0">Gifs en stock : DVD ${stock.dvd || 0} · Gravité ${stock.gravity || 0} · Plein écran ${stock.full || 0}</p>` : ''}
     <dl class="stat-grid prof-stats">
-      <div><dt>Score</dt><dd class="${p.score > 0.004 ? 'pos' : p.score < -0.004 ? 'neg' : ''}">${signed(p.score)}</dd></div>
+      <div><dt>Argent total</dt><dd class="${p.score > 0.004 ? 'pos' : p.score < -0.004 ? 'neg' : ''}">${signed(p.score)}</dd></div>
       <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
       <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
