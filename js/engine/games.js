@@ -57,7 +57,7 @@ export function historyLabel(game, action, params, result, feed) {
   if (game === 'work') return 'Travail : ' + (result.title || 'tâche');
   if (game === 'gifs') return action === 'buy' ? `Gifs : ${params.qty}× ${GIF_MODES[params.mode] || ''} en stock` : `Gifs : ${params.qty}× envoyés${params.to ? ' à ' + params.to : ''}`;
   if (game === 'crash') return result.mult ? `Fusée ×${String(result.mult).replace('.', ',')}` : result.point != null ? `Fusée : explosée à ×${String(result.point).replace('.', ',')}` : 'Fusée : mise';
-  if (game === 'rps') return `Pierre-feuille-ciseaux : ${result.cancelled ? 'défi annulé' : ({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[result.outcome] || 'défi lancé'}`;
+  if (game === 'rps') return result.label && result.label.startsWith('Chifoumi') ? result.label : `Chifoumi : ${result.cancelled ? 'défi annulé' : ({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[result.outcome] || result.label || 'défi lancé'}`;
   if (game === 'stocks') { const c = COMPANIES.find((x) => x.id === params.co); return `Bourse : ${action === 'buy' ? 'achat' : 'vente'} ${c ? c.name : ''}`; }
   if (game === 'plinko') return `Plinko ×${String(result.mult).replace('.', ',')}`;
   if (game === 'slots') return result.payout > 0 ? `Machine à sous ×${String(money(result.payout / result.bet)).replace('.', ',')}` : 'Machine à sous';

@@ -194,6 +194,7 @@ function showFeed(e) {
 }
 
 // ---------- serveur ----------
+let notedMatch = null;
 let ws = null, reqId = 0, waiting = new Map(), retry = 0, everConnected = false;
 
 function request(msg) {
@@ -253,6 +254,11 @@ function connect() {
     else if (m.t === 'duels') { casino.duels = m.duels; emit('duels', m.duels); }
     else if (m.t === 'duelEnd') { casino.me = m.me; emit('duelEnd', m.result); emit('me', m.me); renderWallet(); }
     else if (m.t === 'note') toast(m.text);
+    else if (m.t === 'match') {
+      // partie de chifoumi en cours : sur une autre page, on prévient une fois
+      if (m.match.phase === 'play' && !/pfc\.html/.test(location.pathname) && notedMatch !== m.match.id) { notedMatch = m.match.id; toast(`Ta partie de chifoumi contre ${m.match.opp} t’attend dans Chifoumi`); }
+      emit('match', m.match);
+    }
   };
   ws.onclose = () => {
     for (const w of waiting.values()) { clearTimeout(w.timer); w.reject(new GameError('Connexion perdue.')); }

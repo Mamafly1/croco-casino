@@ -12,6 +12,8 @@ import caseData from '../../data/cases.json';
 
 const BET_MS = 15000;   // durée des mises d'un tour de roulette
 const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
+const ROUND_MS = 30000;   // temps pour jouer une manche de chifoumi entre joueurs
+const WIN_POINTS = 3;     // points pour gagner une partie de chifoumi
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
 export default {
@@ -167,9 +169,11 @@ export class Casino extends DurableObject {
     this.sql.exec('CREATE INDEX IF NOT EXISTS gifts_to ON gifts(to_id, id)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data BLOB NOT NULL, created INTEGER NOT NULL)');
     this.duels = [];
+    this.matches = [];
     this.mk = null;
     ctx.blockConcurrencyWhile(async () => {
       this.duels = (await ctx.storage.get('duels')) || [];
+      this.matches = (await ctx.storage.get('matches')) || [];
       this.mk = (await ctx.storage.get('market')) || newMarket(Date.now());
       setMarks(this.mk.prices);
     });
@@ -395,6 +399,9 @@ export class Casino extends DurableObject {
     this.sql.exec('DELETE FROM gifts WHERE expires > 0 AND expires < ?', Date.now());
     const gifts = this.sql.exec('SELECT id, from_name AS "from", mode, url, name, w, h, expires FROM gifts WHERE to_id = ? ORDER BY id', pl.id).toArray();
     if (gifts.length) this.send(ws, { t: 'gifs', add: gifts, initial: true });
+    await this.checkMatches();
+    const m = this.matchOf(pl.id);
+    if (m) this.send(ws, { t: 'match', match: this.matchView(m, pl.id) });
     this.broadcast(this.online());
   }
   // Appareil déjà connu : on entre directement
@@ -458,6 +465,7 @@ export class Casino extends DurableObject {
       const was = this.activeNames().join('|');
       ws.serializeAttachment({ ...who, at: Date.now() });
       if (this.activeNames().join('|') !== was) this.broadcast(this.online());
+      if (this.matches.length) await this.checkMatches();
       return;
     }
     if (msg.t === 'gifrm') { this.sql.exec('DELETE FROM gifts WHERE id = ? AND to_id = ?', Number(msg.gid), who.id); return; }
@@ -491,7 +499,7 @@ export class Casino extends DurableObject {
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
       else if (msg.game === 'roulette') throw new GameError('En ligne, la roulette se joue en tours partagés.');
       else if (msg.game === 'gifs' && msg.action === 'send') res = this.sendGifs(pl, msg.params || {}, ctx);
-      else if (msg.game === 'rps' && ['duel', 'accept', 'cancel'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
+      else if (msg.game === 'rps' && ['duel', 'accept', 'cancel', 'move'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
       else {
         if (msg.game === 'stocks') ctx.prices = (await this.market()).prices;
         res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
@@ -596,16 +604,77 @@ export class Casino extends DurableObject {
     this.boardSoon();
   }
 
-  // ---------- pierre-feuille-ciseaux : duels entre joueurs ----------
+  // ---------- chifoumi : défis entre joueurs, partie en 3 points ----------
+  // Un défi (mise + adversaire facultatif) attend qu'un joueur l'accepte. La partie se joue alors manche par manche :
+  // chacun choisit son coup en secret, le serveur révèle les deux, le premier à 3 points gagne les deux mises.
+  // 30 s par manche : celui qui ne joue pas perd le point ; si personne ne joue deux manches de suite, tout est remboursé.
   duelView() { return this.duels.map(({ id, from, bet, to, at }) => ({ id, from, bet, to, at })); }
   async saveDuels() { await this.ctx.storage.put('duels', this.duels); this.broadcast({ t: 'duels', duels: this.duelView() }); }
   notify(id, obj) { for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === id) this.send(ws, obj); } }
+  matchOf(id) { return this.matches.find((m) => m.phase === 'play' && m.p.some((x) => x.id === id)); }
+  matchView(m, id) {
+    const i = m.p[0].id === id ? 0 : 1, j = 1 - i, mv = (x) => (x == null ? null : RPS_MOVES[x]);
+    const l = m.last;
+    return {
+      id: m.id, opp: m.p[j].name, bet: m.bet, score: [m.score[i], m.score[j]], round: m.round, myMove: mv(m.moves[i]), oppChosen: m.moves[j] != null,
+      left: Math.max(0, m.deadline - Date.now()), phase: m.phase, target: WIN_POINTS,
+      last: l ? { round: l.round, mine: mv(l.moves[i]), theirs: mv(l.moves[j]), outcome: l.w === -1 ? 'draw' : l.w === i ? 'win' : 'lose', timeout: l.timeout } : null,
+      result: m.phase === 'done' ? (m.winner === -1 ? 'cancel' : m.winner === i ? 'win' : 'lose') : null,
+    };
+  }
+  pushMatch(m) { for (const x of m.p) this.notify(x.id, { t: 'match', match: this.matchView(m, x.id) }); }
+  async saveMatches() { this.matches = this.matches.filter((m) => m.phase === 'play'); await this.ctx.storage.put('matches', this.matches); }
+  matchTimer(m) { setTimeout(() => this.matchTick(m.id), Math.max(0, m.deadline - Date.now()) + 100); }
+  async matchTick(id) {
+    const m = this.matches.find((x) => x.id === id && x.phase === 'play');
+    if (!m || Date.now() < m.deadline - 50) return;
+    this.resolveRound(m, true, null);
+    this.pushMatch(m);
+    await this.saveMatches();
+    if (m.phase === 'play') this.matchTimer(m);
+  }
+  // Manches en retard (le serveur a pu s'endormir) : réglées au prochain signe de vie
+  async checkMatches() { for (const m of this.matches.filter((x) => x.phase === 'play' && x.deadline < Date.now())) await this.matchTick(m.id); }
+  resolveRound(m, timeout, pl) {
+    const [a, b] = m.moves;
+    let w;
+    if (a == null && b == null) { m.idle = (m.idle || 0) + 1; w = -1; }
+    else {
+      m.idle = 0;
+      if (a == null) w = 1; else if (b == null) w = 0;
+      else { const o = rpsOutcome(a, b); w = o === 'win' ? 0 : o === 'lose' ? 1 : -1; }
+    }
+    if (w >= 0) m.score[w]++;
+    m.last = { round: m.round, moves: [a, b], w, timeout: timeout && (a == null || b == null) };
+    m.moves = [null, null]; m.round++; m.deadline = Date.now() + ROUND_MS;
+    if (w >= 0 && m.score[w] >= WIN_POINTS) return this.finishMatch(m, w, pl);
+    if (m.idle >= 2) return this.finishMatch(m, -1, pl);
+    return null;
+  }
+  // Fin de partie : le gagnant prend les deux mises ; partie abandonnée par les deux = remboursée
+  finishMatch(m, w, pl) {
+    m.phase = 'done'; m.winner = w;
+    let mine = null;
+    for (let k = 0; k < 2; k++) {
+      const cur = pl && pl.id === m.p[k].id, P = cur ? pl : this.load(m.p[k].id);
+      if (!P) continue;
+      const pay = w === -1 ? m.bet : w === k ? money(m.bet * 2) : 0, b0 = P.p.balance;
+      P.p.balance = money(b0 + pay);
+      P.p.played.rps = (P.p.played.rps || 0) + 1;
+      const outcome = w === -1 ? 'draw' : w === k ? 'win' : 'lose';
+      const label = `Chifoumi contre ${m.p[1 - k].name} : ${w === -1 ? 'annulé' : outcome === 'win' ? 'gagné' : 'perdu'} (${m.score[k]}–${m.score[1 - k]})`;
+      if (cur) mine = { outcome, label, payout: pay };
+      else { this.save(P); this.addHist(P.id, pay, P.p.balance, label, 'rps'); this.notify(P.id, { t: 'me', me: this.me(P) }); }
+    }
+    if (w >= 0) this.pushFeed({ name: m.p[w].name, at: Date.now(), game: 'rps', bet: m.bet, payout: money(m.bet * 2), outcome: 'win', vs: m.p[1 - w].name, score: `${m.score[w]}–${m.score[1 - w]}` });
+    this.boardSoon();
+    return mine;
+  }
   async duel(pl, action, params) {
-    // duels de plus de 30 min : remboursés
+    // défis de plus de 30 min sans réponse : remboursés
     for (const d of this.duels.filter((x) => Date.now() - x.at > 30 * 60000)) await this.refundDuel(d, pl);
+    await this.checkMatches();
     if (action === 'duel') {
-      const move = RPS_MOVES.indexOf(params.move);
-      if (move < 0) throw new GameError('Choisis pierre, feuille ou ciseaux.');
       if (this.duels.filter((d) => d.fromId === pl.id).length >= 3) throw new GameError('3 défis ouverts maximum.');
       let to = null;
       if (params.to) {
@@ -616,11 +685,27 @@ export class Casino extends DurableObject {
       }
       const bet = readBet(pl.p, params.bet);
       pl.p.balance = money(pl.p.balance - bet);
-      const d = { id: crypto.randomUUID().slice(0, 8), from: pl.name, fromId: pl.id, bet, move, to, at: Date.now() };
+      const d = { id: crypto.randomUUID().slice(0, 8), from: pl.name, fromId: pl.id, bet, to, at: Date.now() };
       this.duels.push(d);
       await this.saveDuels();
-      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie au chifoumi (${String(bet).replace('.', ',')} €) : va dans Chifoumi pour répondre` }); }
-      return { result: { duel: d.id, bet, payout: 0 } };
+      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie au chifoumi en ${WIN_POINTS} points (${String(bet).replace('.', ',')} €) : va dans Chifoumi pour accepter` }); }
+      return { result: { duel: d.id, bet, payout: 0, label: 'défi lancé' } };
+    }
+    if (action === 'move') {
+      const m = this.matches.find((x) => x.id === params.mid && x.phase === 'play');
+      if (!m) throw new GameError('Cette partie est terminée.');
+      const i = m.p.findIndex((x) => x.id === pl.id);
+      if (i < 0) throw new GameError('Ce n’est pas ta partie.');
+      const move = RPS_MOVES.indexOf(params.move);
+      if (move < 0) throw new GameError('Choisis pierre, feuille ou ciseaux.');
+      if (m.moves[i] != null) throw new GameError('Tu as déjà joué cette manche.');
+      m.moves[i] = move;
+      let end = null;
+      if (m.moves[1 - i] != null) end = this.resolveRound(m, false, pl);
+      this.pushMatch(m);
+      await this.saveMatches();
+      if (m.phase === 'play' && m.moves.every((x) => x == null)) this.matchTimer(m);
+      return { result: { payout: 0, ...(end ? { outcome: end.outcome, label: end.label } : { label: 'coup joué' }) } };
     }
     const d = this.duels.find((x) => x.id === params.id);
     if (!d) throw new GameError('Ce défi n’existe plus.');
@@ -631,30 +716,23 @@ export class Casino extends DurableObject {
       await this.saveDuels();
       return { result: { cancelled: true, payout: 0 } };
     }
-    // accept
+    // accept : la partie commence
     if (d.fromId === pl.id) throw new GameError('C’est ton propre défi.');
     if (d.to && d.to.toLowerCase() !== pl.name.toLowerCase()) throw new GameError('Ce défi est pour quelqu’un d’autre.');
-    const move = RPS_MOVES.indexOf(params.move);
-    if (move < 0) throw new GameError('Choisis pierre, feuille ou ciseaux.');
+    if (this.matchOf(pl.id)) throw new GameError('Finis d’abord ta partie en cours.');
+    if (this.matchOf(d.fromId)) throw new GameError(`${d.from} est déjà en pleine partie, réessaie dans un instant.`);
     readBet(pl.p, d.bet);
+    pl.p.balance = money(pl.p.balance - d.bet);
     this.duels = this.duels.filter((x) => x !== d);
-    const outcome = rpsOutcome(move, d.move); // du point de vue de celui qui accepte
-    const mine = outcome === 'win' ? d.bet * 2 : outcome === 'draw' ? d.bet : 0;
-    const theirs = outcome === 'lose' ? d.bet * 2 : outcome === 'draw' ? d.bet : 0;
-    pl.p.balance = money(pl.p.balance - d.bet + mine);
-    pl.p.played.rps = (pl.p.played.rps || 0) + 1;
-    const other = this.load(d.fromId);
-    if (other) {
-      const b0 = other.p.balance;
-      other.p.balance = money(other.p.balance + theirs);
-      other.p.played.rps = (other.p.played.rps || 0) + 1;
-      this.save(other);
-      const oc = outcome === 'win' ? 'lose' : outcome === 'lose' ? 'win' : 'draw';
-      this.addHist(other.id, other.p.balance - b0, other.p.balance, historyLabel('rps', 'duel', {}, { outcome: oc }), 'rps');
-      this.notify(other.id, { t: 'duelEnd', result: { vs: pl.name, move: RPS_MOVES[d.move], other: RPS_MOVES[move], outcome: oc, bet: d.bet, payout: theirs }, me: this.me(other) });
-    }
+    const m = { id: crypto.randomUUID().slice(0, 8), p: [{ id: d.fromId, name: d.from }, { id: pl.id, name: pl.name }], bet: d.bet,
+      score: [0, 0], round: 1, moves: [null, null], deadline: Date.now() + ROUND_MS, phase: 'play', idle: 0, last: null };
+    this.matches.push(m);
     await this.saveDuels();
-    return { result: { vs: d.from, move: RPS_MOVES[move], other: RPS_MOVES[d.move], outcome, bet: d.bet, payout: mine }, feed: { game: 'rps', bet: d.bet, payout: mine, outcome, vs: d.from } };
+    await this.saveMatches();
+    this.notify(d.fromId, { t: 'note', text: `${pl.name} a accepté ton défi : la partie commence dans Chifoumi !` });
+    this.pushMatch(m);
+    this.matchTimer(m);
+    return { result: { match: m.id, bet: d.bet, payout: 0, label: 'duel accepté' } };
   }
   async refundDuel(d, current) {
     this.duels = this.duels.filter((x) => x !== d);

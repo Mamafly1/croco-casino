@@ -53,7 +53,7 @@ export function feedText(e) {
     case 'blackjack': return `Blackjack : ${({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' })[e.result] || e.result}`;
     case 'cases': return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
     case 'crash': return e.mult ? `Fusée : retirée à ×${nfx.format(e.mult)}` : `Fusée : boum à ×${nfx.format(e.point)}`;
-    case 'rps': return `Chifoumi contre ${e.vs || 'le croco'} : ${({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[e.outcome] || ''}`;
+    case 'rps': return `Chifoumi contre ${e.vs || 'le croco'} : ${({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[e.outcome] || ''}${e.score ? ' ' + e.score : ''}`;
     case 'stocks': return `Bourse : ${e.act === 'buy' ? 'achète' : 'vend'} ${e.co}`;
     case 'gifs': return `→ ${e.to} : ${e.qty}× ${e.gif}`;
     default: return e.game;

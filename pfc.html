@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m11">
+<link rel="stylesheet" href="css/casino.css?v=m12">
 <style>
 .arena { display: grid; gap: 14px; padding: 18px; border-radius: 12px; background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%); }
 .arena h1 { margin: 0; text-align: center; font: clamp(14px, 3vw, 22px)/1.4 var(--font-pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red); }
@@ -29,6 +29,12 @@
 .duel { display: grid; gap: 8px; padding: 10px; border-radius: 10px; background: var(--field); }
 .duel .moves button { padding: 6px 2px; }
 .duel .moves button svg { width: 32px; height: 32px; }
+.match { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.35); }
+.mscore { display: flex; justify-content: center; align-items: center; gap: 14px; font: clamp(13px, 3vw, 18px)/1.4 var(--font-pixel); }
+.mscore b { font-size: 1.5em; color: var(--gold); }
+.mstat { margin: 0; text-align: center; font-weight: 800; }
+.mbar { height: 6px; border-radius: 3px; background: var(--field); overflow: hidden; }
+.mbar i { display: block; height: 100%; background: var(--gold); transition: width 1s linear; }
 .duel-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; flex-wrap: wrap; }
 </style>
 </head>
@@ -51,7 +57,7 @@
       <label class="field-head" for="to"><span>Qui défier ?</span></label>
       <select class="text-in" id="to"></select>
     </div>
-    <div class="field"><div class="field-head"><span id="moveLabel">Ton coup</span></div><div class="moves" id="moves" role="group" aria-labelledby="moveLabel"></div></div>
+    <div class="field" id="moveField"><div class="field-head"><span id="moveLabel">Ton coup</span></div><div class="moves" id="moves" role="group" aria-labelledby="moveLabel"></div></div>
     <button id="play" class="play" type="button" hidden>Lancer le défi</button>
     <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
@@ -67,7 +73,7 @@
     </section>
   </aside>
   <section class="stage" aria-label="Chifoumi">
-    <div class="arena">
+    <div class="arena" id="arena">
       <h1>CHIFOUMI</h1>
       <div class="vs">
         <div class="side"><div class="hand" id="handMe"></div><span id="nameMe">Toi</span></div>
@@ -75,6 +81,12 @@
         <div class="side right"><div class="hand" id="handOther"></div><span id="nameOther">Le croco</span></div>
       </div>
       <p class="result" id="result" aria-live="polite"></p>
+      <div class="match" id="matchBox" hidden>
+        <div class="mscore" id="mScore"></div>
+        <p class="mstat" id="mStat" aria-live="polite"></p>
+        <div class="moves" id="mMoves" role="group" aria-label="Ton coup pour cette manche"></div>
+        <button class="btn-ghost" id="mClose" type="button" hidden>Fermer</button>
+      </div>
     </div>
     <section class="surface" id="duelBox" hidden aria-labelledby="duelTitle">
       <h2 class="h-label" id="duelTitle" style="margin-bottom:10px">Défis ouverts</h2>
@@ -86,6 +98,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/pfc.js?v=m11"></script>
+<script type="module" src="js/pages/pfc.js?v=m12"></script>
 </body>
 </html>
