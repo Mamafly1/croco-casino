@@ -2,7 +2,7 @@
 import { casino, eur, esc, nf2, nfx } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { openProfile } from './profile.js';
-import { GAMES } from './engine/games.js';
+import { GAMES, GIF_MODES } from './engine/games.js';
 
 // ---------- classement ----------
 export function mountBoard(el, { limit = 10 } = {}) {
@@ -16,7 +16,7 @@ export function mountBoard(el, { limit = 10 } = {}) {
     } else if (casino.status !== 'online' && !rows.length) {
       note = 'Connexion au classement…';
     } else {
-      note = 'Score = solde + valeur de l’inventaire − dépôts. Déposer ne fait pas grimper.';
+      note = 'Score = solde + inventaire + actions − salaires. Travailler ne fait pas grimper, envoyer des gifs ne fait pas baisser.';
     }
     const body = rows.map((r, i) => `
       <tr class="${r.name === me.name ? 'me' : ''}" data-name="${esc(r.name)}" tabindex="0" title="Voir le profil">
@@ -52,6 +52,10 @@ export function feedText(e) {
     case 'roulette': return `Roulette : ${e.n}`;
     case 'blackjack': return `Blackjack : ${({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' })[e.result] || e.result}`;
     case 'cases': return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
+    case 'crash': return e.mult ? `Fusée : retirée à ×${nfx.format(e.mult)}` : `Fusée : boum à ×${nfx.format(e.point)}`;
+    case 'rps': return `Chifoumi contre ${e.vs || 'le croco'} : ${({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[e.outcome] || ''}`;
+    case 'stocks': return `Bourse : ${e.act === 'buy' ? 'achète' : 'vend'} ${e.co}`;
+    case 'gifs': return `→ ${e.to} : ${e.qty}× ${e.gif}`;
     default: return e.game;
   }
 }
@@ -62,8 +66,10 @@ export function mountFeed(el, { game = null, limit = 12 } = {}) {
     if (!list.length) { el.innerHTML = '<p class="feed-empty">Rien pour l’instant. Les parties de tout le monde s’affichent ici.</p>'; return; }
     el.innerHTML = '<ul class="feed">' + list.map((e) => {
       const net = e.game === 'cases' ? e.payout : e.payout - e.bet;
-      const cls = e.game === 'cases' ? (e.item && ['covert', 'rare'].includes(e.item.t) ? 'pos' : '') : net > 0.004 ? 'pos' : 'neg';
-      const amt = e.game === 'cases' ? eur(e.payout) : (net > 0.004 ? '+' : '') + eur(net);
+      let cls = e.game === 'cases' ? (e.item && ['covert', 'rare'].includes(e.item.t) ? 'pos' : '') : net > 0.004 ? 'pos' : net < -0.004 ? 'neg' : '';
+      let amt = e.game === 'cases' ? eur(e.payout) : (net > 0.004 ? '+' : '') + eur(net);
+      if (e.game === 'stocks') { amt = eur(e.amount); cls = e.act === 'sell' && e.gain != null ? (e.gain >= 0 ? 'pos' : 'neg') : ''; }
+      if (e.game === 'gifs') { amt = GIF_MODES[e.mode] || ''; cls = ''; }
       return `<li>${pixelIcon(e.game, 18)}<button type="button" class="who" data-name="${esc(e.name)}">${esc(e.name)}</button><span class="what">${esc(feedText(e))}</span><span class="amt ${cls}">${amt}</span></li>`;
     }).join('') + '</ul>';
   };

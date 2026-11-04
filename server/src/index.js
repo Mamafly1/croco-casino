@@ -1,7 +1,10 @@
 // Serveur multijoueur de Croco Casino : un Worker Cloudflare + un Durable Object (stockage SQLite).
 // Le site reste sur GitHub Pages ; il se connecte ici en WebSocket quand js/config.js donne l'adresse.
 import { DurableObject } from 'cloudflare:workers';
-import { run, newPlayer, score, inventoryValue, readRouletteBets, GameError, money, GAMES, historyLabel } from '../../js/engine/games.js';
+import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, historyLabel, rpsOutcome, RPS_MOVES, GIF_MODES } from '../../js/engine/games.js';
+import { newMarket, advance, setMarks } from '../../js/engine/market.js';
+import { timeTo } from '../../js/engine/crash.js';
+import { workDay } from '../../js/engine/work.js';
 import * as roulette from '../../js/engine/roulette.js';
 import { view as bjView } from '../../js/engine/blackjack.js';
 import { rng } from '../../js/engine/rng.js';
@@ -12,10 +15,12 @@ const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/health') return new Response('ok');
     if (url.pathname === '/admin') return adminRoute(request, env);
+    if (url.pathname === '/gifs') return gifRoute(request, env, ctx, url);
+    if (url.pathname === '/media' || url.pathname.startsWith('/media/')) return mediaRoute(request, env, url);
     if (url.pathname !== '/ws') return new Response('Croco Casino : rien ici.', { status: 404 });
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('WebSocket attendu', { status: 426 });
     const allowed = String(env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -44,6 +49,82 @@ async function adminRoute(request, env) {
   const stub = env.CASINO.get(env.CASINO.idFromName('main'));
   const res = await stub.fetch(new Request('https://do/admin', { method: 'POST', body: await request.text() }));
   return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': 'application/json' } });
+}
+
+// ---------- gifs : recherche Klipy (la clé reste sur le serveur, secret KLIPY_KEY) ----------
+function json(status, obj, headers = {}) {
+  return new Response(JSON.stringify(obj), { status, headers: { ...headers, 'Content-Type': 'application/json' } });
+}
+function getCors(request, env) { return { ...cors(request, env), 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }; }
+async function gifRoute(request, env, ctx, url) {
+  const h = getCors(request, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+  if (!env.KLIPY_KEY) return json(503, { error: 'Recherche de gifs pas encore configurée (secret KLIPY_KEY).' }, h);
+  const q = String(url.searchParams.get('q') || '').trim().slice(0, 60);
+  const page = Math.max(1, Math.min(50, parseInt(url.searchParams.get('page'), 10) || 1));
+  const per = Math.max(1, Math.min(48, parseInt(url.searchParams.get('per'), 10) || 24));
+  const cacheKey = new Request(`https://cache.croco/gifs?q=${encodeURIComponent(q.toLowerCase())}&page=${page}&per=${per}`);
+  const cache = caches.default;
+  let res = await cache.match(cacheKey);
+  if (!res) {
+    const qs = new URLSearchParams({ page: String(page), per_page: String(per), customer_id: 'croco-casino', locale: 'fr' });
+    if (q) qs.set('q', q);
+    const api = `https://api.klipy.com/api/v1/${encodeURIComponent(env.KLIPY_KEY)}/gifs/${q ? 'search' : 'trending'}?${qs}`;
+    let data;
+    try {
+      const r = await fetch(api, { headers: { Accept: 'application/json' } });
+      if (!r.ok) return json(502, { error: `Klipy ne répond pas (${r.status}).` }, h);
+      data = await r.json();
+    } catch { return json(502, { error: 'Klipy ne répond pas.' }, h); }
+    res = json(200, klipyItems(data), { 'Cache-Control': 'public, max-age=1800' });
+    ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  }
+  return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': 'application/json' } });
+}
+// Réponse Klipy -> { items: [{ id, title, url, preview, w, h }], hasNext }. Lecture prudente : plusieurs formes possibles.
+function klipyItems(d) {
+  const box = d && typeof d.data === 'object' && d.data !== null ? d.data : d || {};
+  const list = Array.isArray(box) ? box : Array.isArray(box.data) ? box.data : Array.isArray(d && d.results) ? d.results : [];
+  const items = [];
+  for (const it of list) {
+    if (!it || typeof it !== 'object' || it.type === 'ad') continue;
+    const f = it.file || it.files || it.media_formats || {};
+    const find = (sizes, fmts) => {
+      for (const sz of sizes) for (const fm of fmts) {
+        const x = (f[sz] && f[sz][fm]) || (sz === fm ? f[fm] : null);
+        if (x && x.url) return x;
+      }
+      return null;
+    };
+    const main = find(['md', 'hd', 'sm', 'gif', 'mediumgif'], ['gif', 'webp']) || find(['tinygif', 'nanogif'], ['tinygif', 'nanogif']);
+    const prev = find(['sm', 'xs', 'md'], ['gif', 'webp']) || find(['tinygif'], ['tinygif']) || main;
+    if (!main) continue;
+    const dims = Array.isArray(main.dims) ? main.dims : [main.width, main.height];
+    items.push({ id: String(it.id ?? it.slug ?? main.url), title: String(it.title || it.content_description || it.slug || 'gif').slice(0, 60),
+      url: main.url, preview: prev.url, w: Number(dims[0]) || 0, h: Number(dims[1]) || 0 });
+  }
+  const out = { items, hasNext: box.has_next !== undefined ? !!box.has_next : items.length > 0 };
+  if (!items.length && list.length) out.debug = Object.keys(list[0]); // forme inconnue : aide au diagnostic
+  return out;
+}
+// Images importées depuis le téléphone : gardées dans le stockage du serveur
+async function mediaRoute(request, env, url) {
+  const h = getCors(request, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+  const stub = env.CASINO.get(env.CASINO.idFromName('main'));
+  if (request.method === 'POST' && url.pathname === '/media') {
+    const type = request.headers.get('Content-Type') || '';
+    if (!/^image\/(gif|png|jpeg|webp)$/.test(type)) return json(415, { error: 'Seulement des images (gif, png, jpg, webp).' }, h);
+    const body = await request.arrayBuffer();
+    if (body.byteLength > 1.5 * 1024 * 1024) return json(413, { error: 'Image trop lourde (1,5 Mo max).' }, h);
+    const res = await stub.fetch(new Request('https://do/media', { method: 'POST', body, headers: { 'Content-Type': type } }));
+    return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': 'application/json' } });
+  }
+  if (request.method === 'GET') {
+    const res = await stub.fetch(new Request('https://do' + url.pathname));
+    return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': res.headers.get('Content-Type') || 'text/plain', 'Cache-Control': res.ok ? 'public, max-age=31536000, immutable' : 'no-store' } });
+  }
+  return json(405, { error: 'Méthode non autorisée.' }, h);
 }
 
 async function sha256(s) {
@@ -79,10 +160,34 @@ export class Casino extends DurableObject {
     ctx.blockConcurrencyWhile(async () => { this.feed = (await ctx.storage.get('feed')) || []; });
     this.rate = new Map();
     this.boardTimer = 0;
+    // Gifs reçus (affichés sur l'écran du destinataire jusqu'à ce qu'il les jette) et images importées
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS gifts (id INTEGER PRIMARY KEY AUTOINCREMENT, to_id INTEGER NOT NULL, from_name TEXT NOT NULL,
+      mode TEXT NOT NULL, url TEXT NOT NULL, name TEXT NOT NULL, w INTEGER NOT NULL DEFAULT 0, h INTEGER NOT NULL DEFAULT 0,
+      created INTEGER NOT NULL, expires INTEGER NOT NULL DEFAULT 0)`);
+    this.sql.exec('CREATE INDEX IF NOT EXISTS gifts_to ON gifts(to_id, id)');
+    this.sql.exec('CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data BLOB NOT NULL, created INTEGER NOT NULL)');
+    this.duels = [];
+    this.mk = null;
+    ctx.blockConcurrencyWhile(async () => {
+      this.duels = (await ctx.storage.get('duels')) || [];
+      this.mk = (await ctx.storage.get('market')) || newMarket(Date.now());
+      setMarks(this.mk.prices);
+    });
   }
 
   async fetch(request) {
-    if (new URL(request.url).pathname === '/admin') return this.admin(request);
+    const path = new URL(request.url).pathname;
+    if (path === '/admin') return this.admin(request);
+    if (path === '/media' && request.method === 'POST') {
+      const id = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+      this.sql.exec('INSERT INTO media (id, type, data, created) VALUES (?, ?, ?, ?)', id, request.headers.get('Content-Type'), await request.arrayBuffer(), Date.now());
+      this.sql.exec('DELETE FROM media WHERE id NOT IN (SELECT id FROM media ORDER BY created DESC LIMIT 300)');
+      return new Response(JSON.stringify({ id }), { headers: { 'Content-Type': 'application/json' } });
+    }
+    if (path.startsWith('/media/')) {
+      const row = this.sql.exec('SELECT type, data FROM media WHERE id = ?', path.slice(7)).toArray()[0];
+      return row ? new Response(row.data, { headers: { 'Content-Type': row.type } }) : new Response('Image introuvable', { status: 404 });
+    }
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1]);
     return new Response(null, { status: 101, webSocket: pair[0] });
@@ -104,6 +209,7 @@ export class Casino extends DurableObject {
     return {
       name: pl.name, balance: p.balance, deposits: p.deposits, score: sc, rank,
       inventory: p.inventory, inventoryValue: inventoryValue(p), played: p.played, bj: bjView(p.bj),
+      gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p),
     };
   }
   board() {
@@ -143,7 +249,7 @@ export class Casino extends DurableObject {
         const p = JSON.parse(r.data);
         return { name: r.name, balance: p.balance, deposits: p.deposits, inventory: p.inventory.length, inventoryValue: inventoryValue(p),
           score: r.score, played: p.played, created: r.created, seen: r.seen, hasPin: !!r.haspin, devices: devices[r.id] || 0,
-          depositedToday: p.depDay ? p.depDay.amount : 0 };
+          workToday: p.work && p.work.day === workDay() ? p.work.tasks.filter((t) => t.done).reduce((a, t) => a + t.pay, 0) : 0 };
       }) });
     }
     if (op === 'resetAll') {
@@ -192,9 +298,9 @@ export class Casino extends DurableObject {
     }
     if (op === 'resetDeposits') {
       const pl = this.load(row.id);
-      pl.p.depDay = null;
+      pl.p.depDay = null; pl.p.work = null;
       this.save(pl); refresh(row.id);
-      return reply(200, { ok: true, message: `${pl.name} peut de nouveau déposer 100 € aujourd’hui.` });
+      return reply(200, { ok: true, message: `${pl.name} a de nouvelles tâches de travail aujourd’hui.` });
     }
     if (op === 'resetPin') {
       this.sql.exec('UPDATE players SET pin = NULL, token = ? WHERE id = ?', 'compte:' + crypto.randomUUID(), row.id);
@@ -212,6 +318,7 @@ export class Casino extends DurableObject {
       this.sql.exec('DELETE FROM tokens WHERE player_id = ?', row.id);
       this.sql.exec('DELETE FROM players WHERE id = ?', row.id);
       this.sql.exec('DELETE FROM hist WHERE player_id = ?', row.id);
+      this.sql.exec('DELETE FROM gifts WHERE to_id = ?', row.id);
       for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === row.id) this.askLogin(ws); }
       this.broadcast({ t: 'board', board: this.board() });
       return reply(200, { ok: true, message: 'Compte supprimé.' });
@@ -221,15 +328,17 @@ export class Casino extends DurableObject {
 
   // Joueurs actifs : joueurs DIFFÉRENTS, connectés, qui ont joué ou ouvert le site dans les 5 dernières minutes.
   // (Deux onglets du même joueur, un écran de connexion ou un téléphone en veille ne comptent pas en plus.)
-  activeCount(except = null) {
-    const ids = new Set(), since = Date.now() - 5 * 60000;
+  activeCount(except = null) { return this.activeNames(except).length; }
+  activeNames(except = null) {
+    const names = new Map(), since = Date.now() - 5 * 60000;
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === except) continue;
       const w = ws.deserializeAttachment();
-      if (w && w.id && (w.at || 0) > since) ids.add(w.id);
+      if (w && w.id && (w.at || 0) > since) names.set(w.id, w.name);
     }
-    return ids.size;
+    return [...names.values()];
   }
+  online(except = null) { const names = this.activeNames(except); return { t: 'online', n: names.length, names }; }
 
   addHist(id, d, b, l, g) {
     if (!d) return;
@@ -278,9 +387,14 @@ export class Casino extends DurableObject {
     ws.serializeAttachment({ id: pl.id, name: pl.name, at: Date.now() });
     this.send(ws, {
       t: 'welcome', me: this.me(pl), board: this.board(), feed: this.feed,
-      round: await this.roundView(), table: [...this.table.values()], online: this.activeCount(),
+      round: await this.roundView(), table: [...this.table.values()], online: this.activeCount(), onlineNames: this.activeNames(),
+      duels: this.duelView(),
     });
-    this.broadcast({ t: 'online', n: this.activeCount() });
+    // Les gifs qu'on lui a envoyés et qu'il n'a pas encore jetés
+    this.sql.exec('DELETE FROM gifts WHERE expires > 0 AND expires < ?', Date.now());
+    const gifts = this.sql.exec('SELECT id, from_name AS "from", mode, url, name, w, h, expires FROM gifts WHERE to_id = ? ORDER BY id', pl.id).toArray();
+    if (gifts.length) this.send(ws, { t: 'gifs', add: gifts, initial: true });
+    this.broadcast(this.online());
   }
   // Appareil déjà connu : on entre directement
   async hello(ws, msg) {
@@ -339,6 +453,16 @@ export class Casino extends DurableObject {
     if (msg.t === 'logout') return this.logout(ws, msg);
     const who = ws.deserializeAttachment();
     if (!who) return this.askLogin(ws);
+    if (msg.t === 'gifrm') { this.sql.exec('DELETE FROM gifts WHERE id = ? AND to_id = ?', Number(msg.gid), who.id); return; }
+    if (msg.t === 'players') {
+      const on = new Set(this.activeNames());
+      const list = this.sql.exec('SELECT name FROM players ORDER BY seen DESC LIMIT 300').toArray().map((r) => ({ name: r.name, online: on.has(r.name) }));
+      return this.send(ws, { t: 'res', id: msg.id, ok: true, result: list });
+    }
+    if (msg.t === 'market') {
+      const m = await this.market();
+      return this.send(ws, { t: 'res', id: msg.id, ok: true, result: { prices: m.prices, hist: m.hist, news: m.news, t: m.t } });
+    }
     if (msg.t === 'profile') {
       const prof = this.profile(msg.name);
       return this.send(ws, prof ? { t: 'res', id: msg.id, ok: true, result: prof } : { t: 'res', id: msg.id, ok: false, error: 'Joueur introuvable.' });
@@ -351,16 +475,23 @@ export class Casino extends DurableObject {
       const wasActive = this.activeCount();
       ws.serializeAttachment({ ...who, at: Date.now() });
       const n = this.activeCount();
-      if (n !== wasActive) this.broadcast({ t: 'online', n });
+      if (n !== wasActive) this.broadcast(this.online());
     }
     try {
       let res;
       const before = pl.p.balance;
+      const ctx = { rng, caseList: caseData.cases, now: Date.now() };
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
       else if (msg.game === 'roulette') throw new GameError('En ligne, la roulette se joue en tours partagés.');
-      else res = run(pl.p, msg.game, msg.action, msg.params || {}, { rng, caseList: caseData.cases });
+      else if (msg.game === 'gifs' && msg.action === 'send') res = this.sendGifs(pl, msg.params || {}, ctx);
+      else if (msg.game === 'rps' && ['duel', 'accept', 'cancel'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
+      else {
+        if (msg.game === 'stocks') ctx.prices = (await this.market()).prices;
+        res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
+      }
       this.save(pl);
       this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
+      if (msg.game === 'crash' && msg.action === 'start') this.crashTimer(pl.id);
       this.send(ws, { t: 'res', id: msg.id, ok: true, result: res.result, me: this.me(pl) });
       if (msg.game === 'blackjack') this.updateTable(pl);
       if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
@@ -373,7 +504,7 @@ export class Casino extends DurableObject {
   }
   async webSocketClose(ws) {
     try { ws.close(); } catch {}
-    this.broadcast({ t: 'online', n: this.activeCount(ws) });
+    this.broadcast(this.online(ws));
   }
   async webSocketError(ws) { await this.webSocketClose(ws); }
 
@@ -405,6 +536,139 @@ export class Casino extends DurableObject {
     if (v) this.table.set(pl.id, { name: pl.name, hand: v, at: Date.now() });
     for (const [k, s] of this.table) if (Date.now() - s.at > 120000) this.table.delete(k);
     this.broadcast({ t: 'table', table: [...this.table.values()] });
+  }
+
+  // ---------- gifs ----------
+  sendGifs(pl, params, ctx) {
+    const target = this.sql.exec('SELECT id, name FROM players WHERE name = ?', String(params.to || '')).toArray()[0];
+    if (!target) throw new GameError('Joueur introuvable.');
+    const g = params.gif || {};
+    const url = String(g.url || '');
+    if (url.length > 2000 || !/^https?:\/\//.test(url)) throw new GameError('Lien de gif invalide.');
+    const name = String(g.name || 'gif').replace(/\s+/g, ' ').trim().slice(0, 60) || 'gif';
+    const r = run(pl.p, 'gifs', 'send', { mode: params.mode, qty: params.qty }, ctx);
+    const qty = r.result.qty, mode = r.result.mode, now = Date.now();
+    const w = Math.max(0, Math.min(4000, Number(g.w) || 0)), h = Math.max(0, Math.min(4000, Number(g.h) || 0));
+    const add = [];
+    for (let i = 0; i < qty; i++) {
+      this.sql.exec('INSERT INTO gifts (to_id, from_name, mode, url, name, w, h, created, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        target.id, pl.name, mode, url, name, w, h, now, mode === 'full' ? now + 20000 : 0);
+      add.push({ id: this.sql.exec('SELECT last_insert_rowid() AS id').one().id, from: pl.name, mode, url, name, w, h, expires: mode === 'full' ? now + 20000 : 0 });
+    }
+    // au-delà de 120 gifs à l'écran, les plus vieux partent (sinon le téléphone rame)
+    this.sql.exec('DELETE FROM gifts WHERE to_id = ? AND id NOT IN (SELECT id FROM gifts WHERE to_id = ? ORDER BY id DESC LIMIT 120)', target.id, target.id);
+    const note = `${pl.name} t’a envoyé ${qty}x ${name}`;
+    for (const ws of this.ctx.getWebSockets()) {
+      const w2 = ws.deserializeAttachment();
+      if (w2 && w2.id === target.id) this.send(ws, { t: 'gifs', add, note });
+    }
+    return { result: { ...r.result, to: target.name }, feed: { game: 'gifs', bet: 0, payout: 0, to: target.name, qty, gif: name, mode } };
+  }
+
+  // ---------- fusée : fin du vol annoncée par le serveur ----------
+  crashTimer(id) {
+    const pl = this.load(id);
+    const c = pl && pl.p.crash;
+    if (!c) return;
+    const end = Math.min(c.at + timeTo(c.point), c.auto && c.auto <= c.point ? c.at + timeTo(c.auto) : Infinity);
+    setTimeout(() => this.crashEnd(id), Math.max(0, end - Date.now()) + 40);
+  }
+  crashEnd(id) {
+    const pl = this.load(id);
+    if (!pl || !pl.p.crash) return;
+    const before = pl.p.balance;
+    const res = run(pl.p, 'crash', 'state', {}, { rng, now: Date.now() });
+    if (!res.result.done) { this.crashTimer(id); return; }
+    this.save(pl);
+    this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel('crash', 'state', {}, res.result), 'crash');
+    for (const ws of this.ctx.getWebSockets()) {
+      const w = ws.deserializeAttachment();
+      if (w && w.id === id) this.send(ws, { t: 'crash', result: res.result, me: this.me(pl) });
+    }
+    if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
+    this.boardSoon();
+  }
+
+  // ---------- pierre-feuille-ciseaux : duels entre joueurs ----------
+  duelView() { return this.duels.map(({ id, from, bet, to, at }) => ({ id, from, bet, to, at })); }
+  async saveDuels() { await this.ctx.storage.put('duels', this.duels); this.broadcast({ t: 'duels', duels: this.duelView() }); }
+  notify(id, obj) { for (const ws of this.ctx.getWebSockets()) { const w = ws.deserializeAttachment(); if (w && w.id === id) this.send(ws, obj); } }
+  async duel(pl, action, params) {
+    // duels de plus de 30 min : remboursés
+    for (const d of this.duels.filter((x) => Date.now() - x.at > 30 * 60000)) await this.refundDuel(d, pl);
+    if (action === 'duel') {
+      const move = RPS_MOVES.indexOf(params.move);
+      if (move < 0) throw new GameError('Choisis pierre, feuille ou ciseaux.');
+      if (this.duels.filter((d) => d.fromId === pl.id).length >= 3) throw new GameError('3 défis ouverts maximum.');
+      let to = null;
+      if (params.to) {
+        const t = this.sql.exec('SELECT id, name FROM players WHERE name = ?', String(params.to)).toArray()[0];
+        if (!t) throw new GameError('Joueur introuvable.');
+        if (t.id === pl.id) throw new GameError('Tu ne peux pas te défier toi-même.');
+        to = t.name;
+      }
+      const bet = readBet(pl.p, params.bet);
+      pl.p.balance = money(pl.p.balance - bet);
+      const d = { id: crypto.randomUUID().slice(0, 8), from: pl.name, fromId: pl.id, bet, move, to, at: Date.now() };
+      this.duels.push(d);
+      await this.saveDuels();
+      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie à pierre-feuille-ciseaux (${bet} €)` }); }
+      return { result: { duel: d.id, bet, payout: 0 } };
+    }
+    const d = this.duels.find((x) => x.id === params.id);
+    if (!d) throw new GameError('Ce défi n’existe plus.');
+    if (action === 'cancel') {
+      if (d.fromId !== pl.id) throw new GameError('Ce n’est pas ton défi.');
+      pl.p.balance = money(pl.p.balance + d.bet);
+      this.duels = this.duels.filter((x) => x !== d);
+      await this.saveDuels();
+      return { result: { cancelled: true, payout: 0 } };
+    }
+    // accept
+    if (d.fromId === pl.id) throw new GameError('C’est ton propre défi.');
+    if (d.to && d.to.toLowerCase() !== pl.name.toLowerCase()) throw new GameError('Ce défi est pour quelqu’un d’autre.');
+    const move = RPS_MOVES.indexOf(params.move);
+    if (move < 0) throw new GameError('Choisis pierre, feuille ou ciseaux.');
+    readBet(pl.p, d.bet);
+    this.duels = this.duels.filter((x) => x !== d);
+    const outcome = rpsOutcome(move, d.move); // du point de vue de celui qui accepte
+    const mine = outcome === 'win' ? d.bet * 2 : outcome === 'draw' ? d.bet : 0;
+    const theirs = outcome === 'lose' ? d.bet * 2 : outcome === 'draw' ? d.bet : 0;
+    pl.p.balance = money(pl.p.balance - d.bet + mine);
+    pl.p.played.rps = (pl.p.played.rps || 0) + 1;
+    const other = this.load(d.fromId);
+    if (other) {
+      const b0 = other.p.balance;
+      other.p.balance = money(other.p.balance + theirs);
+      other.p.played.rps = (other.p.played.rps || 0) + 1;
+      this.save(other);
+      const oc = outcome === 'win' ? 'lose' : outcome === 'lose' ? 'win' : 'draw';
+      this.addHist(other.id, other.p.balance - b0, other.p.balance, historyLabel('rps', 'duel', {}, { outcome: oc }), 'rps');
+      this.notify(other.id, { t: 'duelEnd', result: { vs: pl.name, move: RPS_MOVES[d.move], other: RPS_MOVES[move], outcome: oc, bet: d.bet, payout: theirs }, me: this.me(other) });
+    }
+    await this.saveDuels();
+    return { result: { vs: d.from, move: RPS_MOVES[move], other: RPS_MOVES[d.move], outcome, bet: d.bet, payout: mine }, feed: { game: 'rps', bet: d.bet, payout: mine, outcome, vs: d.from } };
+  }
+  async refundDuel(d, current) {
+    this.duels = this.duels.filter((x) => x !== d);
+    if (current && current.id === d.fromId) current.p.balance = money(current.p.balance + d.bet);
+    else { const o = this.load(d.fromId); if (o) { o.p.balance = money(o.p.balance + d.bet); this.save(o); this.notify(o.id, { t: 'me', me: this.me(o) }); } }
+    await this.saveDuels();
+  }
+
+  // ---------- bourse : le marché avance quand quelqu'un regarde ----------
+  async market() {
+    const m = this.mk;
+    if (advance(m, Date.now(), rng)) {
+      setMarks(m.prices);
+      await this.ctx.storage.put('market', m);
+      // le score des joueurs qui ont des actions suit le cours
+      for (const r of this.sql.exec(`SELECT id, data FROM players WHERE data LIKE '%"sh":%'`).toArray()) {
+        this.sql.exec('UPDATE players SET score = ? WHERE id = ?', score(JSON.parse(r.data)), r.id);
+      }
+      this.boardSoon();
+    }
+    return m;
   }
 
   // ---------- roulette en tours partagés ----------

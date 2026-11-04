@@ -1,6 +1,7 @@
 // Noyau commun à toutes les pages : joueur, solde, connexion au serveur, en-tête et dépôt simulé.
 import { SERVER_URL } from './config.js';
-import { run, newPlayer, score, inventoryValue, GameError, PACKS, GAMES, money, nextOpen, decodeHint, historyLabel } from './engine/games.js';
+import { run, newPlayer, score, inventoryValue, stocksValue, GameError, GAMES, money, nextOpen, decodeHint, historyLabel } from './engine/games.js';
+import { newMarket, advance, setMarks } from './engine/market.js';
 import { view as bjView } from './engine/blackjack.js';
 import { rng } from './engine/rng.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
@@ -56,8 +57,18 @@ function soloMe() {
   return {
     name: local.name || 'Toi', balance: p.balance, deposits: p.deposits, score: score(p), rank: null,
     inventory: p.inventory, inventoryValue: inventoryValue(p), played: p.played, bj: bjView(p.bj),
+    gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p),
   };
 }
+// Bourse en solo : le marché vit dans ce navigateur
+function soloMarket() {
+  if (!local.market) local.market = newMarket(Date.now());
+  if (advance(local.market, Date.now(), rng)) saveLocal();
+  setMarks(local.market.prices);
+  return local.market;
+}
+// Ces actions n'ont pas d'animation : leur résultat s'affiche tout de suite
+const NO_HOLD = ['wallet', 'work', 'gifs', 'stocks'];
 
 export const casino = {
   online: !!SERVER_URL,
@@ -67,7 +78,9 @@ export const casino = {
   feed: [],
   round: null,
   table: [],
+  duels: [],
   onlineCount: 0,
+  onlineNames: [],
   pending: 0, // gains pas encore montrés (animation en cours)
   on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); return this; },
 
@@ -75,7 +88,8 @@ export const casino = {
   async play(game, action, params = {}) {
     let result, soloFeed = null;
     if (!this.online) {
-      const ctx = { rng, caseList: game === 'cases' ? (await loadCases()).cases : [] };
+      const ctx = { rng, caseList: game === 'cases' ? (await loadCases()).cases : [], now: Date.now() };
+      if (game === 'stocks') ctx.prices = soloMarket().prices;
       try {
         const before = local.p.balance;
         const r = run(local.p, game, action, params, ctx);
@@ -96,7 +110,7 @@ export const casino = {
       result = res.result;
       this.me = res.me;
     }
-    if (game !== 'wallet') { this.pending = money(this.pending + (result.payout || 0)); holding++; }
+    if (!NO_HOLD.includes(game)) { this.pending = money(this.pending + (result.payout || 0)); holding++; }
     if (soloFeed) addFeed(soloFeed);
     emit('me', this.me);
     renderWallet();
@@ -109,6 +123,30 @@ export const casino = {
     if (!holding) { const h = held; held = []; h.reverse().forEach(showFeed); }
     renderWallet();
   },
+  // Cours de la bourse (et historique d'une journée)
+  async market() {
+    if (!this.online) { const m = soloMarket(); return { prices: m.prices, hist: m.hist, news: m.news, t: m.t }; }
+    const res = await request({ t: 'market' });
+    setMarks(res.result.prices);
+    return res.result;
+  },
+  // Tous les joueurs (ceux en ligne d'abord), pour choisir à qui envoyer un gif
+  async players() {
+    if (!this.online) return [{ name: this.me.name, online: true }];
+    const list = (await request({ t: 'players' })).result;
+    return list.sort((a, b) => b.online - a.online);
+  },
+  removeGif(id) { if (this.online && ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'gifrm', gid: id })); },
+  // Image importée depuis l'appareil : envoyée au serveur, qui renvoie son adresse
+  async uploadMedia(file) {
+    if (!this.online) return URL.createObjectURL(file);
+    const base = SERVER_URL.replace(/\/+$/, '');
+    const r = await fetch(base + '/media', { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new GameError(d.error || 'Envoi de l’image impossible.');
+    return base + '/media/' + d.id;
+  },
+  serverUrl: SERVER_URL,
   // L'objet de la prochaine ouverture de cette caisse, tiré à l'avance, pour précharger sa 3D (sans le montrer).
   async peekNext(caseId) {
     if (!this.online) {
@@ -135,7 +173,6 @@ export const casino = {
   // Pour un gain décidé par le serveur sans requête de ta part (tour de roulette partagé)
   hold(amount) { this.pending = money(this.pending + (amount || 0)); holding++; renderWallet(); },
   shownBalance() { return Math.max(0, money(this.me.balance - this.pending)); },
-  openDeposit() { openShop(); },
   nudgeDeposit() {
     const t = $('topup');
     if (!t) return;
@@ -182,10 +219,11 @@ function connect() {
     if (m.t === 'welcome') {
       everConnected = true; retry = 0;
       casino.me = m.me; casino.board = m.board; casino.feed = m.feed; casino.round = m.round; casino.table = m.table; casino.onlineCount = m.online;
+      casino.onlineNames = m.onlineNames || []; casino.duels = m.duels || [];
       local.name = m.me.name; saveLocal();
       closeLogin();
       setStatus('online');
-      emit('me', m.me); emit('board', m.board); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online);
+      emit('me', m.me); emit('board', m.board); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online); emit('duels', casino.duels);
     } else if (m.t === 'login') {
       showLogin(m.players || [], m.error || '');
     } else if (m.t === 'res') {
@@ -199,7 +237,12 @@ function connect() {
     else if (m.t === 'board') { casino.board = m.board; emit('board', m.board); }
     else if (m.t === 'round') { casino.round = m.round; emit('round', m.round); }
     else if (m.t === 'table') { casino.table = m.table; emit('table', m.table); }
-    else if (m.t === 'online') { casino.onlineCount = m.n; emit('online', m.n); }
+    else if (m.t === 'online') { casino.onlineCount = m.n; casino.onlineNames = m.names || []; emit('online', m.n); }
+    else if (m.t === 'gifs') emit('gifs', m);
+    else if (m.t === 'crash') { casino.me = m.me; emit('crash', m.result); emit('me', m.me); }
+    else if (m.t === 'duels') { casino.duels = m.duels; emit('duels', m.duels); }
+    else if (m.t === 'duelEnd') { casino.me = m.me; emit('duelEnd', m.result); emit('me', m.me); renderWallet(); }
+    else if (m.t === 'note') toast(m.text);
   };
   ws.onclose = () => {
     for (const w of waiting.values()) { clearTimeout(w.timer); w.reject(new GameError('Connexion perdue.')); }
@@ -293,12 +336,12 @@ export function switchPlayer() {
 }
 
 // ---------- en-tête ----------
-const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+export const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 
 export function mountShell(active) {
   const top = document.createElement('header');
   top.className = 'top';
-  const links = GAMES.map((g) => `<a href="${GAME_INFO[g].href}"${g === active ? ' aria-current="page"' : ''}>${pixelIcon(g, 18)}<span>${GAME_INFO[g].name}</span></a>`).join('');
+  const links = GAMES.map((g) => `<a href="${GAME_INFO[g].href}" title="${GAME_INFO[g].name}"${g === active ? ' aria-current="page"' : ''}>${pixelIcon(g, 18)}<span>${GAME_INFO[g].short || GAME_INFO[g].name}</span></a>`).join('');
   top.innerHTML = `
     <a class="brand" href="index.html"${active === 'home' ? ' aria-current="page"' : ''}>${pixelIcon('crown', 22)}<span>CROCO<br> CASINO</span></a>
     <nav class="nav" aria-label="Jeux">${links}</nav>
@@ -307,14 +350,13 @@ export function mountShell(active) {
         <div class="wallet-label">Solde <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
       </div>
-      <button id="topup" class="topup" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        Déposer
-      </button>
+      <a id="topup" class="topup" href="travail.html"${active === 'work' ? ' aria-current="page"' : ''}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>
+        Travailler
+      </a>
     </div>`;
   document.body.prepend(top);
-  buildShop();
-  $('topup').addEventListener('click', openShop);
+  import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('whoChip').addEventListener('click', () => { if (confirm(`Changer de joueur ? (${casino.me.name})`)) switchPlayer(); });
   renderWallet();
   if (casino.online) connect();
@@ -323,7 +365,7 @@ export function mountShell(active) {
 
 function renderWallet() {
   const b = $('bal');
-  if (b && !counting) b.textContent = nf2.format(casino.shownBalance());
+  if (b) b.textContent = nf2.format(casino.shownBalance());
   const n = $('net');
   if (n) {
     const s = casino.status;
@@ -339,130 +381,13 @@ function renderWallet() {
   }
 }
 
-// ---------- dépôt simulé ----------
-let counting = false, chosen = 1, lastFocus = null;
-const STEPS = ['stepPack', 'stepPay', 'stepWait', 'stepOtp', 'stepDone'];
-
-function buildShop() {
-  const m = document.createElement('div');
-  m.className = 'modal';
-  m.id = 'shop';
-  m.hidden = true;
-  m.innerHTML = `
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
-    <div class="sheet-head"><h2 id="shopTitle">Déposer des fonds</h2><button class="x" id="shopClose" type="button" aria-label="Fermer">${X_ICON}</button></div>
-    <form class="step" id="stepPack">
-      <div class="steps-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
-      <div class="field-head"><span>Montant du dépôt</span></div>
-      <div class="packs">${PACKS.map((p, i) => `<label class="pack">${i === 1 ? '<span class="tag">Populaire</span>' : ''}<input type="radio" name="pack" value="${i}"${i === chosen ? ' checked' : ''}><span class="cr">${nf0.format(p)} <small>€</small></span><span class="price">Crédité immédiatement</span></label>`).join('')}</div>
-      <p class="muted small">Les dépôts ne comptent pas au classement.</p>
-      <button class="btn-main" type="submit">Continuer</button>
-    </form>
-    <form class="step" id="stepPay" hidden>
-      <div class="steps-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></div>
-      <dl class="summary"><div><dt>Dépôt</dt><dd id="sumHT">0,00 €</dd></div><div><dt>Frais</dt><dd>0,00 €</dd></div><div class="total"><dt>Total</dt><dd id="sumTTC">0,00 €</dd></div></dl>
-      <div class="field-head"><span>Carte enregistrée</span></div>
-      <label class="method"><input type="radio" name="method" value="card" checked><span><b>Carte •••• 4821</b><small>Expire 09/28</small></span></label>
-      <div class="card" aria-label="Carte se terminant par 4821">
-        <div class="card-top"><span>CROCO BANK</span><svg class="chip" viewBox="0 0 38 28" aria-hidden="true"><rect x="1" y="1" width="36" height="26" rx="5" fill="#ffbf17" stroke="#b07a00"/><path d="M1 10h12M1 18h12M25 10h12M25 18h12M13 1v26M25 1v26" stroke="#b07a00" fill="none"/></svg></div>
-        <div class="card-num">5832 •••• •••• 4821</div>
-        <div class="card-bottom"><span><small>TITULAIRE</small><span id="cardName"></span></span><span><small>EXPIRE</small>09/28</span></div>
-      </div>
-      <button class="btn-main" id="payBtn" type="submit">Payer</button>
-      <button class="btn-link" id="backPack" type="button">Changer le montant</button>
-      <p class="err small" id="payErr" aria-live="polite"></p>
-    </form>
-    <div class="step wait" id="stepWait" hidden><div class="spinner" aria-hidden="true"></div><p id="waitText" aria-live="polite">Connexion à la banque…</p></div>
-    <form class="step" id="stepOtp" hidden>
-      <div class="steps-dots" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></div>
-      <h3 class="h3">Confirme le paiement</h3>
-      <p class="otp-hint">Entre n’importe quel code à 4 chiffres, par exemple <b>1234</b>.</p>
-      <label for="otp" class="field-head"><span>Code de confirmation</span></label>
-      <input class="otp" id="otp" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
-      <p class="err" id="otpErr" aria-live="polite"></p>
-      <button class="btn-main" type="submit">Valider</button>
-      <button class="btn-link" id="otpCancel" type="button">Annuler le paiement</button>
-    </form>
-    <div class="step done" id="stepDone" hidden>
-      <svg class="done-ico" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="26" fill="#ffbf17"/><path d="M17 29l7 7 15-16" fill="none" stroke="#181818" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <h3 class="h3">Dépôt effectué</h3>
-      <dl class="summary receipt"><div><dt>Transaction</dt><dd id="rcId">–</dd></div><div><dt>Date</dt><dd id="rcDate">–</dd></div><div><dt>Moyen</dt><dd>Carte •••• 4821</dd></div><div class="total"><dt>Montant déposé</dt><dd id="rcAmt">–</dd></div></dl>
-      <button class="btn-main" id="doneBtn" type="button">Retour au jeu</button>
-    </div>
-    <p class="sheet-foot">Mode démo · argent fictif</p>
-  </div>`;
-  document.body.appendChild(m);
-
-  const show = (id) => STEPS.forEach((s) => { $(s).hidden = s !== id; });
-  m._show = show;
-  $('shopClose').addEventListener('click', closeShop);
-  m.addEventListener('click', (e) => { if (e.target === m) closeShop(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !m.hidden && $('stepWait').hidden) closeShop(); });
-  $('stepPack').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const c = m.querySelector('input[name="pack"]:checked');
-    chosen = c ? +c.value : 1;
-    $('sumHT').textContent = eur(PACKS[chosen]);
-    $('sumTTC').textContent = eur(PACKS[chosen]);
-    $('payBtn').textContent = 'Payer ' + eur(PACKS[chosen]);
-    show('stepPay');
-    $('payBtn').focus();
-  });
-  $('backPack').addEventListener('click', () => show('stepPack'));
-  $('stepPay').addEventListener('submit', (e) => {
-    $('payErr').textContent = '';
-    e.preventDefault();
-    show('stepWait');
-    $('waitText').textContent = 'Connexion à la banque…';
-    setTimeout(() => { $('waitText').textContent = 'Autorisation…'; }, 800);
-    setTimeout(() => { $('otp').value = ''; $('otpErr').textContent = ''; show('stepOtp'); $('otp').focus(); }, 1700);
-  });
-  $('stepOtp').addEventListener('submit', (e) => {
-    e.preventDefault();
-    if ($('otp').value.replace(/\D/g, '').length < 4) { $('otpErr').textContent = 'Le code fait au moins 4 chiffres.'; $('otp').focus(); return; }
-    show('stepWait');
-    $('waitText').textContent = 'Validation…';
-    const before = casino.shownBalance();
-    setTimeout(async () => {
-      try {
-        const r = await casino.play('wallet', 'deposit', { pack: chosen });
-        $('rcId').textContent = 'DEP-' + Date.now().toString(36).toUpperCase().slice(-6) + '-' + Math.floor(Math.random() * 900 + 100);
-        $('rcDate').textContent = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-        $('rcAmt').textContent = eur(r.amount);
-        show('stepDone');
-        $('doneBtn').focus();
-        countUp(before, casino.shownBalance());
-      } catch (err) {
-        // Refus de la banque (plafond du jour) : retour à l'écran de paiement, message en petit rouge en bas
-        show('stepPay');
-        $('payErr').textContent = err.message;
-      }
-    }, 900);
-  });
-  $('otpCancel').addEventListener('click', () => show('stepPay'));
-  $('doneBtn').addEventListener('click', closeShop);
-}
-
-const CARD_INITIAL = 'ABCDEFGHJKLMNPRSTV'[Math.floor(Math.random() * 18)];
-function openShop() {
-  $('cardName').textContent = `${CARD_INITIAL}. ${casino.me.name || 'Joueur'}`;
-  const m = $('shop');
-  lastFocus = document.activeElement;
-  m.hidden = false;
-  m._show('stepPack');
-  $('payErr').textContent = '';
-  (m.querySelector('input[name="pack"]:checked') || $('shopClose')).focus();
-}
-function closeShop() {
-  $('shop').hidden = true;
-  if (lastFocus && lastFocus.focus) lastFocus.focus();
-}
-function countUp(a, b) {
-  const t0 = performance.now(), D = reduceMotion ? 1 : 900;
-  counting = true;
-  (function tick(now) {
-    const t = Math.min(1, (now - t0) / D), v = a + (b - a) * (1 - Math.pow(1 - t, 3));
-    $('bal').textContent = nf2.format(t < 1 ? v : casino.shownBalance());
-    if (t < 1) requestAnimationFrame(tick); else { counting = false; renderWallet(); }
-  })(t0);
+// ---------- petit message en haut de l'écran ----------
+export function toast(text, ms = 4500) {
+  let box = $('toasts');
+  if (!box) { box = document.createElement('div'); box.id = 'toasts'; box.className = 'toasts'; box.setAttribute('aria-live', 'polite'); document.body.appendChild(box); }
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = text;
+  box.appendChild(t);
+  setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, ms);
 }

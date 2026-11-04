@@ -44,11 +44,17 @@ Variante en ligne de commande, si un jour tu préfères : `cd server`, `npx wran
 
 ## Panneau admin
 
-`admin.html` (pas de lien dans le menu) permet de voir tous les joueurs, changer un solde, débloquer les
-dépôts du jour, effacer un code oublié, déconnecter ou supprimer un compte, et remettre tout le monde à zéro.
+`admin.html` (pas de lien dans le menu) permet de voir tous les joueurs, changer un solde, redonner des
+tâches de travail pour la journée, effacer un code oublié, déconnecter ou supprimer un compte, et remettre tout le monde à zéro.
 
 Il est protégé par un mot de passe : crée le secret **`ADMIN_KEY`** sur GitHub (même page que les autres
 secrets), puis relance « Déployer le serveur ». Après 5 mauvais mots de passe, l'admin est bloqué 1 minute.
+
+## Recherche de gifs (Klipy)
+
+La recherche de gifs passe par le serveur, qui garde la clé Klipy. Crée une clé d’API sur
+[partner.klipy.com](https://partner.klipy.com), puis le secret **`KLIPY_KEY`** sur GitHub (même page que les autres
+secrets) et relance « Déployer le serveur ». Sans ce secret, seuls le gif du croco, l’import d’image et les liens marchent.
 
 ## Réglages
 
@@ -57,7 +63,7 @@ secrets), puis relance « Déployer le serveur ». Après 5 mauvais mots de pass
 - Le serveur ne garde ni mot de passe ni e-mail : chaque navigateur reçoit un jeton aléatoire
   (stocké chez le joueur) lié à son pseudo. Si quelqu’un efface les données de son navigateur,
   il repart avec un nouveau pseudo.
-- Argent fictif uniquement : aucun paiement n’existe, le dépôt est une simulation.
+- Argent fictif uniquement : aucun paiement n’existe. L’argent se gagne avec le travail du jour (3 tâches, 90 à 120 €).
 
 ## Tester en local
 

@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+      KLIPY_KEY: ${{ secrets.KLIPY_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Vérifier que les secrets existent
@@ -44,3 +45,14 @@ jobs:
           command: secret list  # la clé est envoyée par « secrets » juste avant cette commande
           secrets: |
             ADMIN_KEY
+      # Clé de l'API Klipy pour la recherche de gifs, si le secret KLIPY_KEY existe
+      - name: Clé Klipy
+        if: env.KLIPY_KEY != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: server
+          command: secret list
+          secrets: |
+            KLIPY_KEY

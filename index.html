@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m6">
+<link rel="stylesheet" href="css/casino.css?v=m7">
 <style>
 .lobby { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .hero { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; padding: 22px 18px; border-radius: 12px; background: var(--panel); }
@@ -36,13 +36,14 @@
     <nav class="tiles" id="tiles" aria-label="Jeux"></nav>
     <section class="surface" aria-labelledby="feedTitle">
       <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">En direct <span id="online" class="muted"></span></h2>
+      <div class="online-row" id="onlineRow" aria-label="Joueurs en ligne : touche pour envoyer un gif"></div>
       <div id="feed"></div>
     </section>
   </div>
   <section class="board-arcade" id="board" aria-label="Classement"></section>
 </main>
 <script type="module">
-import { casino, mountShell, $ } from './js/core.js';
+import { casino, mountShell, $, esc } from './js/core.js';
 import { mountBoard, mountFeed } from './js/widgets.js';
 import { pixelIcon, GAME_INFO } from './js/icons.js';
 import { rtp as slotsRtp } from './js/engine/slots.js';
@@ -55,6 +56,9 @@ const DESC = {
   blackjack: ['Bats le croupier sans dépasser 21.', 'Retour ≈ 99,5 % en jouant parfaitement'],
   cases: ['Vraies caisses CS2, vrais taux publiés.', 'Prix du marché'],
   slots: ['Trois rouleaux, cinq lignes.', 'Retour moyen ' + pct(slotsRtp())],
+  crash: ['Retire avant que la fusée explose.', 'Retour moyen 99 %'],
+  rps: ['Pierre-feuille-ciseaux contre le croco ou en duel.', 'Retour 99 % contre le croco'],
+  stocks: ['Caca Cola, Children, Peer : achète, revends.', 'Frais 1 % par opération'],
 };
 $('tiles').innerHTML = Object.entries(GAME_INFO).map(([g, info]) =>
   `<a class="tile" href="${info.href}">${pixelIcon(g, 54)}<b>${info.name.toUpperCase()}</b><small>${DESC[g][0]}</small><span class="rtp">${DESC[g][1]}</span></a>`).join('');
@@ -64,7 +68,12 @@ const on = () => {
   const n = casino.onlineCount;
   $('online').textContent = casino.online && casino.status === 'online' ? `· ${n} joueur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}` : casino.online ? '' : '· mode solo';
   $('online').title = 'Joueurs différents qui ont joué dans les 5 dernières minutes';
+  $('onlineRow').innerHTML = (casino.onlineNames || []).map((n) => `<button type="button" data-to="${esc(n)}" title="Envoyer un gif à ${esc(n)}">${esc(n)}</button>`).join('');
 };
+$('onlineRow').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-to]');
+  if (b) import('./js/gifs.js?v=g1').then((g) => g.openGifSender(b.dataset.to));
+});
 casino.on('online', on).on('status', on); on();
 </script>
 </body>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Travail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css?v=m7">
+<style>
+.work { max-width: 900px; margin: 0 auto; display: grid; gap: 12px; }
+.work-head { display: grid; gap: 6px; }
+.work-head h1 { margin: 0; font: clamp(15px, 3vw, 20px)/1.4 var(--font-pixel); color: var(--gold); }
+.work-head p { margin: 0; color: var(--muted); }
+.jobs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.job { display: grid; gap: 6px; align-content: start; padding: 12px; border: 2px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); text-align: left; cursor: pointer; min-width: 0; }
+.job b { font-size: 14px; }
+.job .pay { font: 13px var(--font-pixel); color: var(--gold); }
+.job .st { font-size: 12px; font-weight: 800; color: var(--muted); }
+.job.on { border-color: var(--gold); }
+.job.done { opacity: 0.6; cursor: default; }
+.job.done .st { color: #3ddc5f; }
+.task { display: grid; gap: 12px; }
+.task h2 { margin: 0; font: 14px/1.5 var(--font-pixel); }
+.brief { margin: 0; font-weight: 700; }
+.postit { padding: 12px 14px; border-radius: 4px; background: #ffe680; color: #2a2300; font-weight: 700; box-shadow: 3px 3px 0 #b07a00; transform: rotate(-0.6deg); }
+.postit ul, .postit ol { margin: 4px 0 0; padding-left: 20px; }
+.postit li { margin: 3px 0; }
+.check-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.check-row .btn-main { flex: 1 1 200px; }
+.tmsg { margin: 0; font-weight: 800; color: var(--lose); min-height: 1.3em; }
+/* explorateur de fichiers */
+.ex { border: 2px solid #4b69ff; border-radius: 8px; overflow: hidden; background: #f0f0e6; color: #181818; }
+.ex-title { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #4b69ff; color: #fff; font: 10px/1.6 var(--font-pixel); }
+.ex-bar { display: flex; gap: 6px; align-items: center; padding: 6px; border-bottom: 1px solid #c9c9bd; background: #e2e2d8; flex-wrap: wrap; }
+.ex-bar button, .ex-name button { min-height: 40px; padding: 6px 10px; border: 1px solid #a8a89c; border-radius: 6px; background: #fff; color: #181818; font-weight: 700; font-size: 13px; }
+.ex-bar button:disabled { opacity: 0.4; }
+.ex-path { padding: 6px 10px; font-size: 13px; font-weight: 700; background: #fff; border-bottom: 1px solid #c9c9bd; overflow-wrap: anywhere; }
+.ex-list { list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(120px, 45%), 1fr)); gap: 4px; min-height: 140px; }
+.ex-list button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px; border: 2px solid transparent; border-radius: 6px; background: none; color: #181818; font-size: 13px; font-weight: 600; text-align: left; overflow-wrap: anywhere; }
+.ex-list button.sel { border-color: #4b69ff; background: #dfe5ff; }
+.ex-list button.cut { opacity: 0.5; }
+.ex-list svg { flex: none; }
+.ex-name { display: flex; gap: 6px; padding: 6px; background: #e2e2d8; border-bottom: 1px solid #c9c9bd; }
+.ex-name input { flex: 1; min-width: 0; height: 40px; padding: 0 8px; border: 1px solid #a8a89c; border-radius: 6px; font: 600 16px var(--font-body); }
+.ex-empty { grid-column: 1 / -1; color: #6b6b60; font-size: 13px; padding: 10px; }
+/* listes de lignes (mails, appels…) */
+.rows { display: grid; gap: 6px; }
+.row { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: var(--field); }
+.row .who { font-weight: 800; }
+.row .sub { color: var(--muted); }
+.row select { width: 100%; }
+.opts { display: grid; gap: 4px; }
+.opts label { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border-radius: 6px; background: var(--panel-2); cursor: pointer; font-size: 13.5px; }
+.opts input { margin-top: 3px; }
+.ref { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 8px; }
+.ref .card2 { padding: 10px; border-radius: 8px; background: #f0f0e6; color: #181818; font-size: 13px; }
+.ref .card2 b { display: block; margin-bottom: 4px; font: 10px/1.6 var(--font-pixel); }
+.ref table { width: 100%; border-collapse: collapse; }
+.ref td { padding: 2px 4px; border-top: 1px solid #d6d6ca; }
+/* caisse */
+.till { display: grid; gap: 8px; }
+.client { padding: 10px; border-radius: 8px; background: var(--field); display: grid; gap: 8px; }
+.client.cur { outline: 2px solid var(--gold); }
+.coins { display: flex; flex-wrap: wrap; gap: 6px; }
+.coins button { min-width: 54px; min-height: 44px; padding: 4px 8px; border: 0; border-radius: 22px; background: #c9a227; color: #181818; font-weight: 800; }
+.coins button.note { border-radius: 6px; background: #8fd18a; }
+.given { font-weight: 800; }
+/* factures */
+.invs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 46%), 1fr)); gap: 8px; }
+.inv { position: relative; display: grid; gap: 2px; padding: 10px; border: 0; border-radius: 4px; background: #f0f0e6; color: #181818; text-align: left; font-size: 12.5px; cursor: pointer; overflow: hidden; }
+.inv b { font: 9px/1.6 var(--font-pixel); }
+.inv.on::after { content: "VALIDÉ"; position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) rotate(-18deg); padding: 2px 8px; border: 3px solid #de0607; border-radius: 4px; color: #de0607; font: 13px var(--font-pixel); background: rgba(240, 240, 230, 0.7); }
+.inv.q.on::after { content: "QUARANTAINE"; font-size: 9px; }
+.inv .sig { color: #1b7a43; font-weight: 800; }
+.inv .nosig { color: #de0607; font-weight: 800; }
+/* tableur */
+.xl { width: 100%; border-collapse: collapse; background: #fff; color: #181818; font-size: 13px; }
+.xl th, .xl td { border: 1px solid #c9c9bd; padding: 6px 8px; text-align: left; }
+.xl th { background: #1b7a43; color: #fff; }
+.xl td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.qs { display: grid; gap: 8px; }
+.qs label { display: grid; gap: 4px; font-weight: 700; }
+.qs input { height: 44px; padding: 0 10px; border: 2px solid #c9a227; border-radius: 6px; background: #fff7c2; color: #181818; font: 700 16px var(--font-body); }
+/* câbles */
+.wires { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 0 30%; padding: 10px; border-radius: 10px; background: #26262a; }
+.wires svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.wires .col { display: grid; gap: 10px; }
+.plug { position: relative; z-index: 1; min-height: 44px; border: 3px solid #111; border-radius: 6px; font-weight: 800; color: #111; }
+.plug.sel { outline: 3px solid #fff; }
+.plug.lab { background: #444 !important; color: #fff; }
+/* codes */
+.codes { display: grid; gap: 8px; }
+.codebox { padding: 10px; border-radius: 6px; background: #101010; color: #3ddc5f; font: 14px/1.6 var(--font-pixel); letter-spacing: 0.1em; user-select: none; -webkit-user-select: none; text-align: center; }
+.codes input { height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink); font: 700 16px ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+/* entrepôt */
+.wh { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; padding: 8px; border-radius: 8px; background: #3a3a33; }
+.wh span { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 4px; background: #2c2c28; }
+.wh i { position: absolute; right: 2px; bottom: 2px; width: 9px; height: 9px; border-radius: 2px; border: 1px solid #111; }
+/* photocopieuse */
+.printer { display: grid; gap: 10px; justify-items: center; padding: 14px; border-radius: 12px; background: #d9d9cf; color: #181818; }
+.screen { width: 100%; min-height: 44px; display: grid; place-items: center; border-radius: 6px; background: #1d3b1d; color: #8fe39b; font: 11px/1.6 var(--font-pixel); text-align: center; padding: 6px; }
+.keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.keys button { min-height: 54px; border: 0; border-radius: 8px; background: #fff; color: #181818; font-weight: 800; box-shadow: 0 3px 0 #8a8a80; }
+.keys button.lit { background: var(--gold); box-shadow: 0 0 16px var(--gold); }
+@media (max-width: 760px) { .jobs { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<main class="work">
+  <section class="surface work-head">
+    <h1>TRAVAIL DU JOUR</h1>
+    <p id="dayInfo">Chargement…</p>
+  </section>
+  <div class="jobs" id="jobs"></div>
+  <section class="surface task" id="task" hidden aria-live="polite"></section>
+</main>
+<script type="module" src="js/pages/travail.js?v=m7"></script>
+</body>
+</html>

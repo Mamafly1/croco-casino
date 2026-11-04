@@ -10,9 +10,11 @@ En ligne : <https://mamafly1.github.io/croco-casino/>
 | Fichier | Rôle |
 | --- | --- |
 | `index.html` | Accueil : jeux, classement, fil en direct |
-| `plinko.html`, `roulette.html`, `blackjack.html`, `caisses.html`, `slots.html` | Les jeux |
+| `plinko.html`, `roulette.html`, `blackjack.html`, `caisses.html`, `slots.html`, `fusee.html`, `pfc.html`, `bourse.html` | Les jeux |
+| `travail.html` | Travail du jour : 3 tâches de bureau qui rapportent 90 à 120 € |
+| `js/gifs.js` | Gifs envoyés entre joueurs (DVD, gravité, plein écran) et fenêtre d’envoi |
 | `js/engine/` | Règles et tirages, partagés par le navigateur (mode solo) et le serveur |
-| `js/core.js` | Solde, connexion au serveur, en-tête, dépôt simulé |
+| `js/core.js` | Solde, connexion au serveur, en-tête |
 | `js/config.js` | Adresse du serveur multijoueur (vide = mode solo) |
 | `data/cases.json` | Les 42 caisses CS2 et leur contenu, généré par `tools/build-cases.mjs` |
 | `server/` | Serveur multijoueur (Cloudflare Worker), voir `server/README.md` |

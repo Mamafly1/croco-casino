@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Chifoumi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css?v=m7">
+<style>
+.arena { display: grid; gap: 14px; padding: 18px; border-radius: 12px; background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%); }
+.arena h1 { margin: 0; text-align: center; font: clamp(14px, 3vw, 22px)/1.4 var(--font-pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red); }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.side { display: grid; justify-items: center; gap: 6px; font-weight: 800; }
+.hand { width: min(30vw, 150px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 16px; background: var(--panel); }
+.hand svg { width: 80%; height: 80%; }
+.hand.shake { animation: shake 0.33s ease-in-out 3; }
+.side.right .hand svg { transform: scaleX(-1); }
+@keyframes shake { 50% { transform: translateY(-18px); } }
+.vs .mid { font: 14px var(--font-pixel); color: var(--muted); }
+.result { min-height: 1.6em; margin: 0; text-align: center; font: 13px/1.6 var(--font-pixel); }
+.moves { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.moves button { display: grid; justify-items: center; gap: 4px; padding: 10px 4px; border: 2px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); font-weight: 800; }
+.moves button svg { width: 48px; height: 48px; }
+.moves button[aria-pressed="true"] { border-color: var(--gold); }
+.moves button:disabled { opacity: 0.45; }
+.duels { display: grid; gap: 8px; }
+.duel { display: grid; gap: 8px; padding: 10px; border-radius: 10px; background: var(--field); }
+.duel .moves button { padding: 6px 2px; }
+.duel .moves button svg { width: 32px; height: 32px; }
+.duel-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Réglages">
+    <div class="tabs" role="group" aria-label="Adversaire">
+      <button id="tabBot" type="button" aria-pressed="true">Contre le croco</button>
+      <button id="tabDuel" type="button" aria-pressed="false">Défier un joueur</button>
+    </div>
+    <div class="field">
+      <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
+      <div class="betrow">
+        <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
+        <button id="half" type="button" aria-label="Diviser la mise par deux">½</button>
+        <button id="double" type="button" aria-label="Doubler la mise">2×</button>
+      </div>
+    </div>
+    <div class="field" id="toBox" hidden>
+      <label class="field-head" for="to"><span>Qui défier ?</span></label>
+      <select class="text-in" id="to"></select>
+    </div>
+    <div class="field"><div class="field-head"><span id="moveLabel">Ton coup</span></div><div class="moves" id="moves" role="group" aria-labelledby="moveLabel"></div></div>
+    <button id="play" class="play" type="button" hidden>Lancer le défi</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <section class="stats" aria-label="Statistiques">
+      <h2>Session</h2>
+      <dl class="stat-grid">
+        <div><dt>Parties</dt><dd id="sCount">0</dd></div>
+        <div><dt>Profit</dt><dd id="sProfit">0,00 €</dd></div>
+        <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
+        <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
+      </dl>
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note" id="oddsNote"></p>
+    </section>
+  </aside>
+  <section class="stage" aria-label="Chifoumi">
+    <div class="arena">
+      <h1>CHIFOUMI</h1>
+      <div class="vs">
+        <div class="side"><div class="hand" id="handMe"></div><span id="nameMe">Toi</span></div>
+        <span class="mid">VS</span>
+        <div class="side right"><div class="hand" id="handOther"></div><span id="nameOther">Le croco</span></div>
+      </div>
+      <p class="result" id="result" aria-live="polite"></p>
+    </div>
+    <section class="surface" id="duelBox" hidden aria-labelledby="duelTitle">
+      <h2 class="h-label" id="duelTitle" style="margin-bottom:10px">Défis ouverts</h2>
+      <div class="duels" id="duels"></div>
+    </section>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Chifoumi en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/pfc.js?v=m7"></script>
+</body>
+</html>

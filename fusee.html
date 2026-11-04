@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco Fusée</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css?v=m7">
+<style>
+.sky { position: relative; border-radius: 12px; overflow: hidden; background: radial-gradient(120% 90% at 50% 100%, #2a1a40 0%, #0d0d18 70%); aspect-ratio: 16 / 10; min-height: 260px; }
+.sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mult { position: absolute; left: 0; right: 0; top: 18%; text-align: center; font: clamp(28px, 7vw, 56px)/1 var(--font-pixel); color: var(--ink); text-shadow: 4px 4px 0 #000; pointer-events: none; }
+.mult.boom { color: var(--red); }
+.mult.cashed { color: var(--gold); }
+.sub { position: absolute; left: 0; right: 0; top: calc(18% + clamp(40px, 9vw, 70px)); text-align: center; font-weight: 800; color: var(--muted); pointer-events: none; }
+.points { display: flex; gap: 6px; flex-wrap: wrap; }
+.points span { padding: 4px 8px; border-radius: 6px; background: var(--panel); font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.points .lo { color: #ff8a84; }
+.points .hi { color: var(--gold); }
+.autorow { display: flex; gap: 6px; align-items: center; }
+.autorow input { flex: 1; min-width: 0; }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Réglages de la mise">
+    <div class="field">
+      <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
+      <div class="betrow">
+        <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
+        <button id="half" type="button" aria-label="Diviser la mise par deux">½</button>
+        <button id="double" type="button" aria-label="Doubler la mise">2×</button>
+      </div>
+    </div>
+    <div class="field">
+      <div class="field-head"><label for="auto">Retrait automatique à ×</label><span class="muted small">vide = à la main</span></div>
+      <div class="autorow"><input class="text-in" id="auto" type="text" inputmode="decimal" placeholder="ex. 2,00" autocomplete="off"></div>
+    </div>
+    <button id="play" class="play" type="button">Lancer la fusée</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <section class="stats" aria-label="Statistiques">
+      <h2>Session</h2>
+      <dl class="stat-grid">
+        <div><dt>Vols</dt><dd id="sCount">0</dd></div>
+        <div><dt>Profit</dt><dd id="sProfit">0,00 €</dd></div>
+        <div><dt>Total misé</dt><dd id="sWager">0,00 €</dd></div>
+        <div><dt>Meilleur</dt><dd id="sBest">–</dd></div>
+      </dl>
+      <h2>Les vraies cotes</h2>
+      <p class="odds-note" id="oddsNote"></p>
+    </section>
+  </aside>
+  <section class="stage" aria-label="Fusée">
+    <div class="sky" id="sky"><canvas id="cv" aria-hidden="true"></canvas><div class="mult" id="mult" aria-live="off">×1,00</div><div class="sub" id="sub"></div></div>
+    <div class="points" id="points" aria-label="Dernières explosions"></div>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Fusée en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/fusee.js?v=m7"></script>
+</body>
+</html>

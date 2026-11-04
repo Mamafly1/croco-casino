@@ -30,6 +30,7 @@ function box() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   $('profBody').addEventListener('click', (e) => {
     const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
+    if (e.target.closest('[data-gif]')) { m.hidden = true; import('./gifs.js?v=g1').then((g) => g.openGifSender(last.name)); return; }
     if (v) view = { kind: v.dataset.view };
     else if (fl) view = { kind: 'games', filter: fl.dataset.filter || null };
     else if (pi) { const it = last.inventory[+pi.dataset.item]; view = { kind: 'item', uid: it.uid, it }; }
@@ -77,12 +78,15 @@ function render(p) {
   $('profTitle').innerHTML = `${esc(p.name)}${p.rank ? ` <span class="muted">#${p.rank}</span>` : ''}`;
   const games = GAMES.filter((g) => p.played[g]);
   const total = games.reduce((s, g) => s + p.played[g], 0);
+  const mine = p.name === casino.me.name, stock = mine ? casino.me.gifs || {} : null;
   $('profBody').innerHTML = `
+    ${casino.online || mine ? `<button class="btn-main" type="button" data-gif>Envoyer un gif${mine ? ' (à toi-même)' : ` à ${esc(p.name)}`}</button>` : ''}
+    ${stock ? `<p class="muted small" style="margin:0">Gifs en stock : DVD ${stock.dvd || 0} · Gravité ${stock.gravity || 0} · Plein écran ${stock.full || 0}</p>` : ''}
     <dl class="stat-grid prof-stats">
       <div><dt>Score</dt><dd class="${p.score > 0.004 ? 'pos' : p.score < -0.004 ? 'neg' : ''}">${signed(p.score)}</dd></div>
       <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
-      <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
+      <div><dt>Salaires</dt><dd>${eur(p.deposits)}</dd></div>
     </dl>
     ${total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>'}
     <h3 class="h-label">Solde</h3>
@@ -95,7 +99,7 @@ function render(p) {
 }
 
 // Toutes les parties (les mouvements du solde), filtrables par jeu
-const KIND_NAME = { wallet: 'Dépôts', admin: 'Admin' };
+const KIND_NAME = { wallet: 'Dépôts', admin: 'Admin', work: 'Travail', gifs: 'Gifs' };
 const kindName = (g) => (GAME_INFO[g] ? GAME_INFO[g].name : KIND_NAME[g] || 'Autre');
 function renderGames(p) {
   const hist = (p.hist || []).slice().reverse();
@@ -106,9 +110,9 @@ function renderGames(p) {
   $('profBody').innerHTML = `${BACK}
     <div class="chips wide prof-filter" role="group" aria-label="Filtrer par jeu">
       <button type="button" data-filter="" aria-pressed="${!f}">Tout</button>
-      ${kinds.map((g) => `<button type="button" data-filter="${esc(g)}" aria-pressed="${f === g}">${GAMES.includes(g) ? pixelIcon(g, 16) : ''}${esc(kindName(g))}</button>`).join('')}
+      ${kinds.map((g) => `<button type="button" data-filter="${esc(g)}" aria-pressed="${f === g}">${pixelIcon(g, 16)}${esc(kindName(g))}</button>`).join('')}
     </div>
-    ${list.length ? `<ul class="hist">${list.map((h) => `<li>${GAMES.includes(h.g) ? pixelIcon(h.g, 18) : '<span class="hi-dot"></span>'}
+    ${list.length ? `<ul class="hist">${list.map((h) => `<li>${pixelIcon(h.g, 18) || '<span class="hi-dot"></span>'}
       <span class="hl"><b>${esc(h.l)}</b><small>${when(h.at)} · solde ${eur(h.b)}</small></span>
       <span class="amt ${h.d > 0 ? 'pos' : h.d < 0 ? 'neg' : ''}">${signed(h.d)}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune partie.</p>'}
     ${hist.length >= 400 ? '<p class="muted small">Seuls les 400 derniers mouvements sont gardés.</p>' : ''}`;
