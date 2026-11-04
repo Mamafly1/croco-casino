@@ -1,0 +1,45 @@
+# Diagnostic du serveur, lancé à la main (onglet Actions) : santé, connexion WebSocket comme un téléphone,
+# recherche de gifs, et journal des erreurs du serveur pendant le test. Aucun secret n'est affiché.
+name: Diagnostic serveur
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Santé et recherche de gifs
+        run: |
+          curl -sS -m 20 -w "\nHTTP %{http_code}\n" https://croco-casino.mamafly123compte.workers.dev/health || true
+          curl -sS -m 20 -H "Origin: https://mamafly1.github.io" "https://croco-casino.mamafly123compte.workers.dev/gifs?q=aura&per=2" | head -c 1500 || true
+          echo
+      - name: Test WebSocket avec le journal du serveur
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm i --no-save --silent ws@8.18.0 wrangler@3.90.0 >/dev/null 2>&1 || true
+          (npx wrangler tail croco-casino --format pretty > ../tail.log 2>&1 &)
+          sleep 15
+          cat > ../wscheck.cjs <<'JS'
+          const WebSocket = require('./server/node_modules/ws');
+          const token = require('crypto').randomBytes(24).toString('hex');
+          const ws = new WebSocket('wss://croco-casino.mamafly123compte.workers.dev/ws', { headers: { Origin: 'https://mamafly1.github.io' } });
+          const t0 = Date.now();
+          ws.on('open', () => { console.log('ouvert en', Date.now() - t0, 'ms'); ws.send(JSON.stringify({ t: 'hello', token })); });
+          ws.on('message', (d) => console.log('reçu', String(d).slice(0, 300)));
+          ws.on('unexpected-response', (req, res) => { console.log('refus HTTP', res.statusCode); let b = ''; res.on('data', (c) => b += c); res.on('end', () => console.log(b.slice(0, 500))); });
+          ws.on('close', (c, r) => console.log('fermé', c, String(r)));
+          ws.on('error', (e) => console.log('erreur', e.message));
+          setTimeout(() => { console.log('fin du test'); ws.close(); process.exit(0); }, 10000);
+          JS
+          cd .. && node wscheck.cjs || true
+          sleep 8
+          echo "----- journal du serveur -----"
+          head -c 20000 tail.log || true
