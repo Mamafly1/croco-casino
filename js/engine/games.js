@@ -226,17 +226,20 @@ export function run(p, game, action, params = {}, ctx) {
     const h = p.stocks[c.id] || { sh: 0, cost: 0 };
     const r6 = (x) => Math.round(x * 1e6) / 1e6;
     if (action === 'buy') {
-      const amount = money(Number(params.amount));
-      if (!(amount >= 1)) throw new GameError('Achat minimum 1 €.');
+      // comme en vrai : on achète des actions entières (minimum 1), frais de 1 % en plus du prix
+      let n = Math.floor(Number(params.n));
+      if (!(n >= 1) && params.amount) n = Math.floor(Number(params.amount) / (price * (1 + FEE))); // ancienne page
+      if (!(n >= 1)) throw new GameError(`Minimum 1 action, soit ${(price * (1 + FEE)).toFixed(2).replace('.', ',')} € frais compris.`);
+      const amount = money(n * price * (1 + FEE));
       if (amount > p.balance + 1e-9) throw new GameError(BROKE);
-      const sh = r6((amount * (1 - FEE)) / price);
+      const sh = n;
       h.sh = r6(h.sh + sh); h.cost = money(h.cost + amount);
       p.stocks[c.id] = h;
       p.balance = money(p.balance - amount);
       played(p, 'stocks');
       return out({ co: c.id, sh, price, amount, holding: h, payout: 0 }, { game, act: 'buy', co: c.name, amount, bet: 0, payout: 0 });
     }
-    const sh = params.all ? h.sh : r6(Number(params.sh));
+    const sh = params.all ? h.sh : r6(Number(params.n ?? params.sh));
     if (!(sh > 0) || sh > h.sh + 1e-9) throw new GameError('Tu n’as pas autant d’actions.');
     const proceeds = money(sh * price * (1 - FEE));
     const costPart = money(h.sh ? (h.cost * sh) / h.sh : 0);

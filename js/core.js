@@ -138,6 +138,11 @@ export const casino = {
     return list.sort((a, b) => b.online - a.online);
   },
   openDeposit() { openShop(); },
+  // Parties plus anciennes d'un joueur (le profil n'envoie que les 400 dernières)
+  async history(name, before) {
+    if (!this.online) return [];
+    return (await request({ t: 'hist', name, before })).result;
+  },
   removeGif(id) { if (this.online && ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'gifrm', gid: id })); },
   // Image importée depuis l'appareil : envoyée au serveur, qui renvoie son adresse
   async uploadMedia(file) {
@@ -379,6 +384,7 @@ export function mountShell(active) {
   document.body.prepend(top);
   buildShop();
   $('topup').addEventListener('click', openShop);
+  setupInstall();
   $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('whoChip').addEventListener('click', () => { if (confirm(`Changer de joueur ? (${casino.me.name})`)) switchPlayer(); });
@@ -539,6 +545,41 @@ function countUp(a, b) {
     $('bal').textContent = nf2.format(t < 1 ? v : casino.shownBalance());
     if (t < 1) requestAnimationFrame(tick); else { counting = false; renderWallet(); }
   })(t0);
+}
+
+// ---------- appli : installation sur l'écran d'accueil ----------
+// Chrome propose d'installer le site (icône Croco Casino, plein écran) ; on affiche notre propre bandeau en bas.
+// « Plus tard » le cache 3 jours. Sur iPhone, pas d'installation automatique : on explique le geste.
+function setupInstall() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return; // déjà ouvert comme appli
+  const KEY = 'croco-install-later';
+  const snoozed = () => { try { return Date.now() < Number(localStorage.getItem(KEY) || 0); } catch { return false; } };
+  const later = () => { try { localStorage.setItem(KEY, String(Date.now() + 3 * 86400000)); } catch {} };
+  let deferred = null;
+  const show = (ios) => {
+    if ($('installBar') || snoozed()) return;
+    const bar = document.createElement('div');
+    bar.id = 'installBar';
+    bar.className = 'install-bar';
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Installer l’appli');
+    bar.innerHTML = `<img src="img/app/icon-192.png" alt="" width="44" height="44"><div><b>Installer Croco Casino</b><small>${ios ? 'Touche Partager, puis « Sur l’écran d’accueil ».' : 'L’appli sur ton écran d’accueil, en plein écran.'}</small></div>
+      ${ios ? '' : '<button class="btn-main" type="button" id="installGo">Installer</button>'}<button class="x" type="button" id="installLater" aria-label="Plus tard">${X_ICON}</button>`;
+    document.body.appendChild(bar);
+    $('installLater').addEventListener('click', () => { later(); bar.remove(); });
+    if (!ios) $('installGo').addEventListener('click', async () => {
+      bar.remove();
+      if (!deferred) return;
+      deferred.prompt();
+      const r = await deferred.userChoice.catch(() => null);
+      if (!r || r.outcome !== 'accepted') later();
+      deferred = null;
+    });
+  };
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; show(false); });
+  addEventListener('appinstalled', () => { const b = $('installBar'); if (b) b.remove(); });
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) setTimeout(() => show(true), 1500);
 }
 
 // ---------- petit message en haut de l'écran ----------

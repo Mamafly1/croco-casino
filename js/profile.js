@@ -30,6 +30,14 @@ function box() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   $('profBody').addEventListener('click', (e) => {
     const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
+    if (e.target.closest('[data-more]')) {
+      if (olderBusy) return;
+      const oldest = older.length ? older[older.length - 1].id : (last.hist[0] || {}).id;
+      olderBusy = true; renderGames(last);
+      casino.history(last.name, oldest).then((rows) => { older = older.concat(rows); if (rows.length < 400) olderDone = true; })
+        .catch(() => {}).finally(() => { olderBusy = false; if (view.kind === 'games') renderGames(last); });
+      return;
+    }
     if (e.target.closest('[data-gif]')) { m.hidden = true; import('./gifs.js?v=g1').then((g) => g.openGifSender(last.name)); return; }
     if (v) view = { kind: v.dataset.view };
     else if (fl) view = { kind: 'games', filter: fl.dataset.filter || null };
@@ -59,7 +67,7 @@ casino.on('board', () => refreshSoon());
 casino.on('me', (me) => { if (me && me.name === current) refreshSoon(); });
 
 export async function openProfile(name) {
-  current = name; view = { kind: 'main' };
+  current = name; view = { kind: 'main' }; older = []; olderDone = false;
   const m = box();
   $('profTitle').textContent = name;
   $('profBody').innerHTML = '<p class="muted">Chargement…</p>';
@@ -102,8 +110,10 @@ function render(p) {
 // Toutes les parties (les mouvements du solde), filtrables par jeu
 const KIND_NAME = { wallet: 'Dépôts', admin: 'Admin', work: 'Travail', gifs: 'Gifs' };
 const kindName = (g) => (GAME_INFO[g] ? GAME_INFO[g].name : KIND_NAME[g] || 'Autre');
+// Le profil arrive avec les 400 derniers mouvements ; « Voir plus » charge les précédents, 400 par 400
+let older = [], olderDone = false, olderBusy = false;
 function renderGames(p) {
-  const hist = (p.hist || []).slice().reverse();
+  const hist = (p.hist || []).slice().reverse().concat(older);
   const kinds = [...new Set(hist.map((h) => h.g || 'autre'))];
   const f = view.filter && kinds.includes(view.filter) ? view.filter : null;
   const list = f ? hist.filter((h) => (h.g || 'autre') === f) : hist;
@@ -116,7 +126,7 @@ function renderGames(p) {
     ${list.length ? `<ul class="hist">${list.map((h) => `<li>${pixelIcon(h.g, 18) || '<span class="hi-dot"></span>'}
       <span class="hl"><b>${esc(h.l)}</b><small>${when(h.at)} · solde ${eur(h.b)}</small></span>
       <span class="amt ${h.d > 0 ? 'pos' : h.d < 0 ? 'neg' : ''}">${signed(h.d)}</span></li>`).join('')}</ul>` : '<p class="muted">Aucune partie.</p>'}
-    ${hist.length >= 400 ? '<p class="muted small">Seuls les 400 derniers mouvements sont gardés.</p>' : ''}`;
+    ${(p.hist || []).length >= 400 && !olderDone ? `<button class="btn-ghost" type="button" data-more>${olderBusy ? 'Chargement…' : 'Voir les parties plus anciennes'}</button>` : ''}`;
 }
 
 // Fiche d'un objet de l'inventaire, comme à l'ouverture (sans Garder / Vendre)

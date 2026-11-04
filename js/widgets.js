@@ -45,10 +45,11 @@ export function mountBoard(el, { limit = 10 } = {}) {
   const step = () => (track.children[1] ? posOf(1) : track.clientWidth) || 1;
   const setDots = () => {
     dots.querySelectorAll('button').forEach((d, i) => { d.classList.toggle('on', i === idx); d.setAttribute('aria-current', String(i === idx)); });
-    el.querySelectorAll('.lb-arrow').forEach((a) => { a.disabled = a.dataset.dir === '-1' ? idx === 0 : idx >= dots.children.length - 1; });
   };
+  // le carrousel boucle : après le dernier on revient au premier, avant le premier on va au dernier
   const go = (i) => {
-    idx = Math.max(0, Math.min(dots.children.length - 1, i));
+    const n = dots.children.length || 1;
+    idx = ((i % n) + n) % n;
     track.scrollTo({ left: posOf(idx), behavior: reduceMotion ? 'auto' : 'smooth' });
     setDots();
   };
@@ -70,6 +71,17 @@ export function mountBoard(el, { limit = 10 } = {}) {
   dots.addEventListener('click', (e) => { const d = e.target.closest('button[data-i]'); if (d) go(+d.dataset.i); });
   el.querySelectorAll('.lb-arrow').forEach((a) => a.addEventListener('click', () => go(idx + Number(a.dataset.dir))));
   track.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') go(idx + 1); if (e.key === 'ArrowLeft') go(idx - 1); });
+  // glisser encore vers la droite sur le dernier (ou vers la gauche sur le premier) fait le tour
+  let tx = null, ty = 0, from = 0;
+  track.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; from = idx; }, { passive: true });
+  track.addEventListener('touchend', (e) => {
+    if (tx == null) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty, n = dots.children.length;
+    tx = null;
+    if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
+    if (from === n - 1 && dx < 0 && idx === n - 1) go(0);
+    else if (from === 0 && dx > 0 && idx === 0) go(n - 1);
+  }, { passive: true });
   addEventListener('resize', () => { track.scrollLeft = posOf(idx); });
   casino.on('board', draw).on('boards', draw).on('me', draw).on('status', draw);
   const open = (e) => { const tr = e.target.closest('tr[data-name]'); if (tr) openProfile(tr.dataset.name); };

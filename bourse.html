@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Croco Bourse</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#181818">
+<link rel="icon" type="image/png" href="img/app/favicon.png">
+<link rel="apple-touch-icon" href="img/app/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m17">
+<link rel="stylesheet" href="css/casino.css?v=m19">
 <style>
 .cos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .co { display: grid; gap: 6px; padding: 10px; border: 2px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); text-align: left; min-width: 0; cursor: pointer; }
@@ -35,22 +39,23 @@
 <main class="game split">
   <aside class="panel" aria-label="Acheter et vendre">
     <div class="field">
-      <div class="field-head"><label for="bet">Acheter pour (€)</label><span class="num" id="betMax">max 0,00 €</span></div>
+      <div class="field-head"><label for="qty">Nombre d’actions</label><span class="num" id="qtyCost"></span></div>
       <div class="betrow">
-        <input id="bet" type="text" inputmode="decimal" value="10,00" autocomplete="off">
-        <button id="half" type="button" aria-label="Diviser par deux">½</button>
-        <button id="double" type="button" aria-label="Doubler">2×</button>
+        <input id="qty" type="text" inputmode="numeric" value="1" autocomplete="off">
+        <button id="qMinus" type="button" aria-label="Une action de moins">−</button>
+        <button id="qPlus" type="button" aria-label="Une action de plus">+</button>
+        <button id="qMax" type="button" aria-label="Le maximum possible">Max</button>
       </div>
     </div>
     <button id="buy" class="play" type="button">Acheter</button>
     <div class="hold" id="hold"></div>
-    <button id="sell" class="btn-ghost" type="button">Tout vendre</button>
+    <div class="btn2" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><button id="sellN" class="btn-ghost" type="button">Vendre</button><button id="sell" class="btn-ghost" type="button">Tout vendre</button></div>
     <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Mes actions">
       <h2>Mon portefeuille</h2>
       <div class="hold" id="wallet2"></div>
       <details class="odds"><summary><h2>Comment ça marche</h2></summary>
-        <p class="odds-note">Le cours de chaque entreprise bouge toutes les minutes, au hasard, et des actus le font parfois sauter de 4 à 16 %. Il revient doucement vers sa valeur de départ sur la durée. Frais : <strong>1 %</strong> à l’achat et 1 % à la vente. Tes actions comptent dans ton score au cours du moment.</p>
+        <p class="odds-note">Comme en vrai, on achète des actions entières : le minimum, c’est le prix d’une action. Le cours de chaque entreprise bouge toutes les minutes, au hasard, et des actus le font parfois sauter de 4 à 16 %. Il revient doucement vers sa valeur de départ sur la durée. Frais : <strong>1 %</strong> à l’achat (en plus du prix) et 1 % à la vente. Tes actions comptent dans ton score au cours du moment.</p>
       </details>
     </section>
   </aside>
@@ -71,6 +76,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/bourse.js?v=m17"></script>
+<script type="module" src="js/pages/bourse.js?v=m19"></script>
 </body>
 </html>

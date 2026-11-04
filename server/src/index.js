@@ -403,7 +403,7 @@ export class Casino extends DurableObject {
     if (!d) return;
     this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
     if (d > 0 && g !== 'wallet' && g !== 'admin') this.rec(id, 'win', money(d), 'max'); // dépôts et ajustements ne sont pas des gains
-    if (Math.random() < 0.05) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 500)', id, id);
+    if (Math.random() < 0.01) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 20000)', id, id);
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde
   profile(name) {
@@ -411,7 +411,7 @@ export class Casino extends DurableObject {
     if (!row) return null;
     const p = JSON.parse(row.data);
     const rank = this.sql.exec('SELECT COUNT(*) AS n FROM players WHERE score > ?', row.score).one().n + 1;
-    const hist = this.sql.exec('SELECT at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
+    const hist = this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
       titles: this.boardData().titles[row.name] || [], online: this.activeNames().includes(row.name),
@@ -533,6 +533,12 @@ export class Casino extends DurableObject {
     if (msg.t === 'market') {
       const m = await this.market();
       return this.send(ws, { t: 'res', id: msg.id, ok: true, result: { prices: m.prices, hist: m.hist, news: m.news, t: m.t } });
+    }
+    if (msg.t === 'hist') {
+      // 400 mouvements plus anciens que « before » (le plus récent d'abord)
+      const row = this.sql.exec('SELECT id FROM players WHERE name = ?', String(msg.name || '')).toArray()[0];
+      const list = row ? this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? AND id < ? ORDER BY id DESC LIMIT 400', row.id, Number(msg.before) || 9e15).toArray() : [];
+      return this.send(ws, { t: 'res', id: msg.id, ok: true, result: list });
     }
     if (msg.t === 'profile') {
       const prof = this.profile(msg.name);
