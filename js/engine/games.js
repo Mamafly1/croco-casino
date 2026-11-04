@@ -15,6 +15,7 @@ export const PACKS = [10, 20, 50, 100]; // montants proposés au dépôt (pris s
 export const GIF_PRICES = { dvd: 1.5, gravity: 2.5, full: 10 };
 export const GIF_MODES = { dvd: 'DVD', gravity: 'Gravité', full: 'Plein écran' };
 export const GIF_MAX_SEND = 30;
+export const STOCK_MIN = 10; // € minimum par achat d'actions
 export const RPS_MULT = 1.97; // contre le croco : gagné ×1,97, égalité remboursée → retour 99 %
 export const RPS_MOVES = ['pierre', 'feuille', 'ciseaux'];
 export const MIN_BET = 0.1;
@@ -226,20 +227,20 @@ export function run(p, game, action, params = {}, ctx) {
     const h = p.stocks[c.id] || { sh: 0, cost: 0 };
     const r6 = (x) => Math.round(x * 1e6) / 1e6;
     if (action === 'buy') {
-      // comme en vrai : on achète des actions entières (minimum 1), frais de 1 % en plus du prix
-      let n = Math.floor(Number(params.n));
-      if (!(n >= 1) && params.amount) n = Math.floor(Number(params.amount) / (price * (1 + FEE))); // ancienne page
-      if (!(n >= 1)) throw new GameError(`Minimum 1 action, soit ${(price * (1 + FEE)).toFixed(2).replace('.', ',')} € frais compris.`);
-      const amount = money(n * price * (1 + FEE));
+      // achat en euros, minimum 10 € par ordre (les frais de 1 % sont pris dedans) ; on peut avoir des bouts d'action
+      let amount = money(Number(params.amount));
+      if (!(amount > 0) && params.n) amount = money(Math.floor(Number(params.n)) * price * (1 + FEE)); // ancienne page
+      if (!(amount >= STOCK_MIN)) throw new GameError(`Achat minimum ${STOCK_MIN} €.`);
       if (amount > p.balance + 1e-9) throw new GameError(BROKE);
-      const sh = n;
+      const sh = r6((amount * (1 - FEE)) / price);
       h.sh = r6(h.sh + sh); h.cost = money(h.cost + amount);
       p.stocks[c.id] = h;
       p.balance = money(p.balance - amount);
       played(p, 'stocks');
       return out({ co: c.id, sh, price, amount, holding: h, payout: 0 }, { game, act: 'buy', co: c.name, amount, bet: 0, payout: 0 });
     }
-    const sh = params.all ? h.sh : r6(Number(params.n ?? params.sh));
+    // vente : tout, un montant en euros (ce qu'on reçoit), ou un nombre d'actions
+    const sh = params.all ? h.sh : params.amount ? Math.min(h.sh, r6(Number(params.amount) / (price * (1 - FEE)))) : r6(Number(params.n ?? params.sh));
     if (!(sh > 0) || sh > h.sh + 1e-9) throw new GameError('Tu n’as pas autant d’actions.');
     const proceeds = money(sh * price * (1 - FEE));
     const costPart = money(h.sh ? (h.cost * sh) / h.sh : 0);

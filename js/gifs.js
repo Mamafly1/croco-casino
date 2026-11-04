@@ -10,7 +10,7 @@ const CROCO = { id: 'croco', title: 'Croco', url: new URL('crocodile.gif', locat
 const SUGGEST = ['aura', 'tuff', 'brainrot']; // une suggestion sur trois vient de chaque recherche
 const G = 2400, FULL_MS = 20000;
 
-let layer = null, trash = null, raf = 0, last = 0, localId = -1;
+let layer = null, trash = null, raf = 0, last = 0;
 const bodies = [];
 
 // ---------- affichage ----------
@@ -452,18 +452,13 @@ async function send() {
   try {
     const gif = { url: picked.url, name: picked.title, w: picked.w || 0, h: picked.h || 0 };
     const r = await casino.play('gifs', 'send', { to, mode, qty, gif });
-    if (!casino.online) addLocal(gif);
     toast(`${qty}× ${picked.title} envoyé${qty > 1 ? 's' : ''} à ${r.to || to}`);
     $('gifBox').hidden = true;
   } catch (e) { $('gifCost').textContent = e.message; }
   finally { $('gifGo').disabled = false; }
 }
-// Mode solo : on s'envoie le gif à soi-même
-function addLocal(gif) {
-  for (let i = 0; i < qty; i++) addBody({ id: localId--, mode, url: gif.url, name: gif.name, w: gif.w, h: gif.h, expires: mode === 'full' ? Date.now() + FULL_MS : 0 });
-}
-
 export async function openGifSender(toName = '') {
+  if (!casino.online) { toast('Les gifs s’envoient entre joueurs connectés.'); return; }
   const m = box();
   m.hidden = false;
   $('gifSend').hidden = true;
@@ -474,10 +469,11 @@ export async function openGifSender(toName = '') {
     playersCache = await casino.players();
   } catch { playersCache = playersCache || [{ name: casino.me.name, online: true }]; }
   const me = casino.me.name;
-  // seulement les joueurs en ligne (toi compris, pour tester)
-  const on = playersCache.filter((p) => p.online || p.name === me);
-  $('gifTo').innerHTML = on.map((p) => `<option value="${esc(p.name)}">● ${esc(p.name)}${p.name === me ? ' (toi)' : ''}</option>`).join('');
-  const def = (toName && on.some((p) => p.name === toName) && toName) || (on.find((p) => p.name !== me) || {}).name || me;
+  // seulement les autres joueurs en ligne
+  const on = playersCache.filter((p) => p.online && p.name !== me);
+  $('gifTo').innerHTML = on.length ? on.map((p) => `<option value="${esc(p.name)}">● ${esc(p.name)}</option>`).join('') : '<option value="">Personne d’autre n’est en ligne</option>';
+  $('gifTo').disabled = !on.length;
+  const def = (toName && on.some((p) => p.name === toName) && toName) || (on[0] || {}).name || '';
   $('gifTo').value = def;
   startList('');
 }

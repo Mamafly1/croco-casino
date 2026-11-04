@@ -1,27 +1,23 @@
 // Page Bourse : Caca Cola, Children, Peer. Le cours vient du serveur (ou du navigateur en solo).
 import { casino, mountShell, $, eur, nf2, esc, toast } from '../core.js';
-import { mountFeed } from '../widgets.js';
+import { mountFeed, betControl } from '../widgets.js';
 import { COMPANIES, FEE } from '../engine/market.js';
 
 mountShell('stocks');
 mountFeed($('feed'), { game: 'stocks', limit: 8 });
-// Nombre d'actions à acheter ou vendre (entier, au moins 1)
-let qty = 1;
-const unit = () => (mk ? mk.prices[sel] * (1 + FEE) : 0);
-function setQty(v) {
-  qty = Math.max(1, Math.floor(Number(String(v).replace(/\D/g, '')) || 1));
-  $('qty').value = qty;
-  if (mk) {
-    $('qtyCost').textContent = `= ${eur(qty * unit())} frais compris`;
-    const h = (casino.me.stocks || {})[sel];
-    $('sellN').textContent = `Vendre ${qty}`;
-    $('sellN').disabled = !h || h.sh < qty - 1e-9;
-  }
+// Montant en euros pour acheter ou vendre (minimum 10 € à l'achat)
+const amount = betControl({ initial: 10 });
+function setQty() {
+  if (!mk) return;
+  const a = amount.get(), price = mk.prices[sel];
+  $('qtyCost').textContent = `${eur(a)} = ${nf2.format((a * (1 - FEE)) / price)} action${a * (1 - FEE) / price >= 2 ? 's' : ''} (1 % de frais compris)`;
+  $('sellN').textContent = `Vendre pour ${eur(a)}`;
+  const h = (casino.me.stocks || {})[sel];
+  $('sellN').disabled = !h || h.sh * price * (1 - FEE) < a - 0.005;
 }
-$('qty').addEventListener('change', () => setQty($('qty').value));
-$('qMinus').addEventListener('click', () => setQty(qty - 1));
-$('qPlus').addEventListener('click', () => setQty(qty + 1));
-$('qMax').addEventListener('click', () => setQty(Math.max(1, Math.floor(casino.shownBalance() / Math.max(0.01, unit())))));
+$('bet').addEventListener('change', setQty);
+$('half').addEventListener('click', setQty);
+$('double').addEventListener('click', setQty);
 
 export const LOGOS = {
   // fond rouge, écriture blanche penchée
@@ -83,7 +79,7 @@ function holdings() {
       <div><span>Si tu vends maintenant</span><b class="${pl >= 0 ? 'up' : 'down'}">${eur(val)} (${pl >= 0 ? '+' : ''}${eur(pl)})</b></div>`;
     $('sell').parentElement.hidden = false; $('sell').textContent = `Tout vendre (${eur(val)})`;
   } else { $('hold').innerHTML = `<div><span class="muted">Tu n’as pas d’actions ${esc(c.name)}.</span></div>`; $('sell').parentElement.hidden = true; }
-  setQty(qty);
+  setQty();
   const rows = COMPANIES.filter((x) => st[x.id] && st[x.id].sh > 0).map((x) => `<div><span>${esc(x.name)}</span><b>${eur(st[x.id].sh * mk.prices[x.id])}</b></div>`);
   $('wallet2').innerHTML = rows.length ? rows.join('') : '<div><span class="muted">Aucune action.</span></div>';
 }
@@ -98,8 +94,8 @@ document.querySelector('[aria-label="Durée"]').addEventListener('click', (e) =>
 $('buy').addEventListener('click', async () => {
   $('msg').textContent = '';
   try {
-    const r = await casino.play('stocks', 'buy', { co: sel, n: qty });
-    toast(`Acheté ${r.sh} action${r.sh > 1 ? 's' : ''} ${COMPANIES.find((c) => c.id === sel).name} pour ${eur(r.amount)}`);
+    const r = await casino.play('stocks', 'buy', { co: sel, amount: amount.get() });
+    toast(`Acheté ${nf2.format(r.sh)} action${r.sh >= 2 ? 's' : ''} ${COMPANIES.find((c) => c.id === sel).name} pour ${eur(r.amount)}`);
     await refresh();
   } catch (e) { $('msg').textContent = e.message; if (/Solde insuffisant/.test(e.message)) casino.nudgeDeposit(); }
 });
@@ -112,7 +108,7 @@ const sell = async (params) => {
   } catch (e) { $('msg').textContent = e.message; }
 };
 $('sell').addEventListener('click', () => sell({ all: true }));
-$('sellN').addEventListener('click', () => sell({ n: qty }));
+$('sellN').addEventListener('click', () => sell({ amount: amount.get() }));
 casino.on('me', () => { if (mk) holdings(); });
 if (!casino.online) refresh();
 casino.on('status', (s) => { if (s === 'online') refresh(); });

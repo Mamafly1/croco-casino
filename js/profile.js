@@ -1,5 +1,5 @@
 // Fenêtre de profil d'un joueur : stats, courbe du solde (survol = ce qui l'a fait bouger), inventaire CS.
-import { casino, eur, esc, nf0, $, loadCases } from './core.js';
+import { casino, eur, esc, nf0, $, loadCases, forceUpdate, switchPlayer, toast } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { GAMES } from './engine/games.js';
 import { TIER_INFO, WEARS, ODDS, wearProbs } from './engine/cases.js';
@@ -30,6 +30,11 @@ function box() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   $('profBody').addEventListener('click', (e) => {
     const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
+    const sw = e.target.closest('[data-color]');
+    if (sw) { last.style = { ...(last.style || {}), color: sw.dataset.color || null }; render(last); saveStyle({ color: sw.dataset.color || null }); return; }
+    const act = e.target.closest('[data-act]');
+    if (act && act.dataset.act === 'update') { act.textContent = 'Mise à jour…'; forceUpdate(); return; }
+    if (act && act.dataset.act === 'logout') { if (confirm('Te déconnecter de cet appareil ? Il faudra retaper ton code.')) { m.hidden = true; switchPlayer(); } return; }
     if (e.target.closest('[data-more]')) {
       if (olderBusy) return;
       const oldest = older.length ? older[older.length - 1].id : (last.hist[0] || {}).id;
@@ -45,6 +50,24 @@ function box() {
     else return;
     render(last);
     m.scrollTop = 0; m.querySelector('.sheet').scrollTop = 0;
+  });
+  // titres affichés : on garde les cases cochées
+  $('profBody').addEventListener('change', (e) => {
+    if (!e.target.matches('[data-title]')) return;
+    const titles = [...$('profBody').querySelectorAll('[data-title]:checked')].map((x) => x.dataset.title);
+    saveStyle({ titles });
+  });
+  // changer de pseudo
+  $('profBody').addEventListener('submit', async (e) => {
+    if (e.target.id !== 'setName') return;
+    e.preventDefault();
+    const name = $('setNameIn').value.trim();
+    if (!name || name === last.name) return;
+    try {
+      await casino.play('account', 'rename', { name });
+      toast(`Tu t’appelles maintenant ${name}`);
+      openProfile(name);
+    } catch (err) { toast(err.message); }
   });
   return m;
 }
@@ -88,7 +111,7 @@ function render(p) {
   const total = games.reduce((s, g) => s + p.played[g], 0);
   const mine = p.name === casino.me.name, stock = mine ? casino.me.gifs || {} : null;
   $('profBody').innerHTML = `
-    ${mine || (casino.online && p.online) ? `<button class="btn-main" type="button" data-gif>Envoyer un gif${mine ? ' (à toi-même)' : ` à ${esc(p.name)}`}</button>`
+    ${mine ? settings(p) : casino.online && p.online ? `<button class="btn-main" type="button" data-gif>Envoyer un gif à ${esc(p.name)}</button>`
       : casino.online ? `<p class="muted small" style="margin:0">${esc(p.name)} est hors ligne : les gifs ne s’envoient qu’aux joueurs connectés.</p>` : ''}
     ${stock ? `<p class="muted small" style="margin:0">Gifs en stock : DVD ${stock.dvd || 0} · Gravité ${stock.gravity || 0} · Plein écran ${stock.full || 0}</p>` : ''}
     <dl class="stat-grid prof-stats">
@@ -105,6 +128,31 @@ function render(p) {
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
   chart($('profChart'), p.hist || []);
+}
+
+// Réglages, sur son propre profil : pseudo, couleur de sa carte au classement, titres affichés, mise à jour, déconnexion
+function settings(p) {
+  const st = p.style || {}, held = p.heldTitles || [], shown = Array.isArray(st.titles) ? st.titles : held;
+  const online = casino.online;
+  return `<section class="settings" aria-label="Réglages">
+    ${online ? `<form class="set-name" id="setName"><label class="field-head" for="setNameIn"><span>Pseudo</span></label>
+      <div class="set-row"><input class="text-in" id="setNameIn" value="${esc(p.name)}" maxlength="16" autocomplete="nickname"><button class="btn-ghost" type="submit">Changer</button></div></form>
+    <div class="field"><div class="field-head"><span>Couleur de ta carte au classement</span></div>
+      <div class="swatches" role="group" aria-label="Couleur de ta carte">
+        <button type="button" data-color="" class="sw auto" aria-pressed="${!st.color}" title="Couleur du rang">Auto</button>
+        ${(p.colors || []).map((c) => `<button type="button" data-color="${c}" class="sw" style="--sw:${c}" aria-pressed="${st.color === c}" aria-label="Couleur ${c}"></button>`).join('')}
+      </div></div>
+    <div class="field"><div class="field-head"><span>Titres affichés à côté de ton pseudo</span></div>
+      ${held.length ? `<div class="set-titles">${held.map((t) => `<label><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}</div>`
+        : '<p class="muted small" style="margin:0">Pas encore de titre : sois premier d’un classement pour en gagner un.</p>'}</div>` : ''}
+    <div class="set-row">
+      <button class="btn-ghost" type="button" data-act="update">Forcer la mise à jour</button>
+      ${online ? '<button class="btn-ghost danger" type="button" data-act="logout">Se déconnecter</button>' : ''}
+    </div>
+  </section>`;
+}
+async function saveStyle(patch) {
+  try { await casino.play('account', 'style', patch); refreshSoon(); } catch (e) { toast(e.message); }
 }
 
 // Toutes les parties (les mouvements du solde), filtrables par jeu

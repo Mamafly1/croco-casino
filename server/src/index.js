@@ -14,6 +14,8 @@ const BET_MS = 15000;   // durée des mises d'un tour de roulette
 const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
 const ROUND_MS = 30000;   // temps pour jouer une manche de chifoumi entre joueurs
 const WIN_POINTS = 3;     // points pour gagner une partie de chifoumi
+// Couleurs possibles pour sa carte au classement (sinon : couleur du rang)
+const CARD_COLORS = ['#4b8cff', '#ff6fb5', '#ffbf17', '#de0607', '#3ddc5f', '#a66bff', '#2fd6d6', '#f0f0e6'];
 // Classements secondaires : chacun a un titre, donné à celui qui est en tête
 const BOARDS = [
   { key: 'win', label: 'Le plus gros gain en une seule partie', col: 'GAIN', title: 'Le Gros Coup', unit: 'eur' },
@@ -144,6 +146,7 @@ async function sha256(s) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+const colorOf = (style) => { try { return JSON.parse(style || '{}').color || null; } catch { return null; } };
 const totalPlayed = (p) => Object.values(p.played || {}).reduce((a, b) => a + b, 0);
 
 export class Casino extends DurableObject {
@@ -161,7 +164,7 @@ export class Casino extends DurableObject {
     this.sql.exec('CREATE INDEX IF NOT EXISTS players_score ON players(score DESC)');
     // Comptes : un code à 4 chiffres par joueur, et un jeton par appareil (le site s'en souvient)
     this.sql.exec('CREATE TABLE IF NOT EXISTS tokens (token TEXT PRIMARY KEY, player_id INTEGER NOT NULL, created INTEGER NOT NULL)');
-    for (const col of ['pin TEXT', 'seen INTEGER NOT NULL DEFAULT 0']) {
+    for (const col of ['pin TEXT', 'seen INTEGER NOT NULL DEFAULT 0', "style TEXT NOT NULL DEFAULT '{}'"]) {
       try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch { /* colonne déjà là */ }
     }
     this.fails = new Map(); // essais de code ratés, par pseudo
@@ -223,12 +226,18 @@ export class Casino extends DurableObject {
   boardData() {
     const list = BOARDS.map((b) => ({
       key: b.key, label: b.label, col: b.col, title: b.title, unit: b.unit,
-      rows: this.sql.exec('SELECT r.v AS v, p.name AS name FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 10', b.key).toArray()
-        .map((x) => ({ name: x.name, v: x.v })),
+      rows: this.sql.exec('SELECT r.v AS v, p.name AS name, p.style AS style FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 10', b.key).toArray()
+        .map((x) => ({ name: x.name, v: x.v, color: colorOf(x.style) })),
     }));
     const titles = {};
     for (const b of list) if (b.rows[0]) (titles[b.rows[0].name] ||= []).push(b.title);
     return { list, titles };
+  }
+  // Titres affichés : ceux que le joueur a choisis parmi ceux qu'il détient (tous par défaut)
+  shownTitles(held, style) {
+    let st = style;
+    if (typeof st === 'string') { try { st = JSON.parse(st); } catch { st = {}; } }
+    return st && Array.isArray(st.titles) ? held.filter((t) => st.titles.includes(t)) : held;
   }
 
   async fetch(request) {
@@ -265,15 +274,64 @@ export class Casino extends DurableObject {
     return {
       name: pl.name, balance: p.balance, deposits: p.deposits, score: sc, rank,
       inventory: p.inventory, inventoryValue: inventoryValue(p), played: p.played, bj: bjView(p.bj),
-      gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p), bank: p.bank || 0,
+      gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p), bank: p.bank || 0, style: this.styleOf(pl.id),
     };
   }
   board() {
     const titles = this.boardData().titles;
-    return this.sql.exec('SELECT name, score, games FROM players ORDER BY score DESC, id ASC LIMIT 25').toArray()
-      .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games), titles: titles[r.name] || [] }));
+    return this.sql.exec('SELECT name, score, games, style FROM players ORDER BY score DESC, id ASC LIMIT 25').toArray()
+      .map((r) => ({ name: r.name, score: r.score, games: JSON.parse(r.games), titles: this.shownTitles(titles[r.name] || [], r.style), color: colorOf(r.style) }));
   }
   boardMsg() { return { t: 'board', board: this.board(), boards: this.boardData().list }; }
+
+  // Changer de pseudo (admin ou joueur) : le nouveau nom suit partout (fil, table, roulette, défis, parties)
+  async renamePlayer(id, newName) {
+    if (!NAME_RE.test(newName)) return 'Pseudo : 2 à 16 caractères (lettres, chiffres, espace, _ . -).';
+    if (this.sql.exec('SELECT 1 FROM players WHERE name = ? AND id != ?', newName, id).toArray().length) return 'Pseudo déjà pris.';
+    const oldName = this.sql.exec('SELECT name FROM players WHERE id = ?', id).one().name;
+    this.sql.exec('UPDATE players SET name = ? WHERE id = ?', newName, id);
+    for (const ws of this.ctx.getWebSockets()) {
+      const w = ws.deserializeAttachment();
+      if (w && w.id === id) ws.serializeAttachment({ ...w, name: newName });
+    }
+    for (const e of this.feed) if (e.name === oldName) e.name = newName;
+    await this.ctx.storage.put('feed', this.feed);
+    const seat = this.table.get(id); if (seat) seat.name = newName;
+    const r = await this.getRound();
+    if (r.bets && r.bets[id]) { r.bets[id].name = newName; await this.ctx.storage.put('round', r); }
+    for (const d of this.duels) { if (d.fromId === id) d.from = newName; if (d.to === oldName) d.to = newName; }
+    for (const m of this.matches) for (const x of m.p) if (x.id === id) x.name = newName;
+    await this.ctx.storage.put('duels', this.duels);
+    await this.ctx.storage.put('matches', this.matches);
+    this.broadcast(this.boardMsg());
+    this.broadcast({ t: 'feedAll', feed: this.feed });
+    this.broadcast({ t: 'table', table: [...this.table.values()] });
+    this.broadcast({ t: 'round', round: await this.roundView(r) });
+    this.broadcast({ t: 'duels', duels: this.duelView() });
+    this.broadcast(this.online());
+    return null;
+  }
+  styleOf(id) { try { return JSON.parse(this.sql.exec('SELECT style FROM players WHERE id = ?', id).one().style || '{}'); } catch { return {}; } }
+  // Réglages du joueur : pseudo, couleur de sa carte au classement, titres affichés
+  async account(pl, action, params) {
+    if (action === 'rename') {
+      const name = String(params.name || '').trim();
+      if (name === pl.name) return { result: { payout: 0, name } };
+      const err = await this.renamePlayer(pl.id, name);
+      if (err) throw new GameError(err);
+      pl.name = name;
+      return { result: { payout: 0, name } };
+    }
+    if (action === 'style') {
+      const st = this.styleOf(pl.id);
+      if ('color' in params) st.color = CARD_COLORS.includes(params.color) ? params.color : null;
+      if ('titles' in params) st.titles = Array.isArray(params.titles) ? params.titles.map(String).slice(0, 10) : null;
+      this.sql.exec('UPDATE players SET style = ? WHERE id = ?', JSON.stringify(st), pl.id);
+      this.boardSoon();
+      return { result: { payout: 0, style: st } };
+    }
+    throw new GameError('Action inconnue.');
+  }
 
   // ---------- admin ----------
   async admin(request) {
@@ -332,27 +390,10 @@ export class Casino extends DurableObject {
       return reply(200, { ok: true, message: `${pl.name} : solde ${pl.p.balance} €` });
     }
     if (op === 'rename') {
-      const newName = String(msg.newName || '').trim();
-      if (!NAME_RE.test(newName)) return reply(400, { error: 'Pseudo : 2 à 16 caractères.' });
-      if (this.sql.exec('SELECT 1 FROM players WHERE name = ? AND id != ?', newName, row.id).toArray().length) return reply(409, { error: 'Pseudo déjà pris.' });
-      const oldName = this.sql.exec('SELECT name FROM players WHERE id = ?', row.id).one().name;
-      this.sql.exec('UPDATE players SET name = ? WHERE id = ?', newName, row.id);
-      // Ses connexions ouvertes prennent le nouveau nom tout de suite
-      for (const ws of this.ctx.getWebSockets()) {
-        const w = ws.deserializeAttachment();
-        if (w && w.id === row.id) ws.serializeAttachment({ ...w, name: newName });
-      }
-      for (const e of this.feed) if (e.name === oldName) e.name = newName;
-      await this.ctx.storage.put('feed', this.feed);
-      const seat = this.table.get(row.id); if (seat) seat.name = newName;
-      const r = await this.getRound();
-      if (r.bets && r.bets[row.id]) { r.bets[row.id].name = newName; await this.ctx.storage.put('round', r); }
+      const err = await this.renamePlayer(row.id, String(msg.newName || '').trim());
+      if (err) return reply(400, { error: err });
       refresh(row.id);
-      this.broadcast(this.boardMsg());
-      this.broadcast({ t: 'feedAll', feed: this.feed });
-      this.broadcast({ t: 'table', table: [...this.table.values()] });
-      this.broadcast({ t: 'round', round: await this.roundView(r) });
-      return reply(200, { ok: true, message: `Renommé en ${newName}.` });
+      return reply(200, { ok: true, message: `Renommé en ${String(msg.newName).trim()}.` });
     }
     if (op === 'resetDeposits') {
       const pl = this.load(row.id);
@@ -407,14 +448,15 @@ export class Casino extends DurableObject {
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde
   profile(name) {
-    const row = this.sql.exec('SELECT id, name, data, score, created, seen FROM players WHERE name = ?', String(name || '')).toArray()[0];
+    const row = this.sql.exec('SELECT id, name, data, score, created, seen, style FROM players WHERE name = ?', String(name || '')).toArray()[0];
     if (!row) return null;
     const p = JSON.parse(row.data);
     const rank = this.sql.exec('SELECT COUNT(*) AS n FROM players WHERE score > ?', row.score).one().n + 1;
     const hist = this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
-      titles: this.boardData().titles[row.name] || [], online: this.activeNames().includes(row.name),
+      titles: this.shownTitles(this.boardData().titles[row.name] || [], row.style), heldTitles: this.boardData().titles[row.name] || [],
+      style: JSON.parse(row.style || '{}'), colors: CARD_COLORS, online: this.activeNames().includes(row.name),
       inventoryValue: inventoryValue(p), played: p.played,
       inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,
@@ -561,7 +603,8 @@ export class Casino extends DurableObject {
       if (msg.game === 'roulette' && msg.action === 'bet') res = await this.rouletteBet(pl, msg.params);
       else if (msg.game === 'roulette') throw new GameError('En ligne, la roulette se joue en tours partagés.');
       else if (msg.game === 'gifs' && msg.action === 'send') res = this.sendGifs(pl, msg.params || {}, ctx);
-      else if (msg.game === 'rps' && ['duel', 'accept', 'cancel', 'move'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
+      else if (msg.game === 'account') res = await this.account(pl, msg.action, msg.params || {});
+      else if (msg.game === 'rps' && ['duel', 'accept', 'cancel', 'move', 'decline'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
       else {
         if (msg.game === 'stocks') ctx.prices = (await this.market()).prices;
         res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
@@ -620,7 +663,8 @@ export class Casino extends DurableObject {
   sendGifs(pl, params, ctx) {
     const target = this.sql.exec('SELECT id, name FROM players WHERE name = ?', String(params.to || '')).toArray()[0];
     if (!target) throw new GameError('Joueur introuvable.');
-    if (target.id !== pl.id && !this.activeNames().includes(target.name)) throw new GameError(`${target.name} n’est pas en ligne : les gifs ne s’envoient qu’aux joueurs connectés.`);
+    if (target.id === pl.id) throw new GameError('Tu ne peux pas t’envoyer un gif à toi-même.');
+    if (!this.activeNames().includes(target.name)) throw new GameError(`${target.name} n’est pas en ligne : les gifs ne s’envoient qu’aux joueurs connectés.`);
     const g = params.gif || {};
     const url = String(g.url || '');
     if (url.length > 2000 || !/^https?:\/\//.test(url)) throw new GameError('Lien de gif invalide.');
@@ -754,7 +798,7 @@ export class Casino extends DurableObject {
       const d = { id: crypto.randomUUID().slice(0, 8), from: pl.name, fromId: pl.id, bet, to, at: Date.now() };
       this.duels.push(d);
       await this.saveDuels();
-      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'note', text: `${pl.name} te défie au chifoumi en ${WIN_POINTS} points (${String(bet).replace('.', ',')} €) : va dans Chifoumi pour accepter` }); }
+      if (to) { const t = this.sql.exec('SELECT id FROM players WHERE name = ?', to).one(); this.notify(t.id, { t: 'duelOffer', duel: { id: d.id, from: d.from, bet: d.bet, to: d.to } }); }
       return { result: { duel: d.id, bet, payout: 0, label: 'défi lancé' } };
     }
     if (action === 'move') {
@@ -775,6 +819,12 @@ export class Casino extends DurableObject {
     }
     const d = this.duels.find((x) => x.id === params.id);
     if (!d) throw new GameError('Ce défi n’existe plus.');
+    if (action === 'decline') {
+      if (!d.to || d.to.toLowerCase() !== pl.name.toLowerCase()) throw new GameError('Ce défi ne t’est pas adressé.');
+      await this.refundDuel(d, null);
+      this.notify(d.fromId, { t: 'note', text: `${pl.name} a refusé ton défi : ta mise est rendue.` });
+      return { result: { declined: true, payout: 0, label: 'défi refusé' } };
+    }
     if (action === 'cancel') {
       if (d.fromId !== pl.id) throw new GameError('Ce n’est pas ton défi.');
       pl.p.balance = money(pl.p.balance + d.bet);

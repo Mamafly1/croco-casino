@@ -240,6 +240,7 @@ function connect() {
       closeLogin();
       setStatus('online');
       startPing();
+      for (const d of casino.duels) if (d.to === m.me.name) { duelOffer(d); break; } // défi reçu pendant qu'on n'était pas là
       emit('me', m.me); emit('board', m.board); emit('boards', casino.boards); emit('feeds', m.feed); emit('round', m.round); emit('table', m.table); emit('online', m.online); emit('duels', casino.duels);
     } else if (m.t === 'login') {
       showLogin(m.players || [], m.error || '');
@@ -249,6 +250,7 @@ function connect() {
       waiting.delete(m.id); clearTimeout(w.timer);
       if (m.ok) w.resolve(m); else w.reject(new GameError(m.error));
     } else if (m.t === 'me') { casino.me = m.me; emit('me', m.me); renderWallet(); }
+    else if (m.t === 'duelOffer') duelOffer(m.duel);
     else if (m.t === 'feed') addFeed(m.e);
     else if (m.t === 'feedAll') { casino.feed = m.feed; emit('feeds', m.feed); }
     else if (m.t === 'board') { casino.board = m.board; if (m.boards) casino.boards = m.boards; emit('board', m.board); emit('boards', casino.boards); }
@@ -366,16 +368,16 @@ export function mountShell(active) {
   const links = GAMES.map((g) => `<a href="${GAME_INFO[g].href}" title="${GAME_INFO[g].name}"${g === active ? ' aria-current="page"' : ''}>${pixelIcon(g, 18)}<span>${GAME_INFO[g].short || GAME_INFO[g].name}</span></a>`).join('');
   top.innerHTML = `
     <a class="brand" href="index.html"${active === 'home' ? ' aria-current="page"' : ''}>${pixelIcon('crown', 22)}<span>CROCO<br> CASINO</span></a>
-    <nav class="nav" aria-label="Jeux">${links}</nav>
+    <nav class="nav" aria-label="Jeux">${links}<span class="nav-sep" aria-hidden="true"></span>
+      <a href="travail.html" title="Travail (remplit ton compte en banque)"${active === 'work' ? ' aria-current="page"' : ''}>${pixelIcon('work', 18)}<span>Travail</span></a>
+      <button type="button" id="gifBtn" title="Envoyer un gif à un joueur en ligne">${pixelIcon('gifs', 18)}<span>Gifs</span></button>
+    </nav>
     <div class="wallet">
       <div>
-        <div class="wallet-label">Solde <span class="net" id="net"></span> <button class="who-chip" id="whoChip" type="button" hidden></button></div>
+        <div class="wallet-label">Solde <span class="net" id="net"></span></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
       </div>
-      <button class="work-btn gif-btn" id="gifBtn" type="button" title="Envoyer un gif à un joueur" aria-label="Envoyer un gif">GIF</button>
-      <a class="work-btn" href="travail.html" title="Travailler (remplit ton compte en banque)" aria-label="Travailler"${active === 'work' ? ' aria-current="page"' : ''}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>
-      </a>
+      <button class="me-btn" id="meBtn" type="button" title="Mon profil et paramètres" aria-label="Mon profil et paramètres"><span id="meIni">?</span></button>
       <button id="topup" class="topup" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Déposer
@@ -387,7 +389,7 @@ export function mountShell(active) {
   setupInstall();
   $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
-  $('whoChip').addEventListener('click', () => { if (confirm(`Changer de joueur ? (${casino.me.name})`)) switchPlayer(); });
+  $('meBtn').addEventListener('click', () => import('./profile.js').then((m) => m.openProfile(casino.me.name)));
   renderWallet();
   if (casino.online) connect();
   else setTimeout(() => { emit('me', casino.me); emit('feeds', casino.feed); }, 0);
@@ -403,11 +405,12 @@ function renderWallet() {
     n.textContent = s === 'solo' ? 'Solo' : s === 'online' ? 'En ligne' : s === 'connecting' ? 'Connexion…' : 'Hors ligne';
     n.title = s === 'solo' ? 'Solo : aucun serveur configuré, ton solde reste dans ce navigateur.' : n.textContent;
   }
-  const w = $('whoChip');
-  if (w) {
-    w.hidden = !(casino.online && casino.status === 'online' && casino.me.name);
-    w.textContent = casino.me.name || '';
-    w.title = 'Changer de joueur';
+  // bouton profil : l'initiale du pseudo sur la couleur choisie pour sa carte
+  const ini = $('meIni');
+  if (ini) {
+    ini.textContent = (casino.me.name || '?').trim().charAt(0).toUpperCase();
+    $('meBtn').style.setProperty('--c', (casino.me.style && casino.me.style.color) || '#4b8cff');
+    $('meBtn').title = `Mon profil et paramètres (${casino.me.name || ''})`;
   }
 }
 
@@ -580,6 +583,50 @@ function setupInstall() {
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; show(false); });
   addEventListener('appinstalled', () => { const b = $('installBar'); if (b) b.remove(); });
   if (/iphone|ipad|ipod/i.test(navigator.userAgent)) setTimeout(() => show(true), 1500);
+}
+
+// ---------- défi reçu au chifoumi : fenêtre Accepter / Refuser ----------
+const seenOffers = new Set();
+function duelOffer(d) {
+  if (!d || seenOffers.has(d.id)) return;
+  seenOffers.add(d.id);
+  const old = $('duelOffer'); if (old) old.remove();
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.id = 'duelOffer';
+  m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="doTitle">
+    <div class="sheet-head"><h2 id="doTitle">Défi au chifoumi</h2><button class="x" type="button" data-close aria-label="Fermer">${X_ICON}</button></div>
+    <div class="step">
+      <p class="duel-offer"><b>${esc(d.from)}</b> te défie en 3 points pour <b>${eur(d.bet)}</b>. Le gagnant prend les deux mises.</p>
+      <div class="offer-btns"><button class="btn-ghost" type="button" data-no>Refuser</button><button class="btn-main" type="button" data-yes>Accepter</button></div>
+      <p class="muted small" id="doMsg">Tu peux toujours accepter plus tard depuis le menu Chifoumi.</p>
+    </div></div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.addEventListener('click', async (e) => {
+    if (e.target === m || e.target.closest('[data-close]')) return close();
+    const yes = e.target.closest('[data-yes]'), no = e.target.closest('[data-no]');
+    if (!yes && !no) return;
+    m.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try {
+      await casino.play('rps', yes ? 'accept' : 'decline', { id: d.id });
+      casino.reveal(0);
+      close();
+      if (yes && !/pfc\.html/.test(location.pathname)) location.href = 'pfc.html';
+      else if (no) toast(`Défi de ${d.from} refusé`);
+    } catch (err) {
+      $('doMsg').textContent = err.message;
+      m.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+    }
+  });
+}
+
+// ---------- paramètres ----------
+// Forcer la mise à jour : on vide les copies gardées par l'appli et on recharge (le site redemande tout au serveur)
+export async function forceUpdate() {
+  try { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); } catch {}
+  try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.update().catch(() => {}))); } catch {}
+  location.reload();
 }
 
 // ---------- petit message en haut de l'écran ----------

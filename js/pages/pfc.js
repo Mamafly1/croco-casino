@@ -96,15 +96,16 @@ function renderDuels() {
     const mine = d.from === me, forOther = d.to && d.to !== me && !mine;
     return `<div class="duel"${d.to === me ? ' style="outline:2px solid var(--gold)"' : ''}><div class="duel-head"><span>${esc(d.from)}${d.to === me ? ' te défie !' : d.to ? ` → ${esc(d.to)}` : ' (défi ouvert)'}</span><span>${eur(d.bet)} · en 3 points</span></div>
       ${mine ? `<button class="btn-ghost" type="button" data-cancel="${d.id}">Annuler mon défi</button>` : forOther ? '<span class="muted small">Défi réservé à quelqu’un d’autre</span>'
-      : `<button class="btn-main" type="button" data-acc="${d.id}">Accepter (mise ${eur(d.bet)})</button>`}</div>`;
+      : `<div class="offer-btns">${d.to === me ? `<button class="btn-ghost" type="button" data-dec="${d.id}">Refuser</button>` : ''}<button class="btn-main" type="button" data-acc="${d.id}">Accepter (mise ${eur(d.bet)})</button></div>`}</div>`;
   }).join('') : '<p class="muted">Aucun défi pour l’instant. Lance le tien avec l’onglet « Défier un joueur ».</p>';
 }
 $('duels').addEventListener('click', async (e) => {
-  const c = e.target.closest('[data-cancel]'), a = e.target.closest('[data-acc]');
-  if (busy || (!c && !a)) return;
+  const c = e.target.closest('[data-cancel]'), a = e.target.closest('[data-acc]'), dec = e.target.closest('[data-dec]');
+  if (busy || (!c && !a && !dec)) return;
   busy = true; $('msg').textContent = '';
   try {
-    await casino.play('rps', c ? 'cancel' : 'accept', { id: (c || a).dataset[c ? 'cancel' : 'acc'] });
+    if (dec) await casino.play('rps', 'decline', { id: dec.dataset.dec });
+    else await casino.play('rps', c ? 'cancel' : 'accept', { id: (c || a).dataset[c ? 'cancel' : 'acc'] });
     casino.reveal(0);
   } catch (err) { $('msg').textContent = err.message; }
   finally { busy = false; }

@@ -86,7 +86,7 @@ a { color: inherit; }
   border-radius: 10px;
   background: var(--panel);
 }
-.nav a {
+.nav a, .nav button {
   flex: none;
   display: flex;
   align-items: center;
@@ -99,7 +99,9 @@ a { color: inherit; }
   text-decoration: none;
   white-space: nowrap;
 }
-.nav a:hover { color: var(--ink); background: var(--panel-2); }
+.nav button { border: 0; background: none; cursor: pointer; font-family: inherit; }
+.nav a:hover, .nav button:hover { color: var(--ink); background: var(--panel-2); }
+.nav-sep { flex: none; width: 1px; margin: 6px 2px; background: var(--line); }
 .nav a[aria-current="page"] { background: var(--gold); color: var(--gold-ink); }
 .wallet {
   display: flex;
@@ -140,10 +142,6 @@ a { color: inherit; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.work-btn { flex: none; display: grid; place-items: center; width: 38px; height: 34px; border-radius: 8px; background: var(--panel-2); color: var(--gold); }
-.work-btn svg { width: 18px; height: 18px; }
-.gif-btn { border: 0; font: 9px var(--font-pixel); color: #ff6fd8; cursor: pointer; }
-.work-btn[aria-current="page"] { background: var(--gold); color: var(--gold-ink); }
 .bank-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--field); font-size: 13.5px; }
 .bank-line .btn-link { min-height: 36px; padding: 4px 6px; }
 .topup svg { width: 15px; height: 15px; }
@@ -473,7 +471,7 @@ a { color: inherit; }
 @keyframes dealIn { from { transform: translate(40px, -30px) rotate(8deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* 8 jeux : sur un écran moyen, seul le jeu ouvert garde son nom (les autres : icône + infobulle) */
-@media (max-width: 1400px) { .nav a:not([aria-current]) span { display: none; } .nav a { justify-content: center; } }
+@media (max-width: 1400px) { .nav a:not([aria-current]) span, .nav button span { display: none; } .nav a, .nav button { justify-content: center; } }
 @media (max-width: 760px) {
   .game { grid-template-columns: minmax(0, 1fr); }
   .stage { order: -1; }
@@ -486,15 +484,14 @@ a { color: inherit; }
   .brand { flex: 1 1 100%; justify-content: center; }
   .brand br { display: none; }
   .nav { order: 3; flex-basis: 100%; }
-  .nav a span { display: none; }
-  .nav a { flex: 1 0 auto; justify-content: center; }
+  .nav a span, .nav button span { display: none; }
+  .nav a, .nav button { flex: 1 0 auto; justify-content: center; padding-left: 7px; padding-right: 7px; }
   .wallet { flex: 1 1 100%; justify-content: space-between; }
   .lb { font-size: 10px; }
   .lb td { padding: 10px 6px; }
   .lb th { padding: 0 6px 2px; font-size: 9px; }
   /* Cibles tactiles d'au moins 44 px sur téléphone */
   .tabs button, .seg button, .topup, .nav a, .brand { min-height: 44px; }
-  .work-btn { width: 40px; height: 44px; }
   .wallet { gap: 6px; }
   /* Téléphone : « Solde ● pseudo » sur une seule ligne ; l'état de connexion devient une pastille de couleur */
   .wallet-label { flex-wrap: nowrap; min-width: 0; }
@@ -601,3 +598,24 @@ details.odds > .paytable { margin-top: 10px; }
 .install-bar div { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .install-bar small { color: var(--muted); font-size: 12px; line-height: 1.35; }
 .install-bar .btn-main { width: auto; flex: none; padding: 10px 14px; }
+
+/* bouton profil (initiale sur la couleur de sa carte) */
+.me-btn { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border: 2px solid rgba(255, 255, 255, 0.25); border-radius: 50%; background: var(--c, #4b8cff); color: #181818; font: 14px var(--font-pixel); cursor: pointer; }
+.me-btn:hover { filter: brightness(1.1); }
+/* réglages sur son profil */
+.settings { display: grid; gap: 12px; padding: 12px; border-radius: 10px; background: var(--field); }
+.set-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.set-row .text-in { flex: 1 1 160px; min-width: 0; }
+.set-row .btn-ghost { flex: 1 1 auto; min-height: 44px; }
+.btn-ghost.danger { border-color: var(--red); color: #ff8a84; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--line); background: var(--sw); cursor: pointer; }
+.sw.auto { width: auto; padding: 0 10px; background: var(--panel-2); color: var(--ink); font-weight: 800; font-size: 12px; }
+.sw[aria-pressed="true"] { outline: 3px solid #fff; outline-offset: 2px; }
+.set-titles { display: grid; gap: 6px; }
+.set-titles label { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; background: var(--panel-2); font-weight: 700; cursor: pointer; }
+.set-titles input { width: 18px; height: 18px; accent-color: var(--gold); }
+/* défi reçu */
+.duel-offer { margin: 0; font-size: 15px; line-height: 1.5; }
+.offer-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.offer-btns > :only-child { grid-column: 1 / -1; }

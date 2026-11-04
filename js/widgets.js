@@ -18,7 +18,7 @@ export function mountBoard(el, { limit = 10 } = {}) {
   const track = el.querySelector('.lb-track'), dots = el.querySelector('.lb-dots');
   const table = (head, body, cols) => `<table class="lb${cols === 2 ? ' two' : ''}"><thead><tr>${head}</tr></thead>
     <tbody>${body || `<tr><td colspan="${cols}" style="text-align:center">PERSONNE ENCORE</td></tr>`}</tbody></table>`;
-  const row = (r, i, extra, cells) => `<tr class="${r.name === casino.me.name ? 'me' : ''}" data-name="${esc(r.name)}" tabindex="0" title="Voir le profil">
+  const row = (r, i, extra, cells) => `<tr class="${r.name === casino.me.name ? 'me' : ''}" data-name="${esc(r.name)}"${/^#[0-9a-f]{6}$/i.test(r.color || '') ? ` style="--c:${r.color}"` : ''} tabindex="0" title="Voir le profil">
     <td class="name"><span class="rk">${i + 1}</span>${esc(r.name.toUpperCase())}${extra || ''}</td>${cells}</tr>`;
 
   const slides = () => {
