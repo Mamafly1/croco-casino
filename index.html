@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m14">
+<link rel="stylesheet" href="css/casino.css?v=m16">
 <style>
 .lobby { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: start; }
 .hero { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px 20px; padding: 22px 18px; border-radius: 12px; background: var(--panel); }
@@ -40,12 +40,11 @@
       <div id="feed"></div>
     </section>
   </div>
-  <section class="board-arcade" id="board" aria-label="Argent total"></section>
-  <section class="bcards" id="bcards" aria-label="Classements secondaires"></section>
+  <section class="board-arcade" id="board" aria-label="Classements"></section>
 </main>
 <script type="module">
 import { casino, mountShell, $, esc } from './js/core.js';
-import { mountBoard, mountBoards, mountFeed } from './js/widgets.js';
+import { mountBoard, mountFeed } from './js/widgets.js';
 import { pixelIcon, GAME_INFO } from './js/icons.js';
 import { rtp as slotsRtp } from './js/engine/slots.js';
 
@@ -64,7 +63,6 @@ const DESC = {
 $('tiles').innerHTML = Object.entries(GAME_INFO).map(([g, info]) =>
   `<a class="tile" href="${info.href}">${pixelIcon(g, 54)}<b>${info.name.toUpperCase()}</b><small>${DESC[g][0]}</small><span class="rtp">${DESC[g][1]}</span></a>`).join('');
 mountBoard($('board'), { limit: 10 });
-mountBoards($('bcards'));
 mountFeed($('feed'), { limit: 10 });
 const on = () => {
   const n = casino.onlineCount;

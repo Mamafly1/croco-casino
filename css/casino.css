@@ -574,16 +574,22 @@ details.odds[open]::details-content { block-size: auto; }
 details.odds > :not(summary) { margin-top: 4px; }
 details.odds > .paytable { margin-top: 10px; }
 
-/* classements secondaires et titres */
+/* titres des classements, à côté du pseudo */
 .ttl { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--gold); color: var(--gold-ink); font: 9px/1.7 var(--font-pixel); letter-spacing: 0.02em; vertical-align: middle; white-space: nowrap; }
-.bcards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 10px; min-width: 0; }
-.bcard { padding: 12px; border-radius: 12px; background: var(--panel); display: grid; gap: 8px; align-content: start; min-width: 0; }
-.bcard-head { display: grid; gap: 2px; }
-.bcard-head b { font: 13px/1.5 var(--font-pixel); color: var(--gold); }
-.bcard-head small { color: var(--muted); font-weight: 700; font-size: 12px; }
-.blist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.blist li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border-radius: 7px; background: var(--field); font-size: 13px; }
-.blist li.me { outline: 1px solid var(--gold); }
-.blist .rk { font: 10px var(--font-pixel); color: var(--muted); width: 14px; flex: none; }
-.blist .who { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); font-weight: 800; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-.blist .bv { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb .ttls { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; white-space: normal; }
+.lb .ttls .ttl { margin-left: 0; }
+
+/* classements en carrousel : on glisse d'un classement à l'autre, les points montrent où on en est */
+.lb-track { display: flex; align-items: flex-start; transition: height 0.25s ease; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline: none; }
+.lb-track::-webkit-scrollbar { display: none; }
+.lb-track:focus-visible { box-shadow: 0 0 0 2px var(--gold); border-radius: 8px; }
+.lb-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+.lb-sub { margin: -10px 0 4px; color: #b5b5aa; font-size: 13px; text-align: center; line-height: 1.4; }
+.lb.two td.name { width: 70%; }
+.lb-nav { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 12px; }
+.lb-arrow { width: 44px; height: 44px; flex: none; border: 0; border-radius: 8px; background: none; color: #fff; font: 22px/1 var(--font-pixel); cursor: pointer; }
+.lb-arrow:disabled { opacity: 0.25; cursor: default; }
+.lb-dots { display: flex; align-items: center; }
+.lb-dots button { display: grid; place-items: center; width: 26px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
+.lb-dots i { display: block; width: 8px; height: 8px; border-radius: 4px; background: #5a5a54; transition: width 0.25s ease, background 0.25s ease; }
+.lb-dots button.on i { width: 22px; background: var(--gold); }

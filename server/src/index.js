@@ -16,13 +16,13 @@ const ROUND_MS = 30000;   // temps pour jouer une manche de chifoumi entre joueu
 const WIN_POINTS = 3;     // points pour gagner une partie de chifoumi
 // Classements secondaires : chacun a un titre, donné à celui qui est en tête
 const BOARDS = [
-  { key: 'win', label: 'Gros coup', title: 'Le Gros Coup', unit: 'eur' },
-  { key: 'mult', label: 'Meilleur multiplicateur', title: 'Kamikaze', unit: 'x' },
-  { key: 'rps', label: 'Roi du chifoumi', title: 'Maître Caillou', unit: 'n' },
-  { key: 'tasks', label: 'Bosseur', title: 'Le Stagiaire', unit: 'n' },
-  { key: 'stock', label: 'Bourse : gains réalisés', title: 'Yomi Denzel', unit: 'eur' },
-  { key: 'gifts', label: 'Dépenses en gifs', title: 'Sonion', unit: 'eur' },
-  { key: 'parties', label: 'Parties jouées', title: 'The Gambler', unit: 'n' },
+  { key: 'win', label: 'Le plus gros gain en une seule partie', col: 'GAIN', title: 'Le Gros Coup', unit: 'eur' },
+  { key: 'mult', label: 'Le plus gros multiplicateur gagné (×)', col: 'MULTI', title: 'Kamikaze', unit: 'x' },
+  { key: 'rps', label: 'Parties de chifoumi gagnées', col: 'VICTOIRES', title: 'Maître Caillou', unit: 'n' },
+  { key: 'tasks', label: 'Tâches de travail réussies', col: 'TÂCHES', title: 'Le Stagiaire', unit: 'n' },
+  { key: 'stock', label: 'Argent gagné en revendant des actions', col: 'GAINS', title: 'Yomi Denzel', unit: 'eur' },
+  { key: 'gifts', label: 'Argent dépensé en gifs', col: 'DÉPENSÉ', title: 'Sonion', unit: 'eur' },
+  { key: 'parties', label: 'Nombre de parties jouées', col: 'PARTIES', title: 'The Gambler', unit: 'n' },
 ];
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
@@ -222,8 +222,8 @@ export class Casino extends DurableObject {
   // Têtes de classement, et titres détenus (pour l'affichage à côté du pseudo)
   boardData() {
     const list = BOARDS.map((b) => ({
-      key: b.key, label: b.label, title: b.title, unit: b.unit,
-      rows: this.sql.exec('SELECT r.v AS v, p.name AS name FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 3', b.key).toArray()
+      key: b.key, label: b.label, col: b.col, title: b.title, unit: b.unit,
+      rows: this.sql.exec('SELECT r.v AS v, p.name AS name FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 10', b.key).toArray()
         .map((x) => ({ name: x.name, v: x.v })),
     }));
     const titles = {};
