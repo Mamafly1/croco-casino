@@ -1,6 +1,6 @@
 // Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve,
 // prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
-import { casino, mountShell, pageReady, $, eur, esc, nf0, loadCases, reduceMotion } from '../core.js';
+import { casino, mountShell, pageReady, $, eur, esc, nf0, loadCases, reduceMotion, sfx } from '../core.js';
 import { img, imgTag } from '../steamimg.js';
 import { mountFeed, floatBar } from '../widgets.js';
 import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m22');
+    const v = await import('../viewer3d.js?v=m23');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -102,7 +102,16 @@ function spinTrack(reel) {
     if (reduceMotion) { t.style.transform = `translateX(${x}px)`; resolve(); return; }
     t.style.transition = 'transform 5.2s cubic-bezier(.12,.72,.18,1)';
     t.style.transform = `translateX(${x}px)`;
-    t.addEventListener('transitionend', () => resolve(), { once: true });
+    // un petit tic chaque fois qu'un objet passe sous le repère
+    let lastSlot = -1, ticking = true;
+    (function tick() {
+      if (!ticking) return;
+      const px = new DOMMatrix(getComputedStyle(t).transform).m41, slot = Math.floor((-px + box.clientWidth / 2) / w);
+      if (slot !== lastSlot) { lastSlot = slot; sfx.play('click', { vol: 1, gap: 40 }); }
+      requestAnimationFrame(tick);
+    })();
+    sfx.play('shuffle', { vol: 0.5 });
+    t.addEventListener('transitionend', () => { ticking = false; resolve(); }, { once: true });
   });
 }
 
@@ -344,6 +353,13 @@ function stop3D() {
 }
 
 function showItem(it, fresh) {
+  if (fresh) { // le son dépend de la rareté
+    if (it.t === 'rare') sfx.play('jackpot');
+    else if (it.t === 'covert') { sfx.play('win'); }
+    else if (it.t === 'classified') sfx.play('rise');
+    else if (it.t === 'restricted') sfx.play('up', { vol: 0.7 });
+    else sfx.play('chipStack');
+  }
   const m = $('reveal');
   m.querySelector('.sheet').style.setProperty('--tc', tc(it.t));
   $('scene').style.setProperty('--tc', tc(it.t));

@@ -3,7 +3,7 @@
 //  - Gravité : tombe, rebondit, s'empile (les gifs se poussent entre eux) et ne sort jamais seul de l'écran ;
 //  - Plein écran : couvre tout pendant 20 s ; un appui long permet de le traîner, mais il revient en place.
 // Pour jeter un petit gif : le prendre au doigt et le lancer hors de l'écran, ou le lâcher sur la poubelle en bas.
-import { casino, $, esc, eur, toast, X_ICON } from './core.js';
+import { casino, $, esc, eur, toast, X_ICON, sfx } from './core.js';
 import { GIF_PRICES, GIF_MODES, GIF_MAX_SEND } from './engine/games.js';
 
 const CROCO = { id: 'croco', title: 'Croco', url: new URL('crocodile.gif', location.href).href, w: 240, h: 240 };
@@ -25,7 +25,7 @@ export function mountGifs() {
   layer.appendChild(trash);
   document.body.appendChild(layer);
   casino.on('gifs', (m) => {
-    if (m.note) toast(m.note);
+    if (m.note) { toast(m.note); sfx.play('notify'); }
     for (const g of m.add || []) addBody(g);
   });
   addEventListener('resize', () => { for (const b of bodies) if (b.mode !== 'full') keepIn(b); wake(); });
@@ -452,6 +452,7 @@ async function send() {
   try {
     const gif = { url: picked.url, name: picked.title, w: picked.w || 0, h: picked.h || 0 };
     const r = await casino.play('gifs', 'send', { to, mode, qty, gif });
+    sfx.play('switch');
     toast(`${qty}× ${picked.title} envoyé${qty > 1 ? 's' : ''} à ${r.to || to}`);
     $('gifBox').hidden = true;
   } catch (e) { $('gifCost').textContent = e.message; }

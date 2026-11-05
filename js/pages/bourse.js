@@ -1,5 +1,5 @@
 // Page Bourse : Caca Cola, Children, Peer. Le cours vient du serveur (ou du navigateur en solo).
-import { casino, mountShell, $, eur, nf2, esc, toast } from '../core.js';
+import { casino, mountShell, $, eur, nf2, esc, toast, sfx } from '../core.js';
 import { mountFeed, betControl } from '../widgets.js';
 import { COMPANIES, FEE } from '../engine/market.js';
 
@@ -113,6 +113,7 @@ $('buy').addEventListener('click', async () => {
   $('msg').textContent = '';
   try {
     const r = await casino.play('stocks', 'buy', { co: sel, amount: amount.get() });
+    sfx.play('chipHandle');
     toast(`Acheté ${nf2.format(r.sh)} action${r.sh >= 2 ? 's' : ''} ${COMPANIES.find((c) => c.id === sel).name} pour ${eur(r.amount)}`);
     await refresh();
   } catch (e) { $('msg').textContent = e.message; if (/Solde insuffisant/.test(e.message)) casino.nudgeDeposit(); }
@@ -121,6 +122,7 @@ const sell = async (params) => {
   $('msg').textContent = '';
   try {
     const r = await casino.play('stocks', 'sell', { co: sel, ...params });
+    sfx.play(r.gain >= 0 ? 'coin' : 'chipLay'); if (r.gain >= 0) sfx.play('coin', { delay: 0.12 });
     toast(`Vendu pour ${eur(r.proceeds)} (${r.gain >= 0 ? '+' : ''}${eur(r.gain)})`);
     await refresh();
   } catch (e) { $('msg').textContent = e.message; }

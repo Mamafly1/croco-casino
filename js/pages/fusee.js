@@ -1,5 +1,5 @@
 // Page Fusée : le multiplicateur monte, tu retires avant l'explosion.
-import { casino, mountShell, $, eur, reduceMotion } from '../core.js';
+import { casino, mountShell, $, eur, reduceMotion, sfx } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { mult, timeTo } from '../engine/crash.js';
 
@@ -14,6 +14,7 @@ $('oddsNote').innerHTML = 'La fusée explose à un point tiré au hasard au déc
   '1 fusée sur 100 explose dès le départ (×1,00). Quel que soit le moment où tu retires, le jeu garde <strong>1 %</strong> de ce qui est misé (retour 99 %).';
 
 // état du vol : idle | flying | after (retiré, la fusée continue jusqu'à l'explosion) | boom
+let engine = null;
 let state = 'idle', t0 = 0, flight = null, pollT = 0, cashed = null, endAt = null, boomAt = 0;
 const hist = [];
 
@@ -58,6 +59,7 @@ function frame() {
   const m = state === 'boom' ? flight.point : mult(performance.now() - t0);
   if (state === 'flying' || state === 'after') {
     $('mult').textContent = fx(m);
+    if (engine) engine.set(Math.min(1, 0.45 + Math.log(m + 0.01) / 4), Math.min(1.7, 0.85 + Math.log(m + 0.01) / 3)); // le moteur monte avec le multiplicateur
     if (state === 'flying') $('play').textContent = `Retirer ${fx(m)} · ${eur(flight.bet * m)}`;
     if (endAt != null && m >= endAt) boom();
   }
@@ -66,13 +68,16 @@ function frame() {
 }
 function boom() {
   state = 'boom'; boomAt = performance.now();
+  if (engine) { engine.stop(); engine = null; }
+  sfx.play('boom', { vol: 1, gap: 0 });
+  if (!cashed) sfx.play('lose', { delay: 0.5, vol: 0.8 });
   const p = flight.point;
   $('mult').textContent = fx(p);
   $('mult').className = 'mult ' + (cashed ? 'cashed' : 'boom');
   $('sub').textContent = cashed ? `Retiré à ${fx(cashed.mult)} : +${eur(cashed.payout - flight.bet)}` : `Boum à ${fx(p)}`;
   hist.unshift(p); hist.length = Math.min(hist.length, 14);
   $('points').innerHTML = hist.map((v) => `<span class="${v < 2 ? 'lo' : v >= 10 ? 'hi' : ''}">${fx(v)}</span>`).join('');
-  stats.add(flight.bet, cashed ? cashed.payout : 0, cashed ? cashed.mult : 0);
+  stats.add(flight.bet, cashed ? cashed.payout : 0, cashed ? cashed.mult : 0, true);
   clearInterval(pollT);
   $('play').textContent = 'Lancer la fusée';
   $('play').classList.remove('stop');
@@ -86,6 +91,7 @@ function settle(r) {
   if (r.mult) {
     cashed = { mult: r.mult, payout: r.payout };
     state = 'after';
+    sfx.result(flight.bet, r.payout);
     $('mult').className = 'mult cashed';
     $('sub').textContent = `Retiré à ${fx(r.mult)} : +${eur(r.payout - flight.bet)}`;
     $('play').textContent = 'Retiré !';
@@ -105,6 +111,9 @@ async function launch() {
     casino.reveal(0);
     flight = { bet: b, auto: r.auto, point: null };
     state = 'flying'; t0 = performance.now(); cashed = null; endAt = null; boomAt = 0;
+    sfx.play('switch', { vol: 1 });
+    if (engine) engine.stop();
+    engine = sfx.loop('engine', { vol: 0.45, rate: 0.85 });
     $('mult').className = 'mult'; $('sub').textContent = r.auto ? `Retrait auto à ${fx(r.auto)}` : '';
     $('play').classList.add('stop');
     $('play').disabled = false;

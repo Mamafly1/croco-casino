@@ -4,6 +4,8 @@ import { run, newPlayer, score, inventoryValue, stocksValue, GameError, PACKS, G
 import { newMarket, advance, setMarks } from './engine/market.js';
 import { view as bjView } from './engine/blackjack.js';
 import { rng } from './engine/rng.js';
+import { sfx } from './sound.js';
+export { sfx };
 import { pixelIcon, GAME_INFO } from './icons.js';
 
 const KEY = 'croco-casino-v1';
@@ -261,7 +263,7 @@ function connect() {
     else if (m.t === 'crash') { casino.me = m.me; emit('crash', m.result); emit('me', m.me); }
     else if (m.t === 'duels') { casino.duels = m.duels; emit('duels', m.duels); }
     else if (m.t === 'duelEnd') { casino.me = m.me; emit('duelEnd', m.result); emit('me', m.me); renderWallet(); }
-    else if (m.t === 'note') toast(m.text);
+    else if (m.t === 'note') { toast(m.text); sfx.play('notify'); }
     else if (m.t === 'match') {
       // partie de chifoumi en cours : sur une autre page, on prévient une fois
       if (m.match.phase === 'play' && !/pfc\.html/.test(location.pathname) && notedMatch !== m.match.id) { notedMatch = m.match.id; toast(`Ta partie de chifoumi contre ${m.match.opp} t’attend dans Chifoumi`); }
@@ -392,6 +394,8 @@ export function mountShell(active, { wait = false } = {}) {
   $('topup').addEventListener('click', openShop);
   setupInstall();
   watchUpdates();
+  // petit clic sur les boutons
+  document.addEventListener('pointerdown', (e) => { if (e.isPrimary && e.target.closest && e.target.closest('button:not(:disabled), summary, a.tile, .nav a')) sfx.play('click', { gap: 60, vary: 0.08 }); }, true);
   $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('meBtn').addEventListener('click', () => import('./profile.js').then((m) => m.openProfile(casino.me.name)));
@@ -517,6 +521,7 @@ function buildShop() {
         $('rcDate').textContent = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
         $('rcAmt').textContent = eur(r.amount);
         show('stepDone');
+        sfx.play('coin'); sfx.play('coin', { delay: 0.15 }); sfx.play('coin', { delay: 0.3 });
         $('doneBtn').focus();
         countUp(before, casino.shownBalance());
       } catch (err) {
@@ -607,6 +612,7 @@ function duelOffer(d) {
       <p class="muted small" id="doMsg">Tu peux toujours accepter plus tard depuis le menu Chifoumi.</p>
     </div></div>`;
   document.body.appendChild(m);
+  sfx.play('notify');
   const close = () => m.remove();
   m.addEventListener('click', async (e) => {
     if (e.target === m || e.target.closest('[data-close]')) return close();

@@ -1,5 +1,5 @@
 // Page Plinko : la partie est tirée par casino.play (navigateur en solo, serveur en ligne), puis animée.
-import { casino, mountShell, $, eur, nf2, nf0, nfx, reduceMotion as reduce } from '../core.js';
+import { casino, mountShell, $, eur, nf2, nf0, nfx, reduceMotion as reduce, sfx } from '../core.js';
 import { mountFeed } from '../widgets.js';
 import { TABLES, probs, rtp as plinkoRtp } from '../engine/plinko.js';
 
@@ -112,6 +112,7 @@ function startSeg(b, now) {
   } else if (b.seg < N) {
     from = contact(b.seg - 1, b.k); b.k += b.path[b.seg - 1]; to = contact(b.seg, b.k);
     dur = 0.2 * tempo * (0.9 + Math.random() * 0.2); hop = b.dy * 0.33;
+    sfx.play('chipHit', { vol: 0.6, gap: 30 });
   } else {
     from = contact(N - 1, b.k); b.k += b.path[N - 1];
     to = { x: W / 2 + (b.k - N / 2) * b.dx, y: BIN_TOP - b.R * 0.35 };
@@ -233,8 +234,19 @@ async function dropOne() {
   return true;
 }
 
+// Les chocs sur les clous : là où la bille change brusquement de direction dans la simulation
+function hitsOf(rec) {
+  const n = rec.xs.length, d = new Array(n).fill(0);
+  for (let i = 2; i < n; i++) d[i] = Math.hypot((rec.xs[i] - rec.xs[i - 1]) - (rec.xs[i - 1] - rec.xs[i - 2]), (rec.ys[i] - rec.ys[i - 1]) - (rec.ys[i - 1] - rec.ys[i - 2]));
+  const sorted = d.slice(2).sort((a, c) => a - c), med = sorted[Math.floor(sorted.length / 2)] || 0.01;
+  const hits = []; let last = -10;
+  for (let i = 2; i < n - 1; i++) if (d[i] > med * 3 && d[i] > 0.4 && i - last > 4) { hits.push([i, Math.min(1, d[i] / (med * 12))]); last = i; }
+  return hits;
+}
+
 function land(b) {
   const r = b.result;
+  sfx.play('chipStack', { vol: 0.9 }); sfx.result(r.bet, r.payout);
   casino.reveal(r.payout);
   st.profit += r.payout - r.bet;
   if (r.mult > st.best) st.best = r.mult;
@@ -263,6 +275,8 @@ function frame(now) {
     if (b.rec) {
       const rec = b.rec, n = rec.xs.length, fi = (now - b.t0) / (1000 / 60);
       const i0 = Math.min(n - 1, Math.floor(fi)), i1 = Math.min(n - 1, i0 + 1), f = Math.min(1, fi - i0);
+      if (!rec.hits) { rec.hits = hitsOf(rec); rec.hi = 0; }
+      while (rec.hi < rec.hits.length && rec.hits[rec.hi][0] <= fi) { sfx.play('chipHit', { vol: 0.35 + 0.65 * rec.hits[rec.hi][1], gap: 30 }); rec.hi++; }
       const px = rec.xs[i0] + (rec.xs[i1] - rec.xs[i0]) * f;
       const py = rec.ys[i0] + (rec.ys[i1] - rec.ys[i0]) * f;
       const pr = reduce ? 0 : rec.rs[i0] + (rec.rs[i1] - rec.rs[i0]) * f;

@@ -1,5 +1,5 @@
 // Page blackjack. Le sabot reste caché (sur le serveur en ligne) ; on ne reçoit que les cartes visibles.
-import { casino, mountShell, $, eur, esc } from '../core.js';
+import { casino, mountShell, $, eur, esc, sfx } from '../core.js';
 import { mountFeed, betControl, sessionStats, cardSVG } from '../widgets.js';
 
 mountShell('blackjack');
@@ -34,6 +34,8 @@ function render(v, animate = true) {
       <span class="res ${!h.result || h.result === 'push' ? '' : h.result === 'win' || h.result === 'blackjack' ? 'pos' : 'neg'}">${h.result ? RES[h.result] + (h.payout ? ' · ' + eur(h.payout) : '') : eur(h.bet)}</span>
     </div>`).join('');
   shown = { dealer: v.dealer.length, dealerKey, hidden: v.dealer.includes('??'), hands: v.hands.map((h) => h.cards.length) };
+  // un bruit de carte pour chaque carte qui arrive, l'une après l'autre
+  document.querySelectorAll('#dealer .deal-in, #hands .deal-in').forEach((c, i) => sfx.play(i === 0 ? 'slide' : 'card', { delay: i * 0.13, gap: 0 }));
   buttons();
 }
 function buttons() {

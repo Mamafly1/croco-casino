@@ -1,5 +1,5 @@
 // Page roulette : en solo la bille part quand tu cliques ; en ligne, tout le monde mise sur le même tour.
-import { casino, mountShell, $, eur, nf2, reduceMotion } from '../core.js';
+import { casino, mountShell, $, eur, nf2, reduceMotion, sfx } from '../core.js';
 import { mountFeed, sessionStats } from '../widgets.js';
 import { chipSVG, CHIP_VALUES } from '../symbols.js';
 import { WHEEL, color, returnFor } from '../engine/roulette.js';
@@ -78,6 +78,8 @@ function spinTo(n, ms = 7500) {
     for (const g of segs) { g.t0 = tt; g.t1 = tt + g.hop / w * (TS - TC); g.t2 = g.t1 + g.dwell / w * (TS - TC); tt = g.t2; }
     const vIn = -V1 - rotV(TC); // vitesse relative à la roue au moment de la chute
     const t0 = performance.now();
+    const ev = { seg: -1, fall: false, hop: 0, settle: false };
+    sfx.play('diceThrow', { vol: 0.9 }); // la bille est lancée
     (function step(now) {
       const t = Math.min(1, (now - t0) / ms), R = rot(t);
       let ball, r;
@@ -106,6 +108,13 @@ function spinTo(n, ms = 7500) {
         const u = (t - TS) / (1 - TS), last = segs[segs.length - 1];
         ball = R + target + Math.sign(last.to - last.from) * A * 0.25 * Math.sin(u * Math.PI * 2) * (1 - u) * (1 - u);
         r = rEnd;
+      }
+      // sons : cliquetis sur le bord, chute, chaque saut de case en case, pose
+      if (t < TC) { const s = Math.floor(ball / 45); if (s !== ev.seg) { ev.seg = s; sfx.play('click', { vol: 1, gap: 35 }); } }
+      else {
+        if (!ev.fall) { ev.fall = true; sfx.play('chipHit', { vol: 1 }); }
+        while (ev.hop < segs.length && t >= segs[ev.hop].t1) { sfx.play('chipHit', { vol: Math.max(0.3, 0.9 - ev.hop * 0.15), rate: 1 + ev.hop * 0.04 }); ev.hop++; }
+        if (!ev.settle && t >= TS) { ev.settle = true; sfx.play('chipLay', { vol: 0.8 }); }
       }
       draw(R, ball, r);
       if (t < 1) requestAnimationFrame(step); else done();
@@ -156,6 +165,7 @@ function removeOne(k) {
 }
 $('tbl').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || spinning) return;
+  sfx.play('chipLay');
   addBet(b.dataset.k, chip);
 });
 $('tbl').addEventListener('contextmenu', (e) => {

@@ -2,6 +2,7 @@
 import { casino, eur, esc, nf0, nf2, nfx, reduceMotion } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { openProfile } from './profile.js';
+import { sfx } from './sound.js';
 import { GAMES, GIF_MODES } from './engine/games.js';
 
 // ---------- classements : un carrousel qu'on fait glisser, « Argent total » en premier ----------
@@ -246,7 +247,7 @@ export function sessionStats(fmtBest = (x) => '×' + nfx.format(x)) {
     if (p) { p.textContent = (s.profit > 0.004 ? '+' : '') + eur(s.profit); p.className = s.profit > 0.004 ? 'pos' : s.profit < -0.004 ? 'neg' : ''; }
   };
   draw();
-  return { add(bet, payout, best = 0) { s.count++; s.wager += bet; s.profit += payout - bet; if (best > s.best) s.best = best; draw(); } };
+  return { add(bet, payout, best = 0, silent = false) { if (!silent) sfx.result(bet, payout); s.count++; s.wager += bet; s.profit += payout - bet; if (best > s.best) s.best = best; draw(); } };
 }
 
 // Barre d'usure : les zones que ce skin ne peut pas atteindre sont grisées et hachurées,

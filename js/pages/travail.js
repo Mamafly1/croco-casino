@@ -1,5 +1,5 @@
 // Page Travail : les 3 tâches du jour. Chaque tâche est un petit jeu de bureau ; le serveur vérifie la réponse et paie.
-import { casino, mountShell, $, eur, esc, toast } from '../core.js';
+import { casino, mountShell, $, eur, esc, toast, sfx } from '../core.js';
 import { makeTask } from '../engine/work.js';
 import { pixelIcon } from '../icons.js';
 
@@ -58,6 +58,7 @@ async function submit() {
   try {
     const r = await casino.play('work', 'submit', { i, ans: answer() });
     day = r;
+    sfx.play('up'); sfx.play('coin', { delay: 0.25 });
     toast(`Tâche réussie : +${eur(t.pay)} sur ton compte en banque`);
     open = -1;
     $('task').hidden = true;
@@ -65,6 +66,7 @@ async function submit() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) {
     $('tmsg').textContent = e.message;
+    sfx.play('lose', { vol: 0.8 });
     $('tgo').disabled = false;
   }
 }

@@ -1,5 +1,5 @@
 // Page machine à sous.
-import { casino, mountShell, $, eur, nfx, nf0, reduceMotion } from '../core.js';
+import { casino, mountShell, $, eur, nfx, nf0, reduceMotion, sfx } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { symbolSVG, SYMBOL_NAMES } from '../symbols.js';
 import { SYMBOLS, COUNTS, PAYS, TWO_CHERRIES, LINES, STRIPS, rtp } from '../engine/slots.js';
@@ -85,6 +85,7 @@ function animate(res) {
       s.addEventListener('transitionend', function end() {
         s.removeEventListener('transitionend', end);
         current[r] = to;
+        sfx.play('chipStack', { vol: 0.9, gap: 0 }); // le rouleau s'arrête
         drawStatic(r);
         if (++done === 3) resolve();
       });
@@ -96,6 +97,7 @@ async function spinOnce() {
   if (spinning) return false;
   const b = bet.get();
   spinning = true;
+  sfx.play('switch', { vol: 1 }); // le levier
   $('machine').classList.add('spinning');
   $('lines').innerHTML = '';
   $('result').textContent = '';

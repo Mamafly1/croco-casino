@@ -637,3 +637,9 @@ body:not(.ready) > * { visibility: hidden; animation: showLate 0s 4s forwards; }
 .me-btn { position: relative; }
 .me-btn.has-update::after { content: ""; position: absolute; top: -2px; right: -2px; width: 13px; height: 13px; border-radius: 50%; background: #3ddc5f; border: 2px solid var(--panel); }
 .btn-ghost.upd { width: 100%; border-color: var(--gold); color: var(--gold); }
+
+/* réglage des sons */
+.snd-row { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; }
+.snd-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
+.snd-row input[type="range"] { flex: 1; min-width: 0; height: 44px; accent-color: var(--gold); }
+.snd-row span { flex: none; }

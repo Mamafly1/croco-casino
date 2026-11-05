@@ -1,5 +1,5 @@
 // Fenêtre de profil d'un joueur : stats, courbe du solde (survol = ce qui l'a fait bouger), inventaire CS.
-import { casino, eur, esc, nf0, $, loadCases, forceUpdate, checkUpdate, hasUpdate, switchPlayer, toast } from './core.js';
+import { casino, eur, esc, nf0, $, loadCases, forceUpdate, checkUpdate, hasUpdate, switchPlayer, toast, sfx } from './core.js';
 import { pixelIcon, GAME_INFO } from './icons.js';
 import { GAMES } from './engine/games.js';
 import { TIER_INFO, WEARS, ODDS, wearProbs } from './engine/cases.js';
@@ -52,7 +52,10 @@ function box() {
     m.scrollTop = 0; m.querySelector('.sheet').scrollTop = 0;
   });
   // titres affichés : on garde les cases cochées
+  $('profBody').addEventListener('input', (e) => { if (e.target.matches('[data-snd="vol"]')) sfx.setVol(e.target.value / 100); });
   $('profBody').addEventListener('change', (e) => {
+    if (e.target.matches('[data-snd="on"]')) { sfx.setOn(e.target.checked); if (e.target.checked) sfx.play('coin'); return; }
+    if (e.target.matches('[data-snd="vol"]')) { sfx.play('coin'); return; }
     if (!e.target.matches('[data-title]')) return;
     const titles = [...$('profBody').querySelectorAll('[data-title]:checked')].map((x) => x.dataset.title);
     saveStyle({ titles });
@@ -147,6 +150,9 @@ function settings(p) {
     <div class="field"><div class="field-head"><span>Titres affichés à côté de ton pseudo</span></div>
       ${held.length ? `<div class="set-titles">${held.map((t) => `<label><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}</div>`
         : '<p class="muted small" style="margin:0">Pas encore de titre : sois premier d’un classement pour en gagner un.</p>'}</div>` : ''}
+    <div class="field"><div class="field-head"><span>Sons</span></div>
+      <label class="snd-row"><input type="checkbox" data-snd="on"${sfx.on ? ' checked' : ''}> Activer les sons</label>
+      <label class="snd-row"><span>Volume</span><input type="range" data-snd="vol" min="0" max="100" value="${Math.round(sfx.vol * 100)}" aria-label="Volume des sons"></label></div>
     <div id="updRow">${updHtml()}</div>
     ${online ? '<div class="set-row"><button class="btn-ghost danger" type="button" data-act="logout">Se déconnecter</button></div>' : ''}
   </section>`;

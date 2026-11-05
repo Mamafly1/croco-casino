@@ -1,5 +1,5 @@
 // Page pierre-feuille-ciseaux : contre le croco (tout de suite) ou en duel contre un autre joueur.
-import { casino, mountShell, $, eur, esc, toast, reduceMotion } from '../core.js';
+import { casino, mountShell, $, eur, esc, toast, reduceMotion, sfx } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { RPS_MOVES, RPS_MULT } from '../engine/games.js';
 
@@ -38,6 +38,7 @@ async function show(mine, other, outcome, payout, b, vs) {
     $('handMe').classList.remove('shake'); $('handOther').classList.remove('shake');
   }
   $('handMe').innerHTML = hand(mine); $('handOther').innerHTML = hand(other);
+  sfx.play('card', { vol: 1 });
   $('result').textContent = outcome === 'win' ? `GAGNÉ ! +${eur(payout - b)}` : outcome === 'draw' ? 'ÉGALITÉ : MISE RENDUE' : `PERDU : −${eur(b)}`;
   $('result').style.color = outcome === 'win' ? 'var(--gold)' : outcome === 'lose' ? 'var(--lose)' : 'var(--ink)';
   stats.add(b, payout, outcome === 'win' ? payout / b : 0);
@@ -130,6 +131,7 @@ async function revealRound(l) {
   $('result').textContent = 'CHI… FOU… MI !';
   if (!reduceMotion) {
     $('handMe').classList.add('shake'); $('handOther').classList.add('shake');
+    sfx.play('diceShake', { vol: 0.9 });
     await new Promise((r) => setTimeout(r, 1000));
     $('handMe').classList.remove('shake'); $('handOther').classList.remove('shake');
   }
