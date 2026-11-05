@@ -23,8 +23,9 @@ const hist = [];
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 60 }, () => [Math.random(), Math.random(), Math.random() * 1.5 + 0.5]);
 // décalage du ciel en px (× taille de l'étoile) : les étoiles filent à l'opposé de la fusée (ang = sa direction à l'écran),
-// vite pendant le vol, puis plus doucement une fois fini, sans jamais s'arrêter
-const sky = { x: 0, y: 0, vx: 0, vy: 0, ang: 0.9 - Math.PI / 2 };
+// à une vitesse qui suit la sienne (presque immobiles au décollage, de plus en plus vite), et s'arrêtent avec elle
+const sky = { x: 0, y: 0, sp: 0, ang: 0.9 - Math.PI / 2 };
+let parts = []; // éclats de l'explosion
 let ff = 0; // avance rapide de la fin du vol après un retrait (facteur de vitesse, 0 = normal)
 function resize() { const r = cv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); }
 addEventListener('resize', () => { resize(); draw(); });
@@ -49,13 +50,34 @@ function draw() {
   // courbe : temps en x, multiplicateur en y ; les échelles grandissent pour garder la fusée vers le milieu-droit
   const tMax = Math.max(8000, el * 1.4), mMax = Math.max(2, 1 + (m - 1) * 1.5);
   const X = (t) => 30 + (t / tMax) * (W - 60), Y = (v) => H - 30 - ((v - 1) / (mMax - 1)) * (H - 80);
-  ctx.strokeStyle = state === 'boom' ? '#de0607' : '#ffbf17'; ctx.lineWidth = 4; ctx.beginPath();
-  for (let t = 0; t <= el; t += Math.max(50, el / 120)) { const v = mult(t); t === 0 ? ctx.moveTo(X(t), Y(v)) : ctx.lineTo(X(t), Y(v)); }
-  ctx.lineTo(X(el), Y(m)); ctx.stroke();
   const x = X(el), y = Y(m), y2 = Y(mult(el + 300)), x2 = X(el + 300);
+  const since = state === 'boom' ? performance.now() - boomAt : 0;
+  // traînée : après l'explosion, elle s'efface en partant du début jusqu'à la fusée (fondu sur son bord)
+  const front = state === 'boom' ? Math.min(1, Math.max(0, (since - 150) / 1000)) : 0;
+  if (front < 1) {
+    ctx.strokeStyle = state === 'boom' ? '#de0607' : '#ffbf17'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    const step = Math.max(50, el / 120), fade = 0.25;
+    let px = X(0), py = Y(1);
+    for (let t = step; ; t += step) {
+      const tt = Math.min(t, el), nx = X(tt), ny = tt === el ? y : Y(mult(tt));
+      const a = front ? Math.min(1, Math.max(0, (tt / el - front * (1 + fade)) / fade + 1)) : 1;
+      if (a > 0) { ctx.globalAlpha = a; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke(); }
+      px = nx; py = ny;
+      if (tt >= el) break;
+    }
+    ctx.globalAlpha = 1;
+  }
   if (state === 'boom') {
-    const k = Math.min(1, (performance.now() - boomAt) / 600);
-    for (let i = 0; i < 14; i++) { const a = i * 0.45, r = 10 + k * 50; ctx.fillStyle = i % 2 ? '#ffbf17' : '#de0607'; ctx.fillRect(x + Math.cos(a) * r, y + Math.sin(a) * r, 7 * (1 - k) + 2, 7 * (1 - k) + 2); }
+    // éclats qui partent, retombent un peu et s'éteignent
+    for (const q of parts) {
+      const k = since / q.life;
+      if (k >= 1) continue;
+      const d = q.v * since * (1 - k / 2);
+      ctx.globalAlpha = 1 - k; ctx.fillStyle = q.c;
+      const s = q.s * (1 - k * 0.6);
+      ctx.fillRect(x + Math.cos(q.a) * d - s / 2, y + Math.sin(q.a) * d + 0.00012 * since * since - s / 2, s, s);
+    }
+    ctx.globalAlpha = 1;
   } else { sky.ang = Math.atan2(y2 - y, x2 - x); rocket(x, y, sky.ang + Math.PI / 2, Math.max(4, W / 90), true); }
 }
 
@@ -67,11 +89,12 @@ function frame(now) {
   const flying = state === 'flying' || state === 'after';
   if (state === 'after' && ff) t0 -= dt * (ff - 1); // avance rapide : le temps du vol passe ff fois plus vite
   const m = !flying ? 1 : mult(now - t0);
-  const k = Math.min(1, dt / 400), lm = Math.log(m);
-  const sp = flying ? 0.07 * (1 + lm / 2) * (ff ? 2.5 : 1) : 0.035; // px par ms
-  sky.vx += (-sp * Math.cos(sky.ang) - sky.vx) * k;
-  sky.vy += (-sp * Math.sin(sky.ang) - sky.vy) * k;
-  if (!reduceMotion) { sky.x += sky.vx * dt; sky.y += sky.vy * dt; }
+  const lm = Math.log(m);
+  // vitesse des étoiles (px par ms) : suit celle de la fusée, qui accélère avec le multiplicateur (et l'avance rapide) ;
+  // à l'explosion elles freinent jusqu'à l'arrêt
+  if (flying) sky.sp = Math.min(0.8, 0.05 * (m - 1) * (ff || 1));
+  else sky.sp *= Math.max(0, 1 - dt / 150);
+  if (!reduceMotion && sky.sp > 0.0005) { sky.x -= sky.sp * Math.cos(sky.ang) * dt; sky.y -= sky.sp * Math.sin(sky.ang) * dt; }
   if (flying) {
     $('mult').textContent = fx(m);
     if (engine) engine.set(Math.min(1, 0.45 + lm / 4), Math.min(1.7, 0.85 + lm / 3)); // le moteur monte avec le multiplicateur
@@ -85,6 +108,8 @@ function frame(now) {
 requestAnimationFrame(frame);
 function boom() {
   state = 'boom'; boomAt = performance.now(); ff = 0;
+  parts = Array.from({ length: 26 }, (_, i) => ({ a: Math.random() * Math.PI * 2, v: 0.05 + Math.random() * 0.13, s: 3 + Math.random() * 5,
+    life: 500 + Math.random() * 500, c: ['#ffbf17', '#de0607', '#ff6a00', '#f0f0e6'][i % 4] }));
   $('skip').hidden = true;
   if (engine) { engine.stop(); engine = null; }
   if (wind) { wind.stop(); wind = null; }
