@@ -157,6 +157,18 @@ async function sha256(s) {
 
 const colorOf = (style) => { try { return JSON.parse(style || '{}').color || null; } catch { return null; } };
 const totalPlayed = (p) => Object.values(p.played || {}).reduce((a, b) => a + b, 0);
+// Jeux dont une ligne d'historique est un gain net (comptés pour « Le Gros Coup »)
+const WIN_GAMES = ['plinko', 'slots', 'rps', 'crash', 'blackjack', 'roulette'];
+// Parties en plusieurs temps : la mise ouvre une ligne d'historique, le résultat la ferme (voir roundHist).
+// Le graphique du solde ne bouge donc qu'au résultat, du gain ou de la perte nette.
+const LOST_LABEL = { crash: 'Fusée : perdu', blackjack: 'Blackjack : perdu', roulette: 'Roulette : perdu' };
+function roundPhase(game, action, res) {
+  const r = res.result || {};
+  if (game === 'crash') return action === 'start' ? { start: true } : r.done ? { done: true } : null;
+  if (game === 'blackjack') return { start: action === 'deal', done: !!res.feed };
+  if (game === 'roulette' && action === 'bet') return {};
+  return null;
+}
 
 export class Casino extends DurableObject {
   constructor(ctx, env) {
@@ -181,6 +193,7 @@ export class Casino extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS hist (id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL,
       at INTEGER NOT NULL, d REAL NOT NULL, b REAL NOT NULL, l TEXT NOT NULL, g TEXT NOT NULL)`);
     this.sql.exec('CREATE INDEX IF NOT EXISTS hist_player ON hist(player_id, id)');
+    try { this.sql.exec('ALTER TABLE hist ADD COLUMN open INTEGER NOT NULL DEFAULT 0'); } catch { /* colonne déjà là : partie pas encore réglée */ }
     this.feed = [];         // derniers événements, gardés aussi dans le stockage (l'objet peut s'endormir)
     this.table = new Map(); // mains de blackjack visibles par tous (éphémère)
     ctx.blockConcurrencyWhile(async () => { this.feed = (await ctx.storage.get('feed')) || []; });
@@ -216,6 +229,7 @@ export class Casino extends DurableObject {
         this.rec(0, '_v2', 1);
       }
       if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v3'").toArray().length) { this.migrateV3(); this.rec(0, '_v3', 1); }
+      if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v4'").toArray().length) { this.migrateV4(); this.rec(0, '_v4', 1); }
     });
   }
 
@@ -266,6 +280,63 @@ export class Casino extends DurableObject {
       if (p.played && p.played.plinko) { p.played.plinko = Math.max(1, p.played.plinko - n); this.sql.exec('UPDATE players SET data = ? WHERE id = ?', JSON.stringify(p), id); }
     }
   }
+  // Une seule fois (v4) : les parties en deux temps déjà jouées (fusée, blackjack, roulette en ligne) n'ont plus qu'une ligne
+  // d'historique (la mise fondue dans le résultat, ou marquée perdue), et « Le Gros Coup » est recalculé en gain net.
+  migrateV4() {
+    const players = new Map(this.sql.exec('SELECT id, data FROM players').toArray().map((r) => [r.id, JSON.parse(r.data)]));
+    const rows = this.sql.exec("SELECT id, player_id, at, d, l, g FROM hist WHERE g IN ('crash', 'blackjack', 'roulette') ORDER BY player_id, g, id").toArray();
+    const upd = [], del = [];
+    let key = '', pend = null;
+    // mise sans résultat : perdue (sauf la partie en cours, qui reste ouverte)
+    const lose = (last = false) => {
+      if (!pend) return;
+      const keep = pend.ids[pend.ids.length - 1], p = players.get(pend.pid) || {};
+      const live = last && ((pend.g === 'crash' && p.crash) || (pend.g === 'blackjack' && p.bj && p.bj.phase === 'player'));
+      upd.push([keep, money(pend.d), live ? null : LOST_LABEL[pend.g], live ? 1 : 0]);
+      del.push(...pend.ids.slice(0, -1));
+      pend = null;
+    };
+    for (const r of rows) {
+      const k = r.player_id + ':' + r.g;
+      if (k !== key) { lose(true); key = k; }
+      const l = r.l;
+      const bet = (r.g === 'crash' && l === 'Fusée : mise') || (r.g === 'blackjack' && /^Blackjack : (mise|double|séparation)$/.test(l)) || (r.g === 'roulette' && l === 'Roulette : mise');
+      const start = l === 'Fusée : mise' || l === 'Blackjack : mise' || (l === 'Roulette : mise' && (!pend || r.at - pend.at > 25000));
+      if (start) lose();
+      if (bet) { if (!pend) pend = { g: r.g, pid: r.player_id, ids: [], d: 0, at: r.at }; pend.ids.push(r.id); pend.d += r.d; pend.at = r.at; continue; }
+      if (pend) { upd.push([r.id, money(r.d + pend.d), null, 0]); del.push(...pend.ids); pend = null; }
+    }
+    lose(true);
+    for (const [id, d, l, open] of upd) {
+      if (l) this.sql.exec('UPDATE hist SET d = ?, l = ?, open = ? WHERE id = ?', d, l, open, id);
+      else this.sql.exec('UPDATE hist SET d = ?, open = ? WHERE id = ?', d, open, id);
+    }
+    for (let i = 0; i < del.length; i += 200) { const ids = del.slice(i, i + 200); this.sql.exec(`DELETE FROM hist WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids); }
+    // « Le Gros Coup » : plus gros gain net d'une partie. On garde les records Plinko et machine à sous (déjà nets, bille par bille).
+    const keep = this.sql.exec("SELECT player_id, v, g FROM records WHERE k = 'win' AND g IN ('plinko', 'slots')").toArray();
+    const best = this.sql.exec(`SELECT player_id, g, MAX(d) AS v FROM hist WHERE d > 0 AND open = 0 AND g IN (${WIN_GAMES.map(() => '?').join(',')})
+      AND l NOT LIKE 'Chifoumi contre%' AND l NOT LIKE 'Plinko auto%' AND l NOT LIKE 'Plinko : %' GROUP BY player_id`, ...WIN_GAMES).toArray();
+    this.sql.exec("DELETE FROM records WHERE k = 'win'");
+    for (const r of [...keep, ...best]) this.rec(r.player_id, 'win', money(r.v), 'max', r.g);
+  }
+  // Ligne d'historique d'une partie en plusieurs temps (voir roundPhase) : start = nouvelle partie (une ancienne restée
+  // ouverte est perdue), done = résultat connu (la ligne se ferme, avec le gain ou la perte nette).
+  roundHist(id, g, d, b, l, { start = false, done = false } = {}) {
+    let open = this.sql.exec('SELECT id, d FROM hist WHERE player_id = ? AND g = ? AND open = 1 ORDER BY id DESC LIMIT 1', id, g).toArray()[0];
+    if (open && start) { this.sql.exec('UPDATE hist SET open = 0, l = ? WHERE id = ?', LOST_LABEL[g] || l, open.id); open = null; }
+    if (!d && !done) return;
+    if (open) {
+      const nd = money(open.d + d);
+      if (done) this.sql.exec('UPDATE hist SET at = ?, d = ?, b = ?, l = ?, open = 0 WHERE id = ?', Date.now(), nd, b, l, open.id);
+      else this.sql.exec('UPDATE hist SET at = ?, d = ?, b = ? WHERE id = ?', Date.now(), nd, b, open.id);
+      if (done) this.winRec(id, nd, g);
+      return;
+    }
+    if (!d) return;
+    this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g, open) VALUES (?, ?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g, done ? 0 : 1);
+    if (done) this.winRec(id, d, g);
+  }
+  winRec(id, d, g) { if (d > 0 && WIN_GAMES.includes(g)) this.rec(id, 'win', money(d), 'max', g); }
   // Série auto de Plinko : chaque bille met à jour la même ligne d'historique (« Plinko auto 25 ») et la même ligne du fil.
   // Les records restent comptés bille par bille.
   plinkoRun(pl, d, res) {
@@ -273,7 +344,7 @@ export class Casino extends DurableObject {
     let a = this.runs.get(pl.id);
     if (!a || a.run !== f.run) { a = { run: f.run, n: 0, bet: 0, payout: 0, best: 0, d: 0, hist: 0 }; this.runs.set(pl.id, a); }
     a.n++; a.bet = money(a.bet + f.bet); a.payout = money(a.payout + f.payout); a.d = money(a.d + d); a.best = Math.max(a.best, f.mult);
-    if (d > 0) this.rec(pl.id, 'win', money(d), 'max', 'plinko');
+    this.winRec(pl.id, d, 'plinko');
     res.feed = { game: 'plinko', run: a.run, n: a.n, bet: a.bet, payout: a.payout, mult: a.best };
     const l = historyLabel('plinko', 'drop', {}, res.result, res.feed);
     if (a.hist) this.sql.exec('UPDATE hist SET at = ?, d = ?, b = ?, l = ? WHERE id = ?', Date.now(), a.d, pl.p.balance, l, a.hist);
@@ -284,7 +355,7 @@ export class Casino extends DurableObject {
   }
   // Profit sur les jeux pendant les ms dernières millisecondes (dépôts, gifs et ajustements admin à part)
   profitSince(id, ms) {
-    return money(this.sql.exec("SELECT COALESCE(SUM(d), 0) AS s FROM hist WHERE player_id = ? AND at >= ? AND g NOT IN ('wallet', 'admin', 'gifs')", id, Date.now() - ms).one().s);
+    return money(this.sql.exec("SELECT COALESCE(SUM(d), 0) AS s FROM hist WHERE player_id = ? AND at >= ? AND open = 0 AND g NOT IN ('wallet', 'admin', 'gifs')", id, Date.now() - ms).one().s);
   }
   // Ce qui se passe après chaque action : records et compteurs
   track(id, game, action, res, played) {
@@ -536,7 +607,7 @@ export class Casino extends DurableObject {
   addHist(id, d, b, l, g) {
     if (!d) return;
     this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
-    if (d > 0 && g !== 'wallet' && g !== 'admin') this.rec(id, 'win', money(d), 'max', g); // dépôts et ajustements ne sont pas des gains
+    if (!l.startsWith('Chifoumi contre')) this.winRec(id, d, g); // un duel arrive en brut (mise prise avant) : pas compté
     if (Math.random() < 0.01) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 20000)', id, id);
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde
@@ -545,7 +616,7 @@ export class Casino extends DurableObject {
     if (!row) return null;
     const p = JSON.parse(row.data);
     const rank = this.sql.exec('SELECT COUNT(*) AS n FROM players WHERE score > ?', row.score).one().n + 1;
-    const hist = this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
+    const hist = this.sql.exec('SELECT id, at, d, b, l, g, open FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 400', row.id).toArray().reverse();
     return {
       name: row.name, created: row.created, seen: row.seen, rank, score: row.score, balance: p.balance, deposits: p.deposits,
       titles: this.shownTitles(this.boardData().titles[row.name] || [], row.style), heldTitles: this.boardData().titles[row.name] || [],
@@ -673,7 +744,7 @@ export class Casino extends DurableObject {
     if (msg.t === 'hist') {
       // 400 mouvements plus anciens que « before » (le plus récent d'abord)
       const row = this.sql.exec('SELECT id FROM players WHERE name = ?', String(msg.name || '')).toArray()[0];
-      const list = row ? this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? AND id < ? ORDER BY id DESC LIMIT 400', row.id, Number(msg.before) || 9e15).toArray() : [];
+      const list = row ? this.sql.exec('SELECT id, at, d, b, l, g, open FROM hist WHERE player_id = ? AND id < ? ORDER BY id DESC LIMIT 400', row.id, Number(msg.before) || 9e15).toArray() : [];
       return this.send(ws, { t: 'res', id: msg.id, ok: true, result: list });
     }
     if (msg.t === 'profit') {
@@ -710,8 +781,10 @@ export class Casino extends DurableObject {
       }
       this.save(pl);
       this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore); // avant plinkoRun : records bille par bille
-      if (msg.game === 'plinko' && res.feed && res.feed.run) this.plinkoRun(pl, pl.p.balance - before, res);
-      else this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
+      const d = pl.p.balance - before, label = historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), round = roundPhase(msg.game, msg.action, res);
+      if (msg.game === 'plinko' && res.feed && res.feed.run) this.plinkoRun(pl, d, res);
+      else if (round) this.roundHist(pl.id, msg.game, d, pl.p.balance, label, round);
+      else this.addHist(pl.id, d, pl.p.balance, label, msg.game);
       if (msg.game === 'crash' && msg.action === 'start') this.crashTimer(pl.id);
       this.send(ws, { t: 'res', id: msg.id, ok: true, result: res.result, me: this.me(pl) });
       if (msg.game === 'blackjack') this.updateTable(pl);
@@ -804,7 +877,7 @@ export class Casino extends DurableObject {
     const res = run(pl.p, 'crash', 'state', {}, { rng, now: Date.now() });
     if (!res.result.done) { this.crashTimer(id); return; }
     this.save(pl);
-    this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel('crash', 'state', {}, res.result), 'crash');
+    this.roundHist(pl.id, 'crash', pl.p.balance - before, pl.p.balance, historyLabel('crash', 'state', {}, res.result), { done: true });
     for (const ws of this.ctx.getWebSockets()) {
       const w = ws.deserializeAttachment();
       if (w && w.id === id) this.send(ws, { t: 'crash', result: res.result, me: this.me(pl) });
@@ -1017,7 +1090,7 @@ export class Casino extends DurableObject {
         pl.p.balance = money(pl.p.balance + payout);
         pl.p.played.roulette = (pl.p.played.roulette || 0) + 1;
         this.save(pl);
-        this.addHist(pl.id, payout, pl.p.balance, `Roulette : ${n}`, 'roulette');
+        this.roundHist(pl.id, 'roulette', payout, pl.p.balance, `Roulette : ${n}`, { done: true });
         events.push({ name: pl.name, at: Date.now(), game: 'roulette', bet: b.total, payout, n });
       }
       await this.ctx.storage.put('round', r);

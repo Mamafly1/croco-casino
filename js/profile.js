@@ -134,7 +134,7 @@ function render(p) {
     <div class="prof-inv">${p.inventory.slice(0, 60).map((it, k) => `
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
-  chart($('profChart'), p.hist || []);
+  chart($('profChart'), (p.hist || []).filter((h) => !h.open)); // une partie pas encore réglée (fusée en vol…) n'apparaît qu'à son résultat
   loadCustomProfit();
   // on vérifie s'il y a une nouvelle version (au plus une fois par minute) et on met la ligne à jour
   if (mine) checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
