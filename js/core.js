@@ -155,6 +155,11 @@ export const casino = {
     if (!this.online) return [];
     return (await request({ t: 'hist', name, before })).result;
   },
+  // Courbe du solde depuis « since » (0 = depuis le début), allégée par le serveur s'il y a beaucoup de points
+  async curve(name, since) {
+    if (this.online) return (await request({ t: 'curve', name, since })).result;
+    return (local.hist || []).filter((h) => h.at >= since);
+  },
   // Profit sur les jeux d'un joueur pendant les ms dernières millisecondes (dépôts, gifs et ajustements à part)
   async profit(name, ms) {
     if (this.online) return (await request({ t: 'profit', name, ms })).result;

@@ -32,6 +32,9 @@ function box() {
     const v = e.target.closest('[data-view]'), fl = e.target.closest('[data-filter]'), pi = e.target.closest('[data-item]');
     const sw = e.target.closest('[data-color]');
     if (sw && !sw.disabled) { last.style = { ...(last.style || {}), color: sw.dataset.color || null }; render(last); saveStyle({ color: sw.dataset.color || null }); return; }
+    const tb = e.target.closest('[data-tab]'), rg = e.target.closest('[data-range]');
+    if (tb) { ptab = tb.dataset.tab; render(last); return; }
+    if (rg) { cv.range = rg.dataset.range; render(last); return; }
     const act = e.target.closest('[data-act]');
     if (act && act.dataset.act === 'update') { act.textContent = 'Mise à jour…'; forceUpdate(); return; }
     if (act && act.dataset.act === 'logout') { if (confirm('Te déconnecter de cet appareil ? Il faudra retaper ton code.')) { m.hidden = true; switchPlayer(); } return; }
@@ -55,6 +58,7 @@ function box() {
   $('profBody').addEventListener('input', (e) => {
     if (e.target.matches('[data-snd="vol"]')) sfx.setVol(e.target.value / 100);
     if (e.target.id === 'pfN' || e.target.id === 'pfU') { pf.n = $('pfN').value; pf.u = Number($('pfU').value); loadCustomProfit(); }
+    if (e.target.id === 'cvN' || e.target.id === 'cvU') { cv.n = $('cvN').value; cv.u = Number($('cvU').value); loadCurve(last); }
   });
   $('profBody').addEventListener('change', (e) => {
     if (e.target.matches('[data-snd="on"]')) { sfx.setOn(e.target.checked); if (e.target.checked) sfx.gain(); return; }
@@ -96,7 +100,7 @@ casino.on('board', () => refreshSoon());
 casino.on('me', (me) => { if (me && me.name === current) refreshSoon(); });
 
 export async function openProfile(name) {
-  current = name; view = { kind: 'main' }; older = []; olderDone = false;
+  current = name; view = { kind: 'main' }; older = []; olderDone = false; ptab = 'profil';
   const m = box();
   $('profTitle').textContent = name;
   $('profBody').innerHTML = '<p class="muted">Chargement…</p>';
@@ -116,28 +120,66 @@ function render(p) {
   const games = GAMES.filter((g) => p.played[g]);
   const total = games.reduce((s, g) => s + p.played[g], 0);
   const mine = p.name === casino.me.name, stock = mine ? casino.me.gifs || {} : null;
-  $('profBody').innerHTML = `
-    ${mine ? settings(p) : casino.online && p.online ? `<button class="btn-main" type="button" data-gif>Envoyer un gif à ${esc(p.name)}</button>`
-      : casino.online ? `<p class="muted small" style="margin:0">${esc(p.name)} est hors ligne : les gifs ne s’envoient qu’aux joueurs connectés.</p>` : ''}
-    ${stock ? `<p class="muted small" style="margin:0">Gifs en stock : DVD ${stock.dvd || 0} · Gravité ${stock.gravity || 0} · Plein écran ${stock.full || 0}</p>` : ''}
-    <dl class="stat-grid prof-stats">
+  const gifLine = casino.online && p.online ? `<button class="btn-main" type="button" data-gif>Envoyer un gif à ${esc(p.name)}</button>`
+    : casino.online ? `<p class="muted small" style="margin:0">${esc(p.name)} est hors ligne : les gifs ne s’envoient qu’aux joueurs connectés.</p>` : '';
+  const stockLine = stock ? `<p class="muted small" style="margin:0">Gifs en stock : DVD ${stock.dvd || 0} · Gravité ${stock.gravity || 0} · Plein écran ${stock.full || 0}</p>` : '';
+  const head = `<dl class="stat-grid prof-stats">
       <div><dt>Argent total</dt><dd class="${p.score > 0.004 ? 'pos' : p.score < -0.004 ? 'neg' : ''}">${signed(p.score)}</dd></div>
       <div><dt>Solde</dt><dd>${eur(p.balance)}</dd></div>
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
       <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
-    </dl>
-    ${profitHtml(p)}
-    ${total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>'}
-    <h3 class="h-label">Solde</h3>
-    <div class="chart" id="profChart"></div>
-    <h3 class="h-label">Inventaire CS${p.inventory.length ? ` · ${p.inventory.length}` : ''}</h3>
+    </dl>`;
+  const gamesBtn = total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>';
+  const units = [[6e4, 'min'], [36e5, 'h'], [864e5, 'jours']];
+  const curveBlock = `<div class="chart-head"><h3 class="h-label">Solde</h3>
+      <div class="chips cv-range" role="group" aria-label="Période du graphique">${CV_RANGES.map(([k, t]) => `<button type="button" data-range="${k}" aria-pressed="${cv.range === k}">${t}</button>`).join('')}</div></div>
+    ${cv.range === 'custom' ? `<div class="pf-custom cv-custom"><label for="cvN">Sur</label> <input id="cvN" type="number" min="1" max="999" inputmode="numeric" value="${cv.n}" aria-label="Durée">
+      <select id="cvU" aria-label="Unité">${units.map(([v, t]) => `<option value="${v}"${cv.u === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>` : ''}
+    <div class="chart" id="profChart"></div>`;
+  const inv = `<h3 class="h-label">Inventaire CS${p.inventory.length ? ` · ${p.inventory.length}` : ''}</h3>
     <div class="prof-inv">${p.inventory.slice(0, 60).map((it, k) => `
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
-  chart($('profChart'), (p.hist || []).filter((h) => !h.open)); // une partie pas encore réglée (fusée en vol…) n'apparaît qu'à son résultat
-  loadCustomProfit();
+  // ton profil : trois onglets ; celui des autres : tout sur une page
+  $('profBody').innerHTML = mine
+    ? `<div class="tabs prof-tabs" role="group" aria-label="Sections du profil">${TABS.map(([k, t]) => `<button type="button" data-tab="${k}" aria-pressed="${ptab === k}">${t}</button>`).join('')}</div>
+      ${ptab === 'params' ? settings(p) : ptab === 'stats' ? profitHtml(p) + gamesBtn + curveBlock : head + stockLine + inv}`
+    : gifLine + head + profitHtml(p) + gamesBtn + curveBlock + inv;
+  if ($('profChart')) loadCurve(p);
+  if ($('pfOut')) loadCustomProfit();
   // on vérifie s'il y a une nouvelle version (au plus une fois par minute) et on met la ligne à jour
-  if (mine) checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
+  if (mine && ptab === 'params') checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
+}
+
+// Onglets de ton propre profil
+const TABS = [['profil', 'Profil'], ['stats', 'Stats'], ['params', 'Paramètres']];
+let ptab = 'profil';
+
+// Graphique du solde : depuis le début (par défaut), 24 h, 1 h ou une durée au choix
+const CV_RANGES = [['all', 'Tout'], ['24h', '24 h'], ['1h', '1 h'], ['custom', 'Perso']];
+const cv = { range: 'all', n: 3, u: 864e5, key: '', rows: null };
+const cvKey = (name) => [name, cv.range, cv.n, cv.u].join('|');
+function cvSince() {
+  const now = Date.now();
+  if (cv.range === 'all') return 0;
+  if (cv.range === '24h') return now - 864e5;
+  if (cv.range === '1h') return now - 36e5;
+  return now - Math.max(1, Math.min(999, Math.round(Number(cv.n) || 1))) * cv.u;
+}
+let cvTimer = 0;
+function loadCurve(p) {
+  const key = cvKey(p.name), el = $('profChart');
+  if (cv.rows && cv.key === key) chart(el, cv.rows, 'Aucune partie sur cette période.');
+  else if (cv.range === 'all') chart(el, (p.hist || []).filter((h) => !h.open)); // en attendant la courbe complète
+  else el.innerHTML = '<p class="muted">Chargement…</p>';
+  clearTimeout(cvTimer);
+  cvTimer = setTimeout(async () => {
+    let rows;
+    try { rows = await casino.curve(p.name, cvSince()); } catch { return; }
+    cv.key = key; cv.rows = rows;
+    const e = $('profChart');
+    if (e && last && cvKey(last.name) === key) chart(e, rows, 'Aucune partie sur cette période.');
+  }, 150);
 }
 
 // Profit sur les jeux (dépôts et gifs à part) : 10 min, 1 h, 24 h, et une durée au choix
@@ -179,7 +221,7 @@ function settings(p) {
         ${(p.colors || []).map((c) => { const by = (p.takenColors || {})[c]; return `<button type="button" data-color="${c}" class="sw${by ? ' taken' : ''}" style="--sw:${c}" aria-pressed="${st.color === c}"${by ? ` disabled title="Déjà prise par ${esc(by)}" aria-label="Couleur prise par ${esc(by)}"` : ` aria-label="Couleur ${c}"`}></button>`; }).join('')}
       </div></div>
     <div class="field"><div class="field-head"><span>Titres affichés à côté de ton pseudo</span></div>
-      ${held.length ? `<div class="set-titles">${held.map((t) => `<label><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}> ${esc(t)}</label>`).join('')}</div>`
+      ${held.length ? `<div class="set-titles">${held.map((t) => `<label class="tchip"><input type="checkbox" data-title="${esc(t)}"${shown.includes(t) ? ' checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>`
         : '<p class="muted small" style="margin:0">Pas encore de titre : sois premier d’un classement pour en gagner un.</p>'}</div>` : ''}
     <div class="field"><div class="field-head"><span>Sons</span></div>
       <label class="snd-row"><input type="checkbox" data-snd="on"${sfx.on ? ' checked' : ''}> Activer les sons</label>
@@ -252,8 +294,8 @@ function renderItem(p, it) {
 }
 
 // Courbe du solde en escalier (le solde change par à-coups) ; survol : le mouvement le plus proche
-function chart(el, hist) {
-  if (!hist.length) { el.innerHTML = '<p class="muted">Aucune partie enregistrée.</p>'; return; }
+function chart(el, hist, empty = 'Aucune partie enregistrée.') {
+  if (!hist.length) { el.innerHTML = `<p class="muted">${empty}</p>`; return; }
   const pts = [{ b: hist[0].b - hist[0].d, at: hist[0].at, start: true }, ...hist];
   const W = 640, H = 180, L = 46, R = 8, T = 10, B = 18;
   const vals = pts.map((x) => x.b);

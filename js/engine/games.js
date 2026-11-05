@@ -61,6 +61,7 @@ export function historyLabel(game, action, params, result, feed) {
   if (game === 'rps') return result.label && result.label.startsWith('Chifoumi') ? result.label : `Chifoumi : ${result.cancelled ? 'défi annulé' : ({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[result.outcome] || result.label || 'défi lancé'}`;
   if (game === 'stocks') { const c = COMPANIES.find((x) => x.id === params.co); return `Bourse : ${action === 'buy' ? 'achat' : 'vente'} ${c ? c.name : ''}`; }
   if (game === 'plinko') return feed && feed.run ? `Plinko auto ${feed.n}` : `Plinko ×${String(result.mult).replace('.', ',')}`;
+  if (game === 'slots' && feed && feed.run) return `Machine à sous auto ${feed.n}`;
   if (game === 'slots') return result.payout > 0 ? `Machine à sous ×${String(money(result.payout / result.bet)).replace('.', ',')}` : 'Machine à sous';
   if (game === 'roulette') return result.n != null ? `Roulette : ${result.n}` : 'Roulette : mise';
   if (game === 'blackjack') {
@@ -70,6 +71,10 @@ export function historyLabel(game, action, params, result, feed) {
   if (game === 'cases') return action === 'open' ? `Caisse : ${result.item.n}` : params.all ? 'Vente de l’inventaire' : 'Vente';
   return game;
 }
+
+// Mode auto (Plinko, machine à sous) : params.auto = identifiant de la série, params.i = numéro du coup dans la série.
+// Une série ne compte que pour une partie, et ne fait qu'une ligne dans l'historique et le fil.
+function autoRun(params) { return typeof params.auto === 'string' && params.auto ? params.auto.slice(0, 24) : null; }
 
 export function newPlayer() {
   return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null, gifs: {}, spent: 0, stocks: {}, crash: null, work: null, bank: 0 };
@@ -256,8 +261,7 @@ export function run(p, game, action, params = {}, ctx) {
     const d = plinko.drop(rows, risk, rng);
     const payout = money(bet * d.mult);
     p.balance = money(p.balance - bet + payout);
-    // Mode auto : params.auto = identifiant de la série, params.i = numéro de la bille. Une série = une seule partie.
-    const run = typeof params.auto === 'string' && params.auto ? params.auto.slice(0, 24) : null;
+    const run = autoRun(params);
     if (!run || !(Number(params.i) > 0)) played(p, 'plinko');
     return out({ ...d, rows, risk, bet, payout }, { game, bet, payout, mult: d.mult, ...(run ? { run } : {}) });
   }
@@ -267,8 +271,9 @@ export function run(p, game, action, params = {}, ctx) {
     const s = slots.spin(rng);
     const payout = money(bet * s.mult);
     p.balance = money(p.balance - bet + payout);
-    played(p, 'slots');
-    return out({ ...s, bet, payout }, { game, bet, payout, mult: s.mult });
+    const run = autoRun(params);
+    if (!run || !(Number(params.i) > 0)) played(p, 'slots');
+    return out({ ...s, bet, payout }, { game, bet, payout, mult: s.mult, ...(run ? { run } : {}) });
   }
 
   if (game === 'roulette' && action === 'spin') {

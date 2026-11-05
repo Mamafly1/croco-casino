@@ -106,7 +106,7 @@ async function spinOnce() {
   $('result').textContent = '';
   $('result').className = 'result';
   try {
-    const res = await casino.play('slots', 'spin', { bet: b });
+    const res = await casino.play('slots', 'spin', { bet: b, ...(autoOn ? { auto: autoId, i: autoI++ } : {}) });
     $('msg').textContent = '';
     await animate(res);
     casino.reveal(res.payout);
@@ -139,7 +139,7 @@ async function spinOnce() {
 }
 
 // autoLeft = tours restants APRÈS celui en cours ; autoOn reste vrai jusqu'à la fin du dernier tour
-let autoOn = false;
+let autoOn = false, autoId = '', autoI = 0; // série auto : une seule partie (et une ligne « Machine à sous auto N »)
 function label() {
   const p = $('play');
   if (autoOn) { p.textContent = `Arrêter (${autoLeft} restant${autoLeft > 1 ? 's' : ''})`; p.classList.add('stop'); }
@@ -151,6 +151,7 @@ async function run() {
   if (autoN === 1) { await spinOnce(); return; }
   autoOn = true;
   autoLeft = autoN;
+  autoId = Math.random().toString(36).slice(2, 12); autoI = 0;
   while (autoLeft > 0) {
     autoLeft--;
     label();

@@ -615,9 +615,18 @@ details.odds > .paytable { margin-top: 10px; }
 .sw { width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--line); background: var(--sw); cursor: pointer; }
 .sw.auto { width: auto; padding: 0 10px; background: var(--panel-2); color: var(--ink); font-weight: 800; font-size: 12px; }
 .sw[aria-pressed="true"] { outline: 3px solid #fff; outline-offset: 2px; }
-.set-titles { display: grid; gap: 6px; }
-.set-titles label { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; background: var(--panel-2); font-weight: 700; cursor: pointer; }
-.set-titles input { width: 18px; height: 18px; accent-color: var(--gold); }
+/* titres affichés : petites pastilles à cocher, côte à côte */
+.set-titles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tchip { position: relative; cursor: pointer; }
+.tchip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.tchip span { display: inline-block; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--muted); font-size: 13px; font-weight: 700; }
+.tchip input:checked + span { border-color: var(--gold); background: var(--gold); color: var(--gold-ink); }
+.tchip input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+.prof-tabs { width: 100%; }
+.prof-tabs button { flex: 1 1 0; }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cv-range button { height: 30px; padding: 0 10px; font-size: 12px; }
+.cv-custom { font-size: 12px; color: var(--muted); }
 /* défi reçu */
 .duel-offer { margin: 0; font-size: 15px; line-height: 1.5; }
 .offer-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

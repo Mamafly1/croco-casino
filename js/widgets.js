@@ -126,7 +126,7 @@ function fmtScore(s) {
 export function feedText(e) {
   switch (e.game) {
     case 'plinko': return e.run ? `Plinko auto ${nf0.format(e.n)}` : `Plinko ×${nfx.format(e.mult)}`;
-    case 'slots': return e.payout > 0 ? `Machine à sous ×${nfx.format(e.payout / e.bet)}` : 'Machine à sous';
+    case 'slots': return e.run ? `Machine à sous auto ${nf0.format(e.n)}` : e.payout > 0 ? `Machine à sous ×${nfx.format(e.payout / e.bet)}` : 'Machine à sous';
     case 'roulette': return `Roulette : ${e.n}`;
     case 'blackjack': return `Blackjack : ${({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' })[e.result] || e.result}`;
     case 'cases': return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
