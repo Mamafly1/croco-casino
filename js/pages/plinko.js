@@ -55,6 +55,7 @@ function buildBoard() {
     html += `<div class="bin" data-k="${k}" tabindex="0" style="left:${((cx - w / 2) / W * 100).toFixed(3)}%;top:${(BIN_TOP / H * 100).toFixed(3)}%;width:${(w / W * 100).toFixed(3)}%;height:${(BIN_H / H * 100).toFixed(3)}%;background:${binColor(k, N)}">${nfx.format(table[k])}</div>`;
   }
   binsEl.innerHTML = html;
+  $('binpop').hidden = true;
   measure();
   showOddsDefault();
   writeOddsNote();
@@ -72,10 +73,18 @@ function showOddsDefault() {
   const t = TABLES[st.rows][st.risk], p = probs(st.rows);
   $('oddsbar').innerHTML = `<span>Retour moyen <b>${nfx.format(rtp() * 100)} %</b></span><span>Max <b>${mult(t[0])}</b> : ${chanceText(p[0] * 2)}</span><span>Appuie sur un bac pour voir ses chances</span>`;
 }
-function showOddsFor(k) {
-  const t = TABLES[st.rows][st.risk], p = probs(st.rows);
-  $('oddsbar').innerHTML = `<span>Bac <b>${mult(t[k])}</b></span><span>${chanceText(p[k])}</span><span>${t[k] >= 1 ? 'Gain ' : 'Perte '}<b>${eur(Math.abs(t[k] - 1) * st.bet)}</b> sur une mise de ${eur(st.bet)}</span>`;
+// Bulle sous le plateau, sa flèche alignée sur le bac
+function showBin(b) {
+  const k = +b.dataset.k, t = TABLES[st.rows][st.risk], p = probs(st.rows), pop = $('binpop');
+  pop.innerHTML = `<span>Bac <b>${mult(t[k])}</b> · ${chanceText(p[k])}</span><span>${t[k] >= 1 ? 'Gain ' : 'Perte '}<b>${eur(Math.abs(t[k] - 1) * st.bet)}</b> sur une mise de ${eur(st.bet)}</span>`;
+  pop.hidden = false;
+  const zone = pop.parentElement.getBoundingClientRect(), r = b.getBoundingClientRect();
+  const cx = r.left + r.width / 2 - zone.left, w = pop.offsetWidth;
+  const left = Math.max(0, Math.min(zone.width - w, cx - w / 2));
+  pop.style.left = left + 'px';
+  pop.style.setProperty('--cx', Math.max(14, Math.min(w - 14, cx - left)) + 'px');
 }
+const hideBin = () => { $('binpop').hidden = true; };
 function writeOddsNote() {
   const t = TABLES[st.rows][st.risk], p = probs(st.rows);
   let lose = 0;
@@ -86,12 +95,13 @@ function writeOddsNote() {
 
 // Infos d'un bac sous le plateau : au survol, ou tant qu'on appuie dessus (elles s'en vont quand on lâche)
 let pressedBin = null;
-const selBin = (b) => { if (pressedBin) pressedBin.classList.remove('sel'); pressedBin = b; if (b) { b.classList.add('sel'); showOddsFor(+b.dataset.k); } else showOddsDefault(); };
+const selBin = (b) => { if (pressedBin) pressedBin.classList.remove('sel'); pressedBin = b; if (b) { b.classList.add('sel'); showBin(b); } else hideBin(); };
 binsEl.addEventListener('pointerdown', (e) => { const b = e.target.closest('.bin'); if (b && e.pointerType !== 'mouse') selBin(b); });
 for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, () => { if (pressedBin) selBin(null); });
 // survol à la souris seulement (après un appui au doigt, le navigateur simule un survol qu'on ignore)
-binsEl.addEventListener('pointerover', (e) => { const b = e.target.closest('.bin'); if (b && e.pointerType === 'mouse') showOddsFor(+b.dataset.k); });
-binsEl.addEventListener('pointerout', (e) => { if (e.pointerType === 'mouse' && !binsEl.contains(e.relatedTarget)) showOddsDefault(); });
+binsEl.addEventListener('pointerover', (e) => { const b = e.target.closest('.bin'); if (b && e.pointerType === 'mouse') showBin(b); });
+binsEl.addEventListener('pointerout', (e) => { if (e.pointerType === 'mouse' && !binsEl.contains(e.relatedTarget)) hideBin(); });
+binsEl.addEventListener('contextmenu', (e) => e.preventDefault()); // appui long : pas de menu du navigateur
 
 // ---------- billes ----------
 function sizeBall(b) {

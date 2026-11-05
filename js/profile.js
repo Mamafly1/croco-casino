@@ -140,18 +140,18 @@ function render(p) {
     <div class="prof-inv">${p.inventory.slice(0, 60).map((it, k) => `
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
-  // ton profil : trois onglets ; celui des autres : tout sur une page
-  $('profBody').innerHTML = mine
-    ? `<div class="tabs prof-tabs" role="group" aria-label="Sections du profil">${TABS.map(([k, t]) => `<button type="button" data-tab="${k}" aria-pressed="${ptab === k}">${t}</button>`).join('')}</div>
-      ${ptab === 'params' ? settings(p) : ptab === 'stats' ? profitHtml(p) + gamesBtn + curveBlock : head + stockLine + inv}`
-    : gifLine + head + profitHtml(p) + gamesBtn + curveBlock + inv;
+  // onglets Profil et Stats, plus Paramètres sur ton propre profil
+  const tabs = mine ? TABS : TABS.filter(([k]) => k !== 'params');
+  if (!tabs.some(([k]) => k === ptab)) ptab = 'profil';
+  $('profBody').innerHTML = `<div class="tabs prof-tabs" role="group" aria-label="Sections du profil">${tabs.map(([k, t]) => `<button type="button" data-tab="${k}" aria-pressed="${ptab === k}">${t}</button>`).join('')}</div>
+    ${ptab === 'params' ? settings(p) : ptab === 'stats' ? profitHtml(p) + gamesBtn + curveBlock : (mine ? '' : gifLine) + head + stockLine + inv}`;
   if ($('profChart')) loadCurve(p);
   if ($('pfOut')) loadCustomProfit();
   // on vérifie s'il y a une nouvelle version (au plus une fois par minute) et on met la ligne à jour
   if (mine && ptab === 'params') checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
 }
 
-// Onglets de ton propre profil
+// Onglets du profil (Paramètres : seulement le tien)
 const TABS = [['profil', 'Profil'], ['stats', 'Stats'], ['params', 'Paramètres']];
 let ptab = 'profil';
 

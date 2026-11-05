@@ -1,5 +1,5 @@
 // Page blackjack. Le sabot reste caché (sur le serveur en ligne) ; on ne reçoit que les cartes visibles.
-import { casino, mountShell, $, eur, esc, sfx } from '../core.js';
+import { casino, mountShell, $, eur, esc, sfx, lockBet } from '../core.js';
 import { mountFeed, betControl, sessionStats, cardSVG } from '../widgets.js';
 
 mountShell('blackjack');
@@ -47,6 +47,7 @@ function buttons() {
   // un seul bloc à la fois : les actions pendant la main, sinon « Distribuer » / « Nouvelle main » à leur place
   const playing = !!(v && v.phase === 'player');
   $('acts').hidden = !playing;
+  lockBet(playing);
   $('deal').hidden = playing;
   $('deal').disabled = busy;
   $('deal').textContent = v && v.phase === 'done' ? 'Nouvelle main' : 'Distribuer';

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m30">
+<link rel="stylesheet" href="css/casino.css?v=m31">
 <style>
 .arena { display: grid; gap: 14px; padding: 18px; border-radius: 12px; background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%); }
 .arena h1 { margin: 0; text-align: center; font: clamp(14px, 3vw, 22px)/1.4 var(--font-pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red); }
@@ -49,7 +49,10 @@
       <button id="tabBot" type="button" aria-pressed="true">Contre le croco</button>
       <button id="tabDuel" type="button" aria-pressed="false">Défier un joueur</button>
     </div>
-    <div class="field">
+    <div class="field" id="moveField"><div class="field-head"><span id="moveLabel">Ton coup</span></div><div class="moves" id="moves" role="group" aria-labelledby="moveLabel"></div></div>
+    <button id="play" class="play" type="button" hidden>Lancer le défi</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <div class="field bet-zone">
       <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
       <div class="betrow">
         <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
@@ -61,9 +64,6 @@
       <label class="field-head" for="to"><span>Qui défier ?</span></label>
       <select class="text-in" id="to"></select>
     </div>
-    <div class="field" id="moveField"><div class="field-head"><span id="moveLabel">Ton coup</span></div><div class="moves" id="moves" role="group" aria-labelledby="moveLabel"></div></div>
-    <button id="play" class="play" type="button" hidden>Lancer le défi</button>
-    <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
       <h2>Session</h2>
       <dl class="stat-grid">
@@ -103,6 +103,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/pfc.js?v=m30"></script>
+<script type="module" src="js/pages/pfc.js?v=m31"></script>
 </body>
 </html>

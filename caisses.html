@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m30">
+<link rel="stylesheet" href="css/casino.css?v=m31">
 <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
 <style>
 .caselist { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
@@ -95,12 +95,12 @@
 <body>
 <main class="game split">
   <aside class="panel" aria-label="Choix de la caisse">
+    <button id="open" class="play" type="button" disabled>Ouvrir</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
     <div class="field">
       <div class="field-head"><span id="clLabel">Caisses CS2 <button class="info-btn" id="infoOpen" type="button" aria-label="Les vraies cotes">i</button></span><span id="caseCount"></span></div>
       <div class="caselist" id="caselist" role="group" aria-labelledby="clLabel"></div>
     </div>
-    <button id="open" class="play" type="button" disabled>Ouvrir</button>
-    <p class="msg" id="msg" aria-live="polite"></p>
   </aside>
   <section class="stage" aria-label="Ouverture">
     <div class="surface" style="display:grid;gap:14px">
@@ -141,6 +141,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=m30"></script>
+<script type="module" src="js/pages/caisses.js?v=m31"></script>
 </body>
 </html>

@@ -657,3 +657,11 @@ body:not(.ready) > * { visibility: hidden; animation: showLate 0s 4s forwards; }
 .snd-row span { flex: none; }
 
 .rec-g { display: inline-flex; vertical-align: -2px; margin-right: 6px; opacity: .9; }
+
+/* réglages de mise cachés tant qu'ils ne peuvent plus changer (voir lockBet) */
+body.betlock .bet-zone { display: none !important; }
+.betrow.has-auto { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+.auto-btn { padding: 0 8px !important; color: var(--muted); font-size: 10px; letter-spacing: 0.04em; }
+.auto-btn.on { background: var(--gold) !important; color: var(--gold-ink); }
+/* sur téléphone, un jeu fait au moins un écran : on peut toujours le faire défiler jusqu'en haut (voir pageReady) */
+@media (max-width: 760px) { body.is-game main { min-height: calc(100svh - 16px); } }

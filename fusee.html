@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m30">
+<link rel="stylesheet" href="css/casino.css?v=m31">
 <style>
 .sky { position: relative; width: 100%; height: clamp(250px, 62vw, 440px); border-radius: 12px; overflow: hidden; background: radial-gradient(120% 90% at 50% 100%, #2a1a40 0%, #0d0d18 70%); }
 .sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -33,20 +33,21 @@
 <body>
 <main class="game split">
   <aside class="panel" aria-label="Réglages de la mise">
-    <div class="field">
+    <button id="play" class="play" type="button">Lancer la fusée</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <div class="field bet-zone">
       <div class="field-head"><label for="bet">Mise</label><span class="num" id="betMax">max 0,00 €</span></div>
-      <div class="betrow">
+      <div class="betrow has-auto">
         <input id="bet" type="text" inputmode="decimal" value="1,00" autocomplete="off">
         <button id="half" type="button" aria-label="Diviser la mise par deux">½</button>
         <button id="double" type="button" aria-label="Doubler la mise">2×</button>
+        <button id="autoBtn" class="auto-btn" type="button" aria-expanded="false" aria-controls="autoBox" title="Retrait automatique">AUTO</button>
       </div>
     </div>
-    <div class="field">
+    <div class="field bet-zone" id="autoBox" hidden>
       <div class="field-head"><label for="auto">Retrait automatique à ×</label><span class="muted small">vide = à la main</span></div>
       <div class="autorow"><input class="text-in" id="auto" type="text" inputmode="decimal" placeholder="ex. 2,00" autocomplete="off"></div>
     </div>
-    <button id="play" class="play" type="button">Lancer la fusée</button>
-    <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
       <h2>Session</h2>
       <dl class="stat-grid">
@@ -69,6 +70,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/fusee.js?v=m30"></script>
+<script type="module" src="js/pages/fusee.js?v=m31"></script>
 </body>
 </html>

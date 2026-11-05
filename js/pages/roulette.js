@@ -1,5 +1,5 @@
 // Page roulette : en solo la bille part quand tu cliques ; en ligne, tout le monde mise sur le même tour.
-import { casino, mountShell, $, eur, nf2, reduceMotion, sfx } from '../core.js';
+import { casino, mountShell, $, eur, nf2, reduceMotion, sfx, lockBet } from '../core.js';
 import { mountFeed, sessionStats } from '../widgets.js';
 import { chipSVG, CHIP_VALUES } from '../symbols.js';
 import { WHEEL, color, returnFor } from '../engine/roulette.js';
@@ -226,6 +226,7 @@ function drawHistory(list) {
 
 function label() {
   const p = $('play');
+  lockBet(spinning || (online && casino.round && casino.round.phase === 'spun')); // la bille roule : plus de jetons à poser
   if (!online) { p.textContent = 'Lancer la bille'; p.disabled = spinning; return; }
   const r = casino.round;
   p.disabled = spinning || (r && r.phase === 'spun') || casino.status !== 'online';

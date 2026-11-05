@@ -1,5 +1,5 @@
 // Page Fusée : le multiplicateur monte, tu retires avant l'explosion.
-import { casino, mountShell, $, eur, reduceMotion, sfx } from '../core.js';
+import { casino, mountShell, $, eur, reduceMotion, sfx, lockBet } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { mult, timeTo } from '../engine/crash.js';
 
@@ -108,6 +108,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 function boom() {
   state = 'boom'; boomAt = performance.now(); ff = 0;
+  lockBet(false);
   parts = Array.from({ length: 26 }, (_, i) => ({ a: Math.random() * Math.PI * 2, v: 0.05 + Math.random() * 0.13, s: 3 + Math.random() * 5,
     life: 500 + Math.random() * 500, c: ['#ffbf17', '#de0607', '#ff6a00', '#f0f0e6'][i % 4] }));
   $('skip').hidden = true;
@@ -157,6 +158,7 @@ async function launch() {
     casino.reveal(0);
     flight = { bet: b, auto: r.auto, point: null };
     state = 'flying'; t0 = performance.now(); cashed = null; endAt = null; boomAt = 0; ff = 0;
+    lockBet(true);
     sfx.play('switch', { vol: 1 });
     if (engine) engine.stop();
     if (wind) wind.stop();
@@ -185,6 +187,15 @@ async function cash() {
 }
 casino.on('crash', (r) => { if (state === 'flying') settle(r); });
 $('play').addEventListener('click', () => (state === 'flying' ? cash() : state === 'after' ? null : launch()));
+// Retrait automatique : replié derrière le petit bouton AUTO de la ligne de mise (doré quand un retrait auto est réglé)
+const autoMark = () => { const on = !!$('auto').value.trim(); $('autoBtn').classList.toggle('on', on); };
+$('autoBtn').addEventListener('click', () => {
+  const box = $('autoBox'); box.hidden = !box.hidden;
+  $('autoBtn').setAttribute('aria-expanded', String(!box.hidden));
+  if (!box.hidden) $('auto').focus();
+});
+$('auto').addEventListener('input', autoMark);
+
 // après un retrait, la fusée continue : « >> » fait défiler la fin du vol en accéléré (environ une seconde)
 $('skip').addEventListener('click', () => {
   if (state !== 'after') return;

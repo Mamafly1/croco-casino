@@ -1,5 +1,5 @@
 // Page pierre-feuille-ciseaux : contre le croco (tout de suite) ou en duel contre un autre joueur.
-import { casino, mountShell, $, eur, esc, toast, reduceMotion, sfx } from '../core.js';
+import { casino, mountShell, $, eur, esc, toast, reduceMotion, sfx, lockBet } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { RPS_MOVES, RPS_MULT } from '../engine/games.js';
 
@@ -49,6 +49,7 @@ $('moves').addEventListener('click', async (e) => {
   move = btn.dataset.m;
   if (mode === 'duel') { renderMoves(); return; }
   busy = true; $('msg').textContent = '';
+  lockBet(true);
   try {
     const b = bet.get();
     const r = await casino.play('rps', 'bot', { bet: b, move });
@@ -57,7 +58,7 @@ $('moves').addEventListener('click', async (e) => {
   } catch (err) {
     $('msg').textContent = err.message;
     if (/Solde insuffisant/.test(err.message)) casino.nudgeDeposit();
-  } finally { busy = false; }
+  } finally { busy = false; lockBet(!!match && match.phase !== 'done'); }
 });
 
 // ---------- défis entre joueurs : partie en 3 points ----------
@@ -144,6 +145,7 @@ async function revealRound(l) {
 }
 function renderMatch() {
   const box = $('matchBox');
+  lockBet(!!match && match.phase !== 'done'); // pendant une partie contre un joueur, la mise est déjà posée
   if (!match) { box.hidden = true; return; }
   box.hidden = false;
   $('nameOther').textContent = match.opp;

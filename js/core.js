@@ -391,8 +391,23 @@ export const X_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 // La page reste cachée tant qu'elle n'est pas construite (sinon on voit une version à moitié faite pendant le chargement).
 // Les pages qui attendent des données (caisses) passent { wait: true } et appellent pageReady() elles-mêmes.
-export function pageReady() { requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready'))); }
+let shellActive = '';
+export function pageReady() {
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.body.classList.add('ready');
+    // Sur téléphone, en arrivant sur un jeu, on descend directement au jeu : le haut de page (logo, solde, menu des jeux)
+    // reste juste au-dessus, il suffit de remonter.
+    if (GAMES.includes(shellActive) && matchMedia('(max-width: 760px)').matches && scrollY < 5 && !location.hash) {
+      const m = document.querySelector('main');
+      if (m) scrollTo({ top: m.getBoundingClientRect().top + scrollY - 8, behavior: 'instant' });
+    }
+  }));
+}
+// Tant que la mise ne peut plus changer (fusée en vol, main de blackjack, bille qui roule…), ses réglages sont cachés
+export function lockBet(on) { document.body.classList.toggle('betlock', !!on); }
 export function mountShell(active, { wait = false } = {}) {
+  shellActive = active;
+  document.body.classList.toggle('is-game', GAMES.includes(active));
   if (!wait) pageReady();
   const top = document.createElement('header');
   top.className = 'top';

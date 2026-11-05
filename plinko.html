@@ -11,8 +11,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m30">
+<link rel="stylesheet" href="css/casino.css?v=m31">
 <style>
+/* bulle d'info d'un bac : juste sous le plateau, avec une flèche pleine qui pointe le bac */
+.board-zone { position: relative; }
+.binpop { position: absolute; z-index: 20; top: calc(100% + 10px); left: 0; display: grid; gap: 2px; width: max-content; max-width: min(320px, 100%);
+  padding: 9px 12px; border: 2px solid var(--gold); border-radius: 10px; background: #1b1b19; color: var(--muted); font-size: 13px;
+  font-variant-numeric: tabular-nums; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); pointer-events: none; }
+.binpop[hidden] { display: none; }
+.binpop b { color: var(--ink); }
+.binpop::before { content: ""; position: absolute; top: -12px; left: var(--cx, 50%); transform: translateX(-50%); border: 10px solid transparent; border-top: 0; border-bottom-color: var(--gold); }
 .board-wrap {
   border-radius: 12px;
   background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%);
@@ -54,6 +62,7 @@
   white-space: nowrap;
   box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.35);
   pointer-events: auto;
+  touch-action: none; /* appui long sur un bac : pas de défilement qui couperait l'appui */
   cursor: help;
   user-select: none;
   -webkit-user-select: none;
@@ -106,6 +115,8 @@
 <body>
 <main class="game split">
   <aside class="panel" aria-label="Réglages de la mise">
+    <button id="play" class="play" type="button">Miser</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
     <div class="tabs" role="group" aria-label="Mode de jeu">
       <button id="tabManual" type="button" aria-pressed="true">Manuel</button>
       <button id="tabAuto" type="button" aria-pressed="false">Auto</button>
@@ -150,8 +161,6 @@
       </div>
     </div>
 
-    <button id="play" class="play" type="button">Miser</button>
-    <p class="msg" id="msg" aria-live="polite"></p>
 
     <section class="stats" aria-label="Statistiques">
       <h2>Session</h2>
@@ -168,6 +177,7 @@
   </aside>
 
   <section class="stage" aria-label="Plateau">
+    <div class="board-zone">
     <div class="board-wrap">
       <div class="board" id="board">
         <svg id="svg" viewBox="0 0 600 580" aria-hidden="true"></svg>
@@ -176,6 +186,8 @@
         <div class="history" id="history" aria-label="Derniers multiplicateurs"></div>
       </div>
     </div>
+      <div class="binpop" id="binpop" role="status" hidden></div>
+    </div>
     <div class="oddsbar" id="oddsbar" aria-live="polite"></div>
     <section class="surface" aria-labelledby="feedTitle">
       <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Plinko en direct</h2>
@@ -183,6 +195,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/plinko.js?v=m30"></script>
+<script type="module" src="js/pages/plinko.js?v=m31"></script>
 </body>
 </html>

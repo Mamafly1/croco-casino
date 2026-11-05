@@ -1,5 +1,5 @@
 // Page machine à sous.
-import { casino, mountShell, $, eur, nfx, nf0, reduceMotion, sfx } from '../core.js';
+import { casino, mountShell, $, eur, nfx, nf0, reduceMotion, sfx, lockBet } from '../core.js';
 import { mountFeed, betControl, sessionStats } from '../widgets.js';
 import { symbolSVG, SYMBOL_NAMES } from '../symbols.js';
 import { SYMBOLS, COUNTS, PAYS, TWO_CHERRIES, LINES, STRIPS, rtp } from '../engine/slots.js';
@@ -100,6 +100,7 @@ async function spinOnce() {
   if (spinning) return false;
   const b = bet.get();
   spinning = true;
+  lockBet(true);
   sfx.play('switch', { vol: 1 }); // le levier
   $('machine').classList.add('spinning');
   $('lines').innerHTML = '';
@@ -134,6 +135,7 @@ async function spinOnce() {
     return false;
   } finally {
     spinning = false;
+    if (!autoOn) lockBet(false); // en série auto, la mise reste cachée jusqu'au dernier tour
     $('machine').classList.remove('spinning');
   }
 }
@@ -160,6 +162,7 @@ async function run() {
   }
   autoOn = false;
   autoLeft = 0;
+  lockBet(false);
   label();
 }
 $('play').addEventListener('click', run);

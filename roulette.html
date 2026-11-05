@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m30">
+<link rel="stylesheet" href="css/casino.css?v=m31">
 <style>
 .felt { padding: 16px; border-radius: 14px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 14px; min-width: 0; }
 .wheel-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: center; }
@@ -72,19 +72,19 @@
 <body>
 <main class="game split">
   <aside class="panel" aria-label="Mises">
-    <div class="field">
+    <button id="play" class="play" type="button">Lancer la bille</button>
+    <p class="muted small">Clique sur le tapis pour poser un jeton. Clic droit ou appui long pour en retirer un.</p>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <div class="field bet-zone">
       <div class="field-head"><span id="chipLabel">Valeur du jeton</span><span class="num" id="betMax"></span></div>
       <div class="chipset" id="chipset" role="group" aria-labelledby="chipLabel"></div>
     </div>
-    <div class="tools">
+    <div class="tools bet-zone">
       <button class="btn-ghost" id="undo" type="button">Annuler</button>
       <button class="btn-ghost" id="clear" type="button">Effacer</button>
       <button class="btn-ghost" id="dbl" type="button">×2</button>
       <span class="total num" id="total">0,00 €</span>
     </div>
-    <button id="play" class="play" type="button">Lancer la bille</button>
-    <p class="muted small">Clique sur le tapis pour poser un jeton. Clic droit ou appui long pour en retirer un.</p>
-    <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
       <h2>Session</h2>
       <dl class="stat-grid">
@@ -121,6 +121,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/roulette.js?v=m30"></script>
+<script type="module" src="js/pages/roulette.js?v=m31"></script>
 </body>
 </html>
