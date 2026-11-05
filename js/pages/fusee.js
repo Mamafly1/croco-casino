@@ -121,7 +121,7 @@ function boom() {
   $('sub').textContent = cashed ? `Retiré à ${fx(cashed.mult)} : +${eur(cashed.payout - flight.bet)}` : `Boum à ${fx(p)}`;
   hist.unshift(p); hist.length = Math.min(hist.length, 14);
   $('points').innerHTML = hist.map((v) => `<span class="${v < 2 ? 'lo' : v >= 10 ? 'hi' : ''}">${fx(v)}</span>`).join('');
-  stats.add(flight.bet, cashed ? cashed.payout : 0, cashed ? cashed.mult : 0, true);
+  if (!cashed) stats.add(flight.bet, 0, 0, true); // un retrait est compté dès qu'il est fait (settle)
   clearInterval(pollT);
   $('play').textContent = 'Lancer la fusée';
   $('play').classList.remove('stop');
@@ -129,13 +129,14 @@ function boom() {
 }
 // fin du vol connue (retrait, explosion ou retrait auto) : on montre la suite jusqu'au point d'explosion
 function settle(r) {
-  if (!flight || !r || !r.done) return;
+  if (!flight || !r || !r.done || state !== 'flying') return; // déjà réglé (réponse et message du serveur peuvent arriver tous les deux)
   flight.point = r.point;
   clearInterval(pollT);
   if (r.mult) {
     cashed = { mult: r.mult, payout: r.payout };
     state = 'after';
     sfx.result(flight.bet, r.payout);
+    stats.add(flight.bet, r.payout, r.mult, true); // profit de la session à jour tout de suite, sans attendre l'explosion
     $('mult').className = 'mult cashed';
     $('sub').textContent = `Retiré à ${fx(r.mult)} : +${eur(r.payout - flight.bet)}`;
     $('play').textContent = 'Retiré !';

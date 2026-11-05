@@ -280,7 +280,7 @@ function connect() {
     else if (m.t === 'table') { casino.table = m.table; emit('table', m.table); }
     else if (m.t === 'online') { casino.onlineCount = m.n; casino.onlineNames = m.names || []; emit('online', m.n); }
     else if (m.t === 'gifs') emit('gifs', m);
-    else if (m.t === 'crash') { casino.me = m.me; emit('crash', m.result); emit('me', m.me); }
+    else if (m.t === 'crash') { casino.me = m.me; emit('crash', m.result); emit('me', m.me); renderWallet(); } // retrait auto : solde à jour tout de suite
     else if (m.t === 'duels') { casino.duels = m.duels; emit('duels', m.duels); }
     else if (m.t === 'duelEnd') { casino.me = m.me; emit('duelEnd', m.result); emit('me', m.me); renderWallet(); }
     else if (m.t === 'note') { toast(m.text); sfx.play('notify'); }
