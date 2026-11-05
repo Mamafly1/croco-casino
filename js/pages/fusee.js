@@ -22,8 +22,10 @@ const hist = [];
 // ---------- dessin ----------
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 60 }, () => [Math.random(), Math.random(), Math.random() * 1.5 + 0.5]);
-// décalage du ciel en px (× taille de l'étoile) : il file vers la gauche pendant le vol, puis descend doucement
-const sky = { x: 0, y: 0, vx: 0, vy: 0.012 };
+// décalage du ciel en px (× taille de l'étoile) : les étoiles filent à l'opposé de la fusée (ang = sa direction à l'écran),
+// vite pendant le vol, puis plus doucement une fois fini, sans jamais s'arrêter
+const sky = { x: 0, y: 0, vx: 0, vy: 0, ang: 0.9 - Math.PI / 2 };
+let ff = 0; // avance rapide de la fin du vol après un retrait (facteur de vitesse, 0 = normal)
 function resize() { const r = cv.getBoundingClientRect(), d = Math.min(2, devicePixelRatio || 1); cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); }
 addEventListener('resize', () => { resize(); draw(); });
 resize();
@@ -42,7 +44,7 @@ function draw() {
   const el = state === 'idle' ? 0 : (boomAt || performance.now()) - t0;
   ctx.fillStyle = 'rgba(240,240,230,.6)';
   for (const [x, y, s] of stars) ctx.fillRect(((x * W + sky.x * s) % W + W) % W, ((y * H + sky.y * s) % H + H) % H, s, s);
-  if (state === 'idle') { rocket(W * 0.12, H * 0.85, 0.9, Math.max(4, W / 90), false); return; }
+  if (state === 'idle') { sky.ang = 0.9 - Math.PI / 2; rocket(W * 0.12, H * 0.85, 0.9, Math.max(4, W / 90), false); return; }
   const m = state === 'boom' && flight ? flight.point : mult(el);
   // courbe : temps en x, multiplicateur en y ; les échelles grandissent pour garder la fusée vers le milieu-droit
   const tMax = Math.max(8000, el * 1.4), mMax = Math.max(2, 1 + (m - 1) * 1.5);
@@ -54,7 +56,7 @@ function draw() {
   if (state === 'boom') {
     const k = Math.min(1, (performance.now() - boomAt) / 600);
     for (let i = 0; i < 14; i++) { const a = i * 0.45, r = 10 + k * 50; ctx.fillStyle = i % 2 ? '#ffbf17' : '#de0607'; ctx.fillRect(x + Math.cos(a) * r, y + Math.sin(a) * r, 7 * (1 - k) + 2, 7 * (1 - k) + 2); }
-  } else rocket(x, y, Math.atan2(y2 - y, x2 - x) + Math.PI / 2, Math.max(4, W / 90), true);
+  } else { sky.ang = Math.atan2(y2 - y, x2 - x); rocket(x, y, sky.ang + Math.PI / 2, Math.max(4, W / 90), true); }
 }
 
 // ---------- vol ----------
@@ -63,10 +65,12 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(50, now - last); last = now;
   const flying = state === 'flying' || state === 'after';
+  if (state === 'after' && ff) t0 -= dt * (ff - 1); // avance rapide : le temps du vol passe ff fois plus vite
   const m = !flying ? 1 : mult(now - t0);
-  const k = Math.min(1, dt / 500), lm = Math.log(m);
-  sky.vx += ((flying ? -0.02 * (1 + lm / 2) : 0) - sky.vx) * k;
-  sky.vy += ((flying ? 0.004 : 0.012) - sky.vy) * k;
+  const k = Math.min(1, dt / 400), lm = Math.log(m);
+  const sp = flying ? 0.07 * (1 + lm / 2) * (ff ? 2.5 : 1) : 0.035; // px par ms
+  sky.vx += (-sp * Math.cos(sky.ang) - sky.vx) * k;
+  sky.vy += (-sp * Math.sin(sky.ang) - sky.vy) * k;
   if (!reduceMotion) { sky.x += sky.vx * dt; sky.y += sky.vy * dt; }
   if (flying) {
     $('mult').textContent = fx(m);
@@ -80,7 +84,7 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 function boom() {
-  state = 'boom'; boomAt = performance.now();
+  state = 'boom'; boomAt = performance.now(); ff = 0;
   $('skip').hidden = true;
   if (engine) { engine.stop(); engine = null; }
   if (wind) { wind.stop(); wind = null; }
@@ -126,7 +130,7 @@ async function launch() {
     const r = await casino.play('crash', 'start', { bet: b, auto: a });
     casino.reveal(0);
     flight = { bet: b, auto: r.auto, point: null };
-    state = 'flying'; t0 = performance.now(); cashed = null; endAt = null; boomAt = 0;
+    state = 'flying'; t0 = performance.now(); cashed = null; endAt = null; boomAt = 0; ff = 0;
     sfx.play('switch', { vol: 1 });
     if (engine) engine.stop();
     if (wind) wind.stop();
@@ -155,8 +159,13 @@ async function cash() {
 }
 casino.on('crash', (r) => { if (state === 'flying') settle(r); });
 $('play').addEventListener('click', () => (state === 'flying' ? cash() : state === 'after' ? null : launch()));
-// après un retrait, la fusée continue : ce bouton saute directement à son explosion
-$('skip').addEventListener('click', () => { if (state === 'after') { t0 = performance.now() - timeTo(flight.point); boom(); } });
+// après un retrait, la fusée continue : « >> » fait défiler la fin du vol en accéléré (environ une seconde)
+$('skip').addEventListener('click', () => {
+  if (state !== 'after') return;
+  const left = timeTo(flight.point) - (performance.now() - t0);
+  ff = Math.max(4, left / 1100);
+  $('skip').hidden = true;
+});
 
 // une fusée lancée avant un rechargement de la page : on la règle
 (async () => {
