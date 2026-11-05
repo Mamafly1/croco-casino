@@ -228,8 +228,11 @@ export class Casino extends DurableObject {
         }
         this.rec(0, '_v2', 1);
       }
-      if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v3'").toArray().length) { this.migrateV3(); this.rec(0, '_v3', 1); }
-      if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v4'").toArray().length) { this.migrateV4(); this.rec(0, '_v4', 1); }
+      // Migrations : tout ou rien (transaction), et une migration qui plante ne doit jamais empêcher le serveur de démarrer
+      for (const [flag, fn] of [['_v3', this.migrateV3], ['_v4', this.migrateV4]]) {
+        if (this.sql.exec('SELECT 1 FROM records WHERE k = ?', flag).toArray().length) continue;
+        try { ctx.storage.transactionSync(() => { fn.call(this); this.rec(0, flag, 1); }); } catch (e) { console.error('migration', flag, e); }
+      }
     });
   }
 
@@ -282,36 +285,43 @@ export class Casino extends DurableObject {
   }
   // Une seule fois (v4) : les parties en deux temps déjà jouées (fusée, blackjack, roulette en ligne) n'ont plus qu'une ligne
   // d'historique (la mise fondue dans le résultat, ou marquée perdue), et « Le Gros Coup » est recalculé en gain net.
+  // Le gain net se calcule avec les soldes (b), jamais modifiés : le résultat est juste même si une version ratée de
+  // cette migration avait déjà touché aux montants (d).
   migrateV4() {
     const players = new Map(this.sql.exec('SELECT id, data FROM players').toArray().map((r) => [r.id, JSON.parse(r.data)]));
-    const rows = this.sql.exec("SELECT id, player_id, at, d, l, g FROM hist WHERE g IN ('crash', 'blackjack', 'roulette') ORDER BY player_id, g, id").toArray();
+    const rows = this.sql.exec('SELECT id, player_id, at, d, b, l, g FROM hist ORDER BY player_id, id').toArray();
     const upd = [], del = [];
-    let key = '', pend = null;
-    // mise sans résultat : perdue (sauf la partie en cours, qui reste ouverte)
-    const lose = (last = false) => {
-      if (!pend) return;
-      const keep = pend.ids[pend.ids.length - 1], p = players.get(pend.pid) || {};
-      const live = last && ((pend.g === 'crash' && p.crash) || (pend.g === 'blackjack' && p.bj && p.bj.phase === 'player'));
-      upd.push([keep, money(pend.d), live ? null : LOST_LABEL[pend.g], live ? 1 : 0]);
-      del.push(...pend.ids.slice(0, -1));
-      pend = null;
+    const isBet = (r) => (r.g === 'crash' && r.l === 'Fusée : mise') || (r.g === 'blackjack' && /^Blackjack : (mise|double|séparation)$/.test(r.l)) || (r.g === 'roulette' && r.l === 'Roulette : mise');
+    let seq = [], pend = {};
+    // ferme une partie : ses lignes de mise (et son résultat s'il y en a un) deviennent une seule ligne, la dernière
+    const finish = (g, endIdx, loss, last = false) => {
+      const grp = pend[g].idx, end = seq[endIdx], first = seq[grp[0]], inGrp = new Set([...grp, endIdx]);
+      let other = 0;
+      for (let i = grp[0] + 1; i < endIdx; i++) if (!inGrp.has(i)) other += seq[i].d;
+      const net = money(end.b - first.b + first.d - other);
+      const p = players.get(end.player_id) || {};
+      const live = loss && last && ((g === 'crash' && p.crash) || (g === 'blackjack' && p.bj && p.bj.phase === 'player'));
+      upd.push([end.id, net, loss && !live ? LOST_LABEL[g] : null, live ? 1 : 0]);
+      for (const i of grp) if (i !== endIdx) del.push(seq[i].id);
+      delete pend[g];
     };
+    const flush = () => { for (const g of Object.keys(pend)) finish(g, pend[g].idx[pend[g].idx.length - 1], true, true); seq = []; };
     for (const r of rows) {
-      const k = r.player_id + ':' + r.g;
-      if (k !== key) { lose(true); key = k; }
-      const l = r.l;
-      const bet = (r.g === 'crash' && l === 'Fusée : mise') || (r.g === 'blackjack' && /^Blackjack : (mise|double|séparation)$/.test(l)) || (r.g === 'roulette' && l === 'Roulette : mise');
-      const start = l === 'Fusée : mise' || l === 'Blackjack : mise' || (l === 'Roulette : mise' && (!pend || r.at - pend.at > 25000));
-      if (start) lose();
-      if (bet) { if (!pend) pend = { g: r.g, pid: r.player_id, ids: [], d: 0, at: r.at }; pend.ids.push(r.id); pend.d += r.d; pend.at = r.at; continue; }
-      if (pend) { upd.push([r.id, money(r.d + pend.d), null, 0]); del.push(...pend.ids); pend = null; }
+      if (seq.length && seq[0].player_id !== r.player_id) flush();
+      const i = seq.push(r) - 1;
+      if (!LOST_LABEL[r.g]) continue;
+      const g = r.g, pd = pend[g];
+      const start = r.l === 'Fusée : mise' || r.l === 'Blackjack : mise' || (r.l === 'Roulette : mise' && (!pd || r.at - pd.at > 25000));
+      if (start && pd) finish(g, pd.idx[pd.idx.length - 1], true);
+      if (isBet(r)) { (pend[g] ||= { idx: [], at: 0 }).idx.push(i); pend[g].at = r.at; continue; }
+      if (pend[g]) finish(g, i, false);
     }
-    lose(true);
+    flush();
     for (const [id, d, l, open] of upd) {
       if (l) this.sql.exec('UPDATE hist SET d = ?, l = ?, open = ? WHERE id = ?', d, l, open, id);
       else this.sql.exec('UPDATE hist SET d = ?, open = ? WHERE id = ?', d, open, id);
     }
-    for (let i = 0; i < del.length; i += 200) { const ids = del.slice(i, i + 200); this.sql.exec(`DELETE FROM hist WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids); }
+    for (let i = 0; i < del.length; i += 50) { const ids = del.slice(i, i + 50); this.sql.exec(`DELETE FROM hist WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids); } // 100 paramètres au plus par requête
     // « Le Gros Coup » : plus gros gain net d'une partie. On garde les records Plinko et machine à sous (déjà nets, bille par bille).
     const keep = this.sql.exec("SELECT player_id, v, g FROM records WHERE k = 'win' AND g IN ('plinko', 'slots')").toArray();
     const best = this.sql.exec(`SELECT player_id, g, MAX(d) AS v FROM hist WHERE d > 0 AND open = 0 AND g IN (${WIN_GAMES.map(() => '?').join(',')})
