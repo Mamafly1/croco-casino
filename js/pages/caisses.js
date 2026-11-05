@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m23');
+    const v = await import('../viewer3d.js?v=m24');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -90,28 +90,64 @@ function idleTrack() {
   t.innerHTML = all.slice(0, 14).map(slotHTML).join('');
   t.style.transform = 'translateX(8px)';
 }
+// Son d'ouverture de CS:GO en 3 morceaux : la caisse s'ouvre (OPEN_S), les tics qui ralentissent (caseRoll), la révélation.
+// TICKS : instants (s, depuis le début de caseRoll) des 45 tics, relevés sur le fichier (les plus rapides un peu lissés).
+// La roue est calée dessus : un objet passe sous le repère à chaque tic, le dernier tic fait entrer le gagnant.
+const OPEN_S = 1.6;
+const TICKS = [0.090, 0.146, 0.205, 0.265, 0.326, 0.390, 0.453, 0.517, 0.582, 0.646, 0.708, 0.769, 0.829, 0.887, 0.945, 0.999,
+  1.052, 1.106, 1.161, 1.216, 1.275, 1.335, 1.396, 1.456, 1.515, 1.570, 1.629, 1.689, 1.753, 1.818, 1.887, 1.960,
+  2.096, 2.248, 2.399, 2.561, 2.689, 2.863, 3.027, 3.190, 3.422, 3.725, 4.004, 4.447, 5.110];
+sfx.preload('caseOpen', 'caseRoll', 'caseReveal');
+
+// Position de la roue (en objets, 0 = premier tic) selon le temps : cubique monotone (Fritsch-Butland) passant par
+// chaque tic, puis freinage jusqu'à sEnd
+function rollCurve(sEnd) {
+  const n0 = TICKS.length, vLast = 1 / (TICKS[n0 - 1] - TICKS[n0 - 2]);
+  const tEnd = TICKS[n0 - 1] + Math.min(0.9, Math.max(0.25, (2 * (sEnd - (n0 - 1))) / vLast));
+  const X = [0, ...TICKS, tEnd], Y = [-TICKS[0] / (TICKS[1] - TICKS[0]), ...TICKS.map((_, k) => k), sEnd];
+  const n = X.length, h = [], d = [], m = [];
+  for (let i = 0; i < n - 1; i++) { h.push(X[i + 1] - X[i]); d.push((Y[i + 1] - Y[i]) / h[i]); }
+  m[0] = d[0]; m[n - 1] = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const w1 = 2 * h[i] + h[i - 1], w2 = h[i] + 2 * h[i - 1];
+    m[i] = d[i - 1] * d[i] <= 0 ? 0 : (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
+  }
+  let i = 0;
+  return {
+    end: tEnd,
+    at(t) {
+      if (t <= 0) return Y[0];
+      if (t >= tEnd) return sEnd;
+      while (i < n - 2 && t >= X[i + 1]) i++;
+      const u = (t - X[i]) / h[i], u2 = u * u, u3 = u2 * u;
+      return (2 * u3 - 3 * u2 + 1) * Y[i] + (u3 - 2 * u2 + u) * h[i] * m[i] + (-2 * u3 + 3 * u2) * Y[i + 1] + (u3 - u2) * h[i] * m[i + 1];
+    },
+  };
+}
 function spinTrack(reel) {
   return new Promise((resolve) => {
-    const t = $('track'), box = t.parentElement, w = SLOT_W();
+    const t = $('track'), box = t.parentElement, w = SLOT_W(), half = box.clientWidth / 2;
+    // quelques objets de plus au début pour que la roue soit pleine dès le départ ; le gagnant passe en position win
+    const pad = Math.ceil(half / w) + 2, win = 45 + pad;
+    const all = [...Array.from({ length: pad }, (_, k) => reel[(k * 7 + 3) % 45]), ...reel];
     t.style.transition = 'none';
-    t.style.transform = 'translateX(0)';
-    t.innerHTML = reel.map(slotHTML).join('');
-    void t.offsetWidth;
+    t.innerHTML = all.map(slotHTML).join('');
+    const j0 = win - (TICKS.length - 1); // l'objet dans lequel on entre au premier tic
     const jitter = (Math.random() - 0.5) * (w - 30);
-    const x = -(45 * w + (w - 6) / 2 - box.clientWidth / 2 + jitter);
-    if (reduceMotion) { t.style.transform = `translateX(${x}px)`; resolve(); return; }
-    t.style.transition = 'transform 5.2s cubic-bezier(.12,.72,.18,1)';
-    t.style.transform = `translateX(${x}px)`;
-    // un petit tic chaque fois qu'un objet passe sous le repère
-    let lastSlot = -1, ticking = true;
-    (function tick() {
-      if (!ticking) return;
-      const px = new DOMMatrix(getComputedStyle(t).transform).m41, slot = Math.floor((-px + box.clientWidth / 2) / w);
-      if (slot !== lastSlot) { lastSlot = slot; sfx.play('click', { vol: 1, gap: 40 }); }
-      requestAnimationFrame(tick);
+    const sEnd = win - j0 + ((w - 6) / 2 + jitter + 3) / w;
+    // s objets après le premier tic : le bord de l'objet j0 (milieu de l'espace de 6 px) est sous le repère à s = 0
+    const place = (s) => { t.style.transform = `translate3d(${half - ((j0 + s) * w - 3)}px,0,0)`; };
+    if (reduceMotion) { place(sEnd); resolve(); return; }
+    const curve = rollCurve(sEnd);
+    place(curve.at(0));
+    // horloge : celle du son quand il joue (calage exact même si des images sautent), sinon celle de la page
+    const src = sfx.play('caseRoll', { vary: 0, gap: 0 }), p0 = performance.now();
+    const now = () => { const c = src ? sfx.clock() : null; return c != null ? c - src.t0 : (performance.now() - p0) / 1000; };
+    (function step() {
+      const tt = now();
+      place(curve.at(tt));
+      if (tt < curve.end) requestAnimationFrame(step); else resolve();
     })();
-    sfx.play('shuffle', { vol: 0.5 });
-    t.addEventListener('transitionend', () => { ticking = false; resolve(); }, { once: true });
   });
 }
 
@@ -122,12 +158,17 @@ $('open').addEventListener('click', async () => {
   hiddenNew = new Set((casino.me.inventory || []).map((x) => x.uid));
   $('open').disabled = true;
   $('msg').textContent = '';
+  const t0 = performance.now();
+  // la caisse s'ouvre (son) pendant que le serveur tire l'objet
+  if (!reduceMotion && (casino.me.balance || 0) >= cost(sel)) sfx.play('caseOpen', { vary: 0, gap: 0 });
   try {
     const r = await casino.play('cases', 'open', { caseId: sel.id });
     casino.reveal(0); // le prix est déjà débité ; l'objet va dans l'inventaire
     preload3D(r.item); // la 3D charge pendant que la roulette tourne
+    if (!reduceMotion) await new Promise((ok) => setTimeout(ok, Math.max(0, OPEN_S * 1000 - (performance.now() - t0))));
     await spinTrack(r.reel);
     hiddenNew = null;
+    sfx.play('caseReveal', { vary: 0, gap: 0 });
     showItem(r.item, true);
     renderInv();
   } catch (err) {
@@ -353,13 +394,7 @@ function stop3D() {
 }
 
 function showItem(it, fresh) {
-  if (fresh) { // le son dépend de la rareté
-    if (it.t === 'rare') sfx.play('jackpot');
-    else if (it.t === 'covert') { sfx.play('win'); }
-    else if (it.t === 'classified') sfx.play('rise');
-    else if (it.t === 'restricted') sfx.play('up', { vol: 0.7 });
-    else sfx.play('chipStack');
-  }
+  if (fresh && it.t === 'rare') sfx.play('jackpot', { delay: 1 }); // couteau ou gants : en plus de la révélation
   const m = $('reveal');
   m.querySelector('.sheet').style.setProperty('--tc', tc(it.t));
   $('scene').style.setProperty('--tc', tc(it.t));

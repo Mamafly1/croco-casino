@@ -60,7 +60,7 @@ export function historyLabel(game, action, params, result, feed) {
   if (game === 'crash') return result.mult ? `Fusée ×${String(result.mult).replace('.', ',')}` : result.point != null ? `Fusée : explosée à ×${String(result.point).replace('.', ',')}` : 'Fusée : mise';
   if (game === 'rps') return result.label && result.label.startsWith('Chifoumi') ? result.label : `Chifoumi : ${result.cancelled ? 'défi annulé' : ({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[result.outcome] || result.label || 'défi lancé'}`;
   if (game === 'stocks') { const c = COMPANIES.find((x) => x.id === params.co); return `Bourse : ${action === 'buy' ? 'achat' : 'vente'} ${c ? c.name : ''}`; }
-  if (game === 'plinko') return `Plinko ×${String(result.mult).replace('.', ',')}`;
+  if (game === 'plinko') return feed && feed.run ? `Plinko auto ${feed.n}` : `Plinko ×${String(result.mult).replace('.', ',')}`;
   if (game === 'slots') return result.payout > 0 ? `Machine à sous ×${String(money(result.payout / result.bet)).replace('.', ',')}` : 'Machine à sous';
   if (game === 'roulette') return result.n != null ? `Roulette : ${result.n}` : 'Roulette : mise';
   if (game === 'blackjack') {
@@ -256,8 +256,10 @@ export function run(p, game, action, params = {}, ctx) {
     const d = plinko.drop(rows, risk, rng);
     const payout = money(bet * d.mult);
     p.balance = money(p.balance - bet + payout);
-    played(p, 'plinko');
-    return out({ ...d, rows, risk, bet, payout }, { game, bet, payout, mult: d.mult });
+    // Mode auto : params.auto = identifiant de la série, params.i = numéro de la bille. Une série = une seule partie.
+    const run = typeof params.auto === 'string' && params.auto ? params.auto.slice(0, 24) : null;
+    if (!run || !(Number(params.i) > 0)) played(p, 'plinko');
+    return out({ ...d, rows, risk, bet, payout }, { game, bet, payout, mult: d.mult, ...(run ? { run } : {}) });
   }
 
   if (game === 'slots' && action === 'spin') {

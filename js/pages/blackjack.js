@@ -44,7 +44,11 @@ function buttons() {
   $('stand').disabled = busy || !can.includes('stand');
   $('dbl').disabled = busy || !can.includes('double');
   $('split').disabled = busy || !can.includes('split');
-  $('deal').disabled = busy || (v && v.phase === 'player');
+  // un seul bloc à la fois : les actions pendant la main, sinon « Distribuer » / « Nouvelle main » à leur place
+  const playing = !!(v && v.phase === 'player');
+  $('acts').hidden = !playing;
+  $('deal').hidden = playing;
+  $('deal').disabled = busy;
   $('deal').textContent = v && v.phase === 'done' ? 'Nouvelle main' : 'Distribuer';
 }
 
@@ -82,7 +86,7 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   const map = { t: 'hit', h: 'hit', r: 'stand', s: 'stand', d: 'dbl', p: 'split' };
   if (map[k] && !$(map[k]).disabled) $(map[k]).click();
-  if (e.code === 'Space' && e.target.tagName !== 'BUTTON' && !$('deal').disabled) { e.preventDefault(); $('deal').click(); }
+  if (e.code === 'Space' && e.target.tagName !== 'BUTTON' && !$('deal').disabled && !$('deal').hidden) { e.preventDefault(); $('deal').click(); }
 });
 
 // Reprendre une main en cours après un rechargement

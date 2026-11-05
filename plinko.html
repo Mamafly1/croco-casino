@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m23">
+<link rel="stylesheet" href="css/casino.css?v=m24">
 <style>
 .board-wrap {
   border-radius: 12px;
@@ -55,6 +55,9 @@
   box-shadow: 0 0.22em 0 rgba(0, 0, 0, 0.35);
   pointer-events: auto;
   cursor: help;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   transition: transform 0.12s ease;
 }
 .bin:hover, .bin.sel { filter: brightness(1.12); }
@@ -180,6 +183,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/plinko.js?v=m23"></script>
+<script type="module" src="js/pages/plinko.js?v=m24"></script>
 </body>
 </html>

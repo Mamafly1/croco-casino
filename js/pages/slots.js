@@ -5,6 +5,7 @@ import { symbolSVG, SYMBOL_NAMES } from '../symbols.js';
 import { SYMBOLS, COUNTS, PAYS, TWO_CHERRIES, LINES, STRIPS, rtp } from '../engine/slots.js';
 
 mountShell('slots');
+sfx.preload('reel');
 mountFeed($('feed'), { game: 'slots', limit: 6 });
 const bet = betControl();
 const stats = sessionStats();
@@ -67,6 +68,8 @@ function animate(res) {
   return new Promise((resolve) => {
     if (reduceMotion) { res.stops.forEach((s, i) => { current[i] = s; }); drawStatic(); resolve(); return; }
     let done = 0;
+    // « frrrt » doux des rouleaux, qui baisse à chaque rouleau arrêté
+    const whir = sfx.loop('reel', { vol: 0.9 });
     strips.forEach((s, r) => {
       const n = 18 + r * 7; // nombre de cases qui défilent
       const from = current[r], to = res.stops[r];
@@ -87,7 +90,7 @@ function animate(res) {
         current[r] = to;
         sfx.play('chipStack', { vol: 0.9, gap: 0 }); // le rouleau s'arrête
         drawStatic(r);
-        if (++done === 3) resolve();
+        if (++done === 3) { whir.stop(); resolve(); } else whir.set(0.9 - done * 0.3, 1 - done * 0.08);
       });
     });
   });

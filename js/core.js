@@ -97,9 +97,19 @@ export const casino = {
         const before = local.p.balance;
         const r = run(local.p, game, action, params, ctx);
         result = r.result;
-        soloFeed = r.feed ? { name: this.me.name, at: Date.now(), ...r.feed } : null;
         const d = money(local.p.balance - before);
-        if (d) {
+        if (r.feed && r.feed.run) { // série auto de Plinko : une ligne d'historique et du fil pour toute la série
+          let a = local.run;
+          if (!a || a.run !== r.feed.run) a = local.run = { run: r.feed.run, n: 0, bet: 0, payout: 0, best: 0, h: null };
+          a.n++; a.bet = money(a.bet + r.feed.bet); a.payout = money(a.payout + r.feed.payout); a.best = Math.max(a.best, r.feed.mult);
+          r.feed = { game, run: a.run, n: a.n, bet: a.bet, payout: a.payout, mult: a.best };
+          local.hist = local.hist || [];
+          const h = local.hist[local.hist.length - 1];
+          if (h && h.run === a.run) Object.assign(h, { at: Date.now(), d: money(h.d + d), b: local.p.balance, l: historyLabel(game, action, params, result, r.feed) });
+          else local.hist.push({ at: Date.now(), d, b: local.p.balance, l: historyLabel(game, action, params, result, r.feed), g: game, run: a.run });
+        }
+        soloFeed = r.feed ? { name: this.me.name, at: Date.now(), ...r.feed } : null;
+        if (d && !(r.feed && r.feed.run)) {
           local.hist = local.hist || [];
           local.hist.push({ at: Date.now(), d, b: local.p.balance, l: historyLabel(game, action, params, result, r.feed), g: game });
           if (local.hist.length > 400) local.hist.splice(0, local.hist.length - 400);
@@ -145,6 +155,11 @@ export const casino = {
     if (!this.online) return [];
     return (await request({ t: 'hist', name, before })).result;
   },
+  // Profit sur les jeux d'un joueur pendant les ms dernières millisecondes (dépôts, gifs et ajustements à part)
+  async profit(name, ms) {
+    if (this.online) return (await request({ t: 'profit', name, ms })).result;
+    return soloProfit(ms);
+  },
   removeGif(id) { if (this.online && ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'gifrm', gid: id })); },
   // Image importée depuis l'appareil : envoyée au serveur, qui renvoie son adresse
   async uploadMedia(file) {
@@ -177,6 +192,7 @@ export const casino = {
     return {
       name: this.me.name, rank: null, score: score(p), balance: p.balance, deposits: p.deposits, inventoryValue: inventoryValue(p),
       played: p.played, inventory: [...p.inventory].sort((a, b) => b.value - a.value), hist: local.hist || [],
+      profit: { m10: soloProfit(6e5), h1: soloProfit(36e5), h24: soloProfit(864e5) },
     };
   },
   // Pour un gain décidé par le serveur sans requête de ta part (tour de roulette partagé)
@@ -189,13 +205,17 @@ export const casino = {
   },
 };
 
+const soloProfit = (ms) => money((local.hist || []).filter((h) => h.at >= Date.now() - ms && !['wallet', 'admin', 'gifs'].includes(h.g)).reduce((s, h) => s + h.d, 0));
+
 // Tes propres parties restent cachées du fil tant que leur animation n'est pas finie.
 let holding = 0, held = [];
+const sameRun = (e) => (x) => !(e.run && x.run === e.run && x.name === e.name); // série auto de Plinko : une seule ligne
 function addFeed(e) {
-  if (holding && e.name === casino.me.name) { held.unshift(e); return; }
+  if (holding && e.name === casino.me.name) { held = held.filter(sameRun(e)); held.unshift(e); return; }
   showFeed(e);
 }
 function showFeed(e) {
+  casino.feed = casino.feed.filter(sameRun(e));
   casino.feed.unshift(e);
   casino.feed.length = Math.min(casino.feed.length, 30);
   emit('feed', e);
@@ -394,8 +414,8 @@ export function mountShell(active, { wait = false } = {}) {
   $('topup').addEventListener('click', openShop);
   setupInstall();
   watchUpdates();
-  // petit clic sur les boutons
-  document.addEventListener('pointerdown', (e) => { if (e.isPrimary && e.target.closest && e.target.closest('button:not(:disabled), summary, a.tile, .nav a')) sfx.play('click', { gap: 60, vary: 0.08 }); }, true);
+  // petit clic sur les boutons, au « click » et pas à l'appui : commencer un défilement sur un bouton ne fait pas de bruit
+  document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('button:not(:disabled), summary, a.tile, .nav a')) sfx.play('click', { gap: 60, vary: 0.08 }); }, true);
   $('gifBtn').addEventListener('click', () => import('./gifs.js?v=g1').then((g) => g.openGifSender()));
   import('./gifs.js?v=g1').then((g) => g.mountGifs()).catch((e) => console.error(e));
   $('meBtn').addEventListener('click', () => import('./profile.js').then((m) => m.openProfile(casino.me.name)));
@@ -521,7 +541,7 @@ function buildShop() {
         $('rcDate').textContent = new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
         $('rcAmt').textContent = eur(r.amount);
         show('stepDone');
-        sfx.play('coin'); sfx.play('coin', { delay: 0.15 }); sfx.play('coin', { delay: 0.3 });
+        sfx.gain(true);
         $('doneBtn').focus();
         countUp(before, casino.shownBalance());
       } catch (err) {

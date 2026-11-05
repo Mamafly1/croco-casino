@@ -9,7 +9,7 @@ mountShell('roulette');
 mountFeed($('feed'), { game: 'roulette', limit: 6 });
 const stats = sessionStats((x) => '×' + nf2.format(x));
 
-let chip = 1, bets = {}, history = [], spinning = false, lastBets = null;
+let chip = 1, bets = {}, history = [], spinning = false;
 const online = casino.online;
 
 // ---------- roue ----------
@@ -202,9 +202,10 @@ $('undo').addEventListener('click', () => {
   renderBets();
 });
 $('clear').addEventListener('click', () => { bets = {}; stack.length = 0; renderBets(); });
+// ×2 double seulement les jetons posés (avant, sans jeton, il remettait en douce les mises du tour d'avant)
 $('dbl').addEventListener('click', () => {
-  if (!Object.keys(bets).length && lastBets) { bets = { ...lastBets }; renderBets(); return; }
-  for (const k of Object.keys(bets)) bets[k] = money(bets[k] * 2);
+  if (!Object.keys(bets).length) { $('msg').textContent = 'Pose d’abord un jeton sur le tapis.'; return; }
+  for (const k of Object.keys(bets)) { stack.push([k, bets[k]]); bets[k] = money(bets[k] * 2); }
   renderBets();
 });
 
@@ -225,7 +226,7 @@ function drawHistory(list) {
 
 function label() {
   const p = $('play');
-  if (!online) { p.textContent = spinning ? 'La bille roule…' : 'Lancer la bille'; p.disabled = spinning; return; }
+  if (!online) { p.textContent = 'Lancer la bille'; p.disabled = spinning; return; }
   const r = casino.round;
   p.disabled = spinning || (r && r.phase === 'spun') || casino.status !== 'online';
   p.textContent = r && r.phase === 'betting' ? `Miser ${eur(totalBet())} dans ce tour` : `Miser ${eur(totalBet())} et lancer un tour`;
@@ -239,7 +240,6 @@ async function soloSpin() {
   try {
     const res = await casino.play('roulette', 'spin', { bets });
     $('msg').textContent = '';
-    lastBets = { ...bets };
     $('bigres').innerHTML = '';
     await spinTo(res.n);
     casino.reveal(res.payout);
@@ -262,7 +262,6 @@ async function onlineBet() {
     const res = await casino.play('roulette', 'bet', { bets });
     casino.reveal(0);
     myStake = money(myStake + res.bet);
-    lastBets = { ...bets };
     bets = {}; stack.length = 0; renderBets();
     $('msg').className = 'msg ok';
     $('msg').textContent = `Mise acceptée : ${eur(res.bet)}. Tes jetons sont dans le tour.`;
@@ -326,6 +325,8 @@ async function onRound(r) {
   const mine = (r.players || []).find((p) => p.name === casino.me.name);
   if (mine) myStake = mine.total;
   clearInterval(timer);
+  // nouveau tour : le numéro sorti au tour d'avant n'est plus encadré sur le tapis (on dirait sinon une mise posée dessus)
+  if (r.phase !== 'spun') document.querySelectorAll('#tbl .hl').forEach((x) => x.classList.remove('hl'));
   if (r.phase === 'betting') {
     $('phase').textContent = 'MISES OUVERTES';
     $('barBox').hidden = false;
@@ -337,7 +338,7 @@ async function onRound(r) {
     };
     tick(); timer = setInterval(tick, 200);
   } else if (r.phase === 'spun' && !(r.id === lastRoundId && lastPhase === 'spun')) {
-    $('phase').textContent = 'LA BILLE ROULE';
+    $('phase').textContent = 'ROULETTE';
     $('barBox').hidden = true;
     const payout = mine ? mine.payout || 0 : 0;
     if (mine) casino.hold(payout);
@@ -360,6 +361,10 @@ async function onRound(r) {
 }
 
 $('play').addEventListener('click', () => (online ? onlineBet() : soloSpin()));
+$('histBtn').addEventListener('click', (e) => {
+  const open = e.currentTarget.closest('.status').classList.toggle('show-hist');
+  e.currentTarget.setAttribute('aria-expanded', String(open));
+});
 if (online) {
   casino.on('round', onRound).on('status', label);
   $('play').textContent = 'Miser';

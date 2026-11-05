@@ -1,7 +1,7 @@
 // Serveur multijoueur de Croco Casino : un Worker Cloudflare + un Durable Object (stockage SQLite).
 // Le site reste sur GitHub Pages ; il se connecte ici en WebSocket quand js/config.js donne l'adresse.
 import { DurableObject } from 'cloudflare:workers';
-import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, historyLabel, rpsOutcome, RPS_MOVES, GIF_MODES } from '../../js/engine/games.js';
+import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
 import { newMarket, advance, setMarks } from '../../js/engine/market.js';
 import { timeTo } from '../../js/engine/crash.js';
 import { workDay } from '../../js/engine/work.js';
@@ -194,6 +194,8 @@ export class Casino extends DurableObject {
     this.sql.exec('CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, type TEXT NOT NULL, data BLOB NOT NULL, created INTEGER NOT NULL)');
     // Compteurs des classements (record = maximum, ou total cumulé)
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (player_id INTEGER NOT NULL, k TEXT NOT NULL, v REAL NOT NULL DEFAULT 0, PRIMARY KEY (player_id, k))');
+    try { this.sql.exec('ALTER TABLE records ADD COLUMN g TEXT'); } catch { /* colonne déjà là : jeu où le record a été fait */ }
+    this.runs = new Map(); // série auto de Plinko en cours, par joueur : une seule ligne d'historique et du fil pour toute la série
     this.duels = [];
     this.matches = [];
     this.mk = null;
@@ -213,18 +215,81 @@ export class Casino extends DurableObject {
         }
         this.rec(0, '_v2', 1);
       }
+      if (!this.sql.exec("SELECT 1 FROM records WHERE k = '_v3'").toArray().length) { this.migrateV3(); this.rec(0, '_v3', 1); }
     });
   }
 
-  // Compteur d'un joueur : mode 'max' garde le plus haut, sinon on additionne
-  rec(id, k, v, mode = 'add') {
-    const op = mode === 'max' ? 'MAX(records.v, excluded.v)' : 'records.v + excluded.v';
-    this.sql.exec(`INSERT INTO records (player_id, k, v) VALUES (?, ?, ?) ON CONFLICT(player_id, k) DO UPDATE SET v = ${op}`, id, k, v);
+  // Compteur d'un joueur : mode 'max' garde le plus haut (et le jeu où il a été fait), sinon on additionne
+  rec(id, k, v, mode = 'add', g = null) {
+    const op = mode === 'max' ? 'v = MAX(records.v, excluded.v), g = CASE WHEN excluded.v > records.v THEN excluded.g ELSE records.g END' : 'v = records.v + excluded.v';
+    this.sql.exec(`INSERT INTO records (player_id, k, v, g) VALUES (?, ?, ?, ?) ON CONFLICT(player_id, k) DO UPDATE SET ${op}`, id, k, v, g);
+  }
+  // Une seule fois (v3) :
+  // 1) le jeu des records « Le Gros Coup » et « Kamikaze » déjà faits, retrouvé dans l'historique ;
+  // 2) les anciennes billes de Plinko regroupées par paquets de 25 (à la suite, sans autre jeu entre) dans l'historique,
+  //    et le compteur de parties ramené à une partie par paquet, comme une série auto aujourd'hui.
+  migrateV3() {
+    for (const r of this.sql.exec("SELECT player_id, k, v FROM records WHERE k IN ('win', 'mult') AND g IS NULL").toArray()) {
+      let g = null;
+      if (r.k === 'win') g = (this.sql.exec("SELECT g FROM hist WHERE player_id = ? AND d = ? AND g NOT IN ('wallet', 'admin') ORDER BY id DESC LIMIT 1", r.player_id, r.v).toArray()[0] || {}).g;
+      else {
+        const x = this.sql.exec('SELECT g FROM hist WHERE player_id = ? AND l LIKE ? ORDER BY id DESC LIMIT 1', r.player_id, `%×${String(r.v).replace('.', ',')}`).toArray()[0];
+        g = x ? x.g : r.v === 36 ? 'roulette' : r.v === RPS_MULT ? 'rps' : null;
+      }
+      if (g) this.sql.exec('UPDATE records SET g = ? WHERE player_id = ? AND k = ?', g, r.player_id, r.k);
+    }
+    const rows = this.sql.exec('SELECT id, player_id, d, g FROM hist ORDER BY player_id, id').toArray();
+    const removed = new Map();
+    let streak = [];
+    const flush = () => {
+      for (let i = 0; i < streak.length; i += 25) {
+        const pack = streak.slice(i, i + 25);
+        if (pack.length < 2) continue;
+        const keep = pack[pack.length - 1];
+        this.sql.exec('UPDATE hist SET d = ?, l = ? WHERE id = ?', money(pack.reduce((a, x) => a + x.d, 0)), `Plinko : ${pack.length} billes`, keep.id);
+        const ids = pack.slice(0, -1).map((x) => x.id);
+        this.sql.exec(`DELETE FROM hist WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids);
+        removed.set(keep.player_id, (removed.get(keep.player_id) || 0) + pack.length - 1);
+      }
+      streak = [];
+    };
+    for (const r of rows) {
+      if (streak.length && (r.g !== 'plinko' || r.player_id !== streak[0].player_id)) flush();
+      if (r.g === 'plinko') streak.push(r);
+    }
+    flush();
+    for (const [id, n] of removed) {
+      this.sql.exec("UPDATE records SET v = MAX(0, v - ?) WHERE player_id = ? AND k = 'parties'", n, id);
+      const row = this.sql.exec('SELECT data FROM players WHERE id = ?', id).toArray()[0];
+      if (!row) continue;
+      const p = JSON.parse(row.data);
+      if (p.played && p.played.plinko) { p.played.plinko = Math.max(1, p.played.plinko - n); this.sql.exec('UPDATE players SET data = ? WHERE id = ?', JSON.stringify(p), id); }
+    }
+  }
+  // Série auto de Plinko : chaque bille met à jour la même ligne d'historique (« Plinko auto 25 ») et la même ligne du fil.
+  // Les records restent comptés bille par bille.
+  plinkoRun(pl, d, res) {
+    const f = res.feed;
+    let a = this.runs.get(pl.id);
+    if (!a || a.run !== f.run) { a = { run: f.run, n: 0, bet: 0, payout: 0, best: 0, d: 0, hist: 0 }; this.runs.set(pl.id, a); }
+    a.n++; a.bet = money(a.bet + f.bet); a.payout = money(a.payout + f.payout); a.d = money(a.d + d); a.best = Math.max(a.best, f.mult);
+    if (d > 0) this.rec(pl.id, 'win', money(d), 'max', 'plinko');
+    res.feed = { game: 'plinko', run: a.run, n: a.n, bet: a.bet, payout: a.payout, mult: a.best };
+    const l = historyLabel('plinko', 'drop', {}, res.result, res.feed);
+    if (a.hist) this.sql.exec('UPDATE hist SET at = ?, d = ?, b = ?, l = ? WHERE id = ?', Date.now(), a.d, pl.p.balance, l, a.hist);
+    else {
+      this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', pl.id, Date.now(), a.d, pl.p.balance, l, 'plinko');
+      a.hist = this.sql.exec('SELECT last_insert_rowid() AS id').one().id;
+    }
+  }
+  // Profit sur les jeux pendant les ms dernières millisecondes (dépôts, gifs et ajustements admin à part)
+  profitSince(id, ms) {
+    return money(this.sql.exec("SELECT COALESCE(SUM(d), 0) AS s FROM hist WHERE player_id = ? AND at >= ? AND g NOT IN ('wallet', 'admin', 'gifs')", id, Date.now() - ms).one().s);
   }
   // Ce qui se passe après chaque action : records et compteurs
   track(id, game, action, res, played) {
     const f = res.feed || {}, r = res.result || {};
-    if (f.bet > 0 && f.payout > f.bet) this.rec(id, 'mult', money(f.payout / f.bet), 'max'); // seulement les gains
+    if (f.bet > 0 && f.payout > f.bet) this.rec(id, 'mult', money(f.payout / f.bet), 'max', game); // seulement les gains
     if (played > 0 && !(game === 'rps' && action !== 'bot')) this.rec(id, 'parties', played); // un duel est compté à sa fin
     if (game === 'rps' && f.outcome === 'win') this.rec(id, 'rps', 1);
     if (game === 'work' && action === 'submit' && r.pay) this.rec(id, 'tasks', r.pay > 0 ? 1 : 0);
@@ -235,8 +300,8 @@ export class Casino extends DurableObject {
   boardData() {
     const list = BOARDS.map((b) => ({
       key: b.key, label: b.label, col: b.col, title: b.title, unit: b.unit,
-      rows: this.sql.exec('SELECT r.v AS v, p.name AS name, p.style AS style FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 10', b.key).toArray()
-        .map((x) => ({ name: x.name, v: x.v, color: colorOf(x.style) })),
+      rows: this.sql.exec('SELECT r.v AS v, r.g AS g, p.name AS name, p.style AS style FROM records r JOIN players p ON p.id = r.player_id WHERE r.k = ? AND r.v > 0 ORDER BY r.v DESC, p.id ASC LIMIT 10', b.key).toArray()
+        .map((x) => ({ name: x.name, v: x.v, color: colorOf(x.style), ...(x.g ? { g: x.g } : {}) })),
     }));
     const titles = {};
     for (const b of list) if (b.rows[0]) (titles[b.rows[0].name] ||= []).push(b.title);
@@ -471,7 +536,7 @@ export class Casino extends DurableObject {
   addHist(id, d, b, l, g) {
     if (!d) return;
     this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
-    if (d > 0 && g !== 'wallet' && g !== 'admin') this.rec(id, 'win', money(d), 'max'); // dépôts et ajustements ne sont pas des gains
+    if (d > 0 && g !== 'wallet' && g !== 'admin') this.rec(id, 'win', money(d), 'max', g); // dépôts et ajustements ne sont pas des gains
     if (Math.random() < 0.01) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 20000)', id, id);
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde
@@ -486,6 +551,7 @@ export class Casino extends DurableObject {
       titles: this.shownTitles(this.boardData().titles[row.name] || [], row.style), heldTitles: this.boardData().titles[row.name] || [],
       style: JSON.parse(row.style || '{}'), colors: CARD_COLORS, takenColors: this.takenColors(row.id), online: this.activeNames().includes(row.name),
       inventoryValue: inventoryValue(p), played: p.played,
+      profit: { m10: this.profitSince(row.id, 6e5), h1: this.profitSince(row.id, 36e5), h24: this.profitSince(row.id, 864e5) },
       inventory: [...p.inventory].sort((a, b) => b.value - a.value).map((x) => ({ uid: x.uid, n: x.n, t: x.t, i: x.i, ph: x.ph, wear: x.wear, float: x.float, range: x.range, st: x.st, value: x.value, caseId: x.caseId, at: x.at })),
       hist,
     };
@@ -610,6 +676,11 @@ export class Casino extends DurableObject {
       const list = row ? this.sql.exec('SELECT id, at, d, b, l, g FROM hist WHERE player_id = ? AND id < ? ORDER BY id DESC LIMIT 400', row.id, Number(msg.before) || 9e15).toArray() : [];
       return this.send(ws, { t: 'res', id: msg.id, ok: true, result: list });
     }
+    if (msg.t === 'profit') {
+      const row = this.sql.exec('SELECT id FROM players WHERE name = ?', String(msg.name || '')).toArray()[0];
+      const ms = Math.max(6e4, Math.min(3650 * 864e5, Number(msg.ms) || 0));
+      return this.send(ws, { t: 'res', id: msg.id, ok: true, result: row ? this.profitSince(row.id, ms) : 0 });
+    }
     if (msg.t === 'profile') {
       const prof = this.profile(msg.name);
       return this.send(ws, prof ? { t: 'res', id: msg.id, ok: true, result: prof } : { t: 'res', id: msg.id, ok: false, error: 'Joueur introuvable.' });
@@ -638,9 +709,10 @@ export class Casino extends DurableObject {
         res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
       }
       this.save(pl);
-      this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
+      this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore); // avant plinkoRun : records bille par bille
+      if (msg.game === 'plinko' && res.feed && res.feed.run) this.plinkoRun(pl, pl.p.balance - before, res);
+      else this.addHist(pl.id, pl.p.balance - before, pl.p.balance, historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), msg.game);
       if (msg.game === 'crash' && msg.action === 'start') this.crashTimer(pl.id);
-      this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore);
       this.send(ws, { t: 'res', id: msg.id, ok: true, result: res.result, me: this.me(pl) });
       if (msg.game === 'blackjack') this.updateTable(pl);
       if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
@@ -671,6 +743,7 @@ export class Casino extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) { try { ws.send(s); } catch {} }
   }
   pushFeed(e) {
+    if (e.run) this.feed = this.feed.filter((x) => !(x.run === e.run && x.name === e.name)); // série auto : la ligne est remplacée
     this.feed.unshift(e);
     this.feed.length = Math.min(this.feed.length, 30);
     this.ctx.storage.put('feed', this.feed);

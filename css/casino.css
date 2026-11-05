@@ -405,6 +405,9 @@ a { color: inherit; }
 .lb tbody tr { cursor: pointer; }
 .lb tbody tr:hover td, .lb tbody tr:focus td { background: #1a1a1a; }
 .prof-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pf-custom { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.pf-custom input, .pf-custom select { width: 3.6em; padding: 1px 4px; border: 1px solid var(--line, rgba(240,240,230,.2)); border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; font-size: 11px; }
+.pf-custom select { width: auto; }
 .prof-games { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--ink); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: left; cursor: pointer; }
 .prof-games:hover { border-color: var(--muted); }
 .prof-games span { display: inline-flex; gap: 5px; align-items: center; }
@@ -643,3 +646,5 @@ body:not(.ready) > * { visibility: hidden; animation: showLate 0s 4s forwards; }
 .snd-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
 .snd-row input[type="range"] { flex: 1; min-width: 0; height: 44px; accent-color: var(--gold); }
 .snd-row span { flex: none; }
+
+.rec-g { display: inline-flex; vertical-align: -2px; margin-right: 6px; opacity: .9; }

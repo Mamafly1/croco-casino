@@ -52,10 +52,13 @@ function box() {
     m.scrollTop = 0; m.querySelector('.sheet').scrollTop = 0;
   });
   // titres affichés : on garde les cases cochées
-  $('profBody').addEventListener('input', (e) => { if (e.target.matches('[data-snd="vol"]')) sfx.setVol(e.target.value / 100); });
+  $('profBody').addEventListener('input', (e) => {
+    if (e.target.matches('[data-snd="vol"]')) sfx.setVol(e.target.value / 100);
+    if (e.target.id === 'pfN' || e.target.id === 'pfU') { pf.n = $('pfN').value; pf.u = Number($('pfU').value); loadCustomProfit(); }
+  });
   $('profBody').addEventListener('change', (e) => {
-    if (e.target.matches('[data-snd="on"]')) { sfx.setOn(e.target.checked); if (e.target.checked) sfx.play('coin'); return; }
-    if (e.target.matches('[data-snd="vol"]')) { sfx.play('coin'); return; }
+    if (e.target.matches('[data-snd="on"]')) { sfx.setOn(e.target.checked); if (e.target.checked) sfx.gain(); return; }
+    if (e.target.matches('[data-snd="vol"]')) { sfx.gain(); return; }
     if (!e.target.matches('[data-title]')) return;
     const titles = [...$('profBody').querySelectorAll('[data-title]:checked')].map((x) => x.dataset.title);
     saveStyle({ titles });
@@ -123,6 +126,7 @@ function render(p) {
       <div><dt>Inventaire</dt><dd>${eur(p.inventoryValue)}</dd></div>
       <div><dt>Dépôts</dt><dd>${eur(p.deposits)}</dd></div>
     </dl>
+    ${profitHtml(p)}
     ${total ? `<button class="prof-games" type="button" data-view="games" aria-label="Voir les ${nf0.format(total)} parties">${games.map((g) => `<span title="${GAME_INFO[g].name}">${pixelIcon(g, 16)}${nf0.format(p.played[g])}</span>`).join('')}<span class="tot">${nf0.format(total)} parties ›</span></button>` : '<p class="muted">Aucune partie</p>'}
     <h3 class="h-label">Solde</h3>
     <div class="chart" id="profChart"></div>
@@ -131,8 +135,35 @@ function render(p) {
       <button type="button" class="pi" data-item="${k}" style="--tc:${TIER_INFO[it.t] ? TIER_INFO[it.t].color : '#888'}" title="${esc(it.n)}">${imgTag(it.i, it.n, '128fx96f')}
         <b>${it.st ? '<span class="stt">ST</span> ' : ''}${esc(it.n)}</b><small>${it.wear || ''}${it.float != null ? ' · ' + it.float.toFixed(3) : ''}</small><small class="v">${eur(it.value)}</small></button>`).join('') || '<span class="muted">Vide</span>'}</div>`;
   chart($('profChart'), p.hist || []);
+  loadCustomProfit();
   // on vérifie s'il y a une nouvelle version (au plus une fois par minute) et on met la ligne à jour
   if (mine) checkUpdate().then(() => { const u = $('updRow'); if (u) u.innerHTML = updHtml(); });
+}
+
+// Profit sur les jeux (dépôts et gifs à part) : 10 min, 1 h, 24 h, et une durée au choix
+const pf = { n: 3, u: 864e5, v: null, name: '' };
+const pnClass = (v) => (v > 0.004 ? 'pos' : v < -0.004 ? 'neg' : '');
+function profitHtml(p) {
+  const r = p.profit || {};
+  if (pf.name !== p.name) { pf.name = p.name; pf.v = null; }
+  const cell = (label, v) => `<div><dt>${label}</dt><dd class="${pnClass(v || 0)}">${signed(v || 0)}</dd></div>`;
+  const units = [[6e4, 'min'], [36e5, 'h'], [864e5, 'jours']];
+  return `<h3 class="h-label">Profit sur les jeux</h3>
+    <dl class="stat-grid prof-stats">${cell('10 dernières min', r.m10)}${cell('Dernière heure', r.h1)}${cell('24 dernières h', r.h24)}
+      <div><dt class="pf-custom"><label for="pfN">Sur</label> <input id="pfN" type="number" min="1" max="999" inputmode="numeric" value="${pf.n}" aria-label="Durée">
+        <select id="pfU" aria-label="Unité">${units.map(([v, t]) => `<option value="${v}"${pf.u === v ? ' selected' : ''}>${t}</option>`).join('')}</select></dt>
+        <dd id="pfOut" class="${pf.v == null ? '' : pnClass(pf.v)}">${pf.v == null ? '…' : signed(pf.v)}</dd></div>
+    </dl>`;
+}
+let pfTimer = 0;
+function loadCustomProfit() {
+  clearTimeout(pfTimer);
+  pfTimer = setTimeout(async () => {
+    const n = Math.max(1, Math.min(999, Math.round(Number(pf.n) || 1)));
+    try { pf.v = await casino.profit(pf.name, n * pf.u); } catch { return; }
+    const o = $('pfOut');
+    if (o) { o.textContent = signed(pf.v); o.className = pnClass(pf.v); }
+  }, 250);
 }
 
 // Réglages, sur son propre profil : pseudo, couleur de sa carte au classement, titres affichés, mise à jour, déconnexion

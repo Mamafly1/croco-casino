@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m23">
+<link rel="stylesheet" href="css/casino.css?v=m24">
 <style>
 .felt { padding: 16px; border-radius: 14px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 14px; min-width: 0; }
 .wheel-row { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 16px; align-items: center; }
@@ -25,6 +25,10 @@
 .bar { height: 8px; border-radius: 8px; background: rgba(0,0,0,.35); overflow: hidden; }
 .bar i { display: block; height: 100%; width: 0; background: var(--gold); }
 .history { display: flex; gap: 5px; flex-wrap: wrap; }
+.status-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hist-btn { display: none; flex: none; padding: 5px 9px; border: 1px solid rgba(240,240,230,.25); border-radius: 8px; background: rgba(0,0,0,.25); color: var(--muted); font-weight: 700; font-size: 12px; cursor: pointer; }
+.hist-btn::after { content: " ▾"; }
+.hist-btn[aria-expanded="true"]::after { content: " ▴"; }
 .history span { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; font-weight: 800; font-size: 12px; color: #fff; }
 .c-red { background: var(--red); }
 .c-black { background: #181818; }
@@ -56,7 +60,13 @@
 .players { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .players li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border-radius: 8px; background: var(--field); font-size: 13px; }
 .players li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 760px) { .wheel-row { grid-template-columns: minmax(0, 1fr); } .wheel-box { max-width: 280px; margin: 0 auto; } }
+@media (max-width: 760px) {
+  .wheel-row { grid-template-columns: minmax(0, 1fr); } .wheel-box { max-width: 280px; margin: 0 auto; }
+  /* sur téléphone : pas de place vide, l'historique s'ouvre avec un petit bouton */
+  .status { gap: 8px; } .bigres:empty { display: none; }
+  .hist-btn { display: inline-block; }
+  .status:not(.show-hist) .history { display: none; }
+}
 </style>
 </head>
 <body>
@@ -66,7 +76,6 @@
       <div class="field-head"><span id="chipLabel">Valeur du jeton</span><span class="num" id="betMax"></span></div>
       <div class="chipset" id="chipset" role="group" aria-labelledby="chipLabel"></div>
     </div>
-    <p class="muted small">Clique sur le tapis pour poser un jeton. Clic droit ou appui long pour en retirer un.</p>
     <div class="tools">
       <button class="btn-ghost" id="undo" type="button">Annuler</button>
       <button class="btn-ghost" id="clear" type="button">Effacer</button>
@@ -74,6 +83,7 @@
       <span class="total num" id="total">0,00 €</span>
     </div>
     <button id="play" class="play" type="button">Lancer la bille</button>
+    <p class="muted small">Clique sur le tapis pour poser un jeton. Clic droit ou appui long pour en retirer un.</p>
     <p class="msg" id="msg" aria-live="polite"></p>
     <section class="stats" aria-label="Statistiques">
       <h2>Session</h2>
@@ -93,7 +103,7 @@
       <div class="wheel-row">
         <div class="wheel-box"><svg id="wheel" viewBox="0 0 300 300" aria-hidden="true"></svg></div>
         <div class="status">
-          <h1 id="phase">ROULETTE</h1>
+          <div class="status-head"><h1 id="phase">ROULETTE</h1><button class="hist-btn" id="histBtn" type="button" aria-expanded="false" aria-controls="history">Historique</button></div>
           <div class="bar" id="barBox" hidden><i id="bar"></i></div>
           <div class="bigres" id="bigres" aria-live="polite"></div>
           <div class="history" id="history" aria-label="Derniers numéros"></div>
@@ -111,6 +121,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/roulette.js?v=m23"></script>
+<script type="module" src="js/pages/roulette.js?v=m24"></script>
 </body>
 </html>

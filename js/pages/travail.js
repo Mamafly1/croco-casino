@@ -58,7 +58,7 @@ async function submit() {
   try {
     const r = await casino.play('work', 'submit', { i, ans: answer() });
     day = r;
-    sfx.play('up'); sfx.play('coin', { delay: 0.25 });
+    sfx.play('up'); sfx.gain(true, 0.8);
     toast(`Tâche réussie : +${eur(t.pay)} sur ton compte en banque`);
     open = -1;
     $('task').hidden = true;
@@ -247,6 +247,11 @@ const R = {
 
   code(k, root) {
     root.innerHTML = `<div class="codes">${k.codes.map((c, i) => `<div class="codebox">${esc(c)}</div><input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Code ${i + 1}">`).join('')}</div>`;
+    // une touche de clavier à chaque lettre (6 touches différentes, hauteur et force qui varient ; plus sourd pour effacer)
+    root.addEventListener('input', (e) => {
+      const del = /^delete/.test(e.inputType || '');
+      sfx.play('key', { vol: 0.75 + Math.random() * 0.25, rate: del ? 0.85 : 1, vary: 0.07, gap: 15 });
+    });
     return () => [...root.querySelectorAll('input')].map((x) => x.value);
   },
 

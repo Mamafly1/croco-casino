@@ -122,7 +122,7 @@ const sell = async (params) => {
   $('msg').textContent = '';
   try {
     const r = await casino.play('stocks', 'sell', { co: sel, ...params });
-    sfx.play(r.gain >= 0 ? 'coin' : 'chipLay'); if (r.gain >= 0) sfx.play('coin', { delay: 0.12 });
+    if (r.gain >= 0) sfx.gain(true); else sfx.play('chipLay');
     toast(`Vendu pour ${eur(r.proceeds)} (${r.gain >= 0 ? '+' : ''}${eur(r.gain)})`);
     await refresh();
   } catch (e) { $('msg').textContent = e.message; }

@@ -70,7 +70,7 @@ const rtp = () => plinkoRtp(st.rows, st.risk);
 const chanceText = (p) => '1 chance sur ' + nf0.format(Math.round(1 / p)) + ' (' + pf.format(p * 100) + ' %)';
 function showOddsDefault() {
   const t = TABLES[st.rows][st.risk], p = probs(st.rows);
-  $('oddsbar').innerHTML = `<span>Retour moyen <b>${nfx.format(rtp() * 100)} %</b></span><span>Max <b>${mult(t[0])}</b> : ${chanceText(p[0] * 2)}</span><span>Survole un bac pour voir ses chances</span>`;
+  $('oddsbar').innerHTML = `<span>Retour moyen <b>${nfx.format(rtp() * 100)} %</b></span><span>Max <b>${mult(t[0])}</b> : ${chanceText(p[0] * 2)}</span><span>Appuie sur un bac pour voir ses chances</span>`;
 }
 function showOddsFor(k) {
   const t = TABLES[st.rows][st.risk], p = probs(st.rows);
@@ -84,10 +84,14 @@ function writeOddsNote() {
     `<strong>${nfx.format(lose * 100)} %</strong> des lâchers rapportent moins que la mise. Le ${mult(t[0])} sort <strong>1 fois sur ${nf0.format(Math.round(1 / (p[0] * 2)))}</strong>. Sur la durée, le jeu garde environ <strong>${nfx.format(100 - rtp() * 100)} %</strong> de tout ce qui est misé.`;
 }
 
-binsEl.addEventListener('mouseover', (e) => { const b = e.target.closest('.bin'); if (b) showOddsFor(+b.dataset.k); });
-binsEl.addEventListener('focusin', (e) => { const b = e.target.closest('.bin'); if (b) showOddsFor(+b.dataset.k); });
-binsEl.addEventListener('click', (e) => { const b = e.target.closest('.bin'); if (b) showOddsFor(+b.dataset.k); });
-binsEl.addEventListener('mouseleave', showOddsDefault);
+// Infos d'un bac sous le plateau : au survol, ou tant qu'on appuie dessus (elles s'en vont quand on lâche)
+let pressedBin = null;
+const selBin = (b) => { if (pressedBin) pressedBin.classList.remove('sel'); pressedBin = b; if (b) { b.classList.add('sel'); showOddsFor(+b.dataset.k); } else showOddsDefault(); };
+binsEl.addEventListener('pointerdown', (e) => { const b = e.target.closest('.bin'); if (b && e.pointerType !== 'mouse') selBin(b); });
+for (const ev of ['pointerup', 'pointercancel']) document.addEventListener(ev, () => { if (pressedBin) selBin(null); });
+// survol à la souris seulement (après un appui au doigt, le navigateur simule un survol qu'on ignore)
+binsEl.addEventListener('pointerover', (e) => { const b = e.target.closest('.bin'); if (b && e.pointerType === 'mouse') showOddsFor(+b.dataset.k); });
+binsEl.addEventListener('pointerout', (e) => { if (e.pointerType === 'mouse' && !binsEl.contains(e.relatedTarget)) showOddsDefault(); });
 
 // ---------- billes ----------
 function sizeBall(b) {
@@ -194,13 +198,16 @@ function simulate(N, path) {
 }
 dbg.simulate = simulate;
 
+// série auto en cours : toutes ses billes ne font qu'une partie (et une ligne « Plinko auto N » dans l'historique)
+let autoRun = null, autoI = 0;
 async function dropOne() {
   const bet = st.bet;
+  const run = autoRun ? { auto: autoRun, i: autoI++ } : {};
   inFlight++;
   lockBoard();
   let r;
   try {
-    r = await casino.play('plinko', 'drop', { bet, rows: st.rows, risk: st.risk });
+    r = await casino.play('plinko', 'drop', { bet, rows: st.rows, risk: st.risk, ...run });
   } catch (err) {
     say(err.message);
     if (/Solde insuffisant/.test(err.message)) casino.nudgeDeposit();
@@ -368,15 +375,16 @@ async function autoTick() {
   autoLeft--;
   playLabel();
   if (autoLeft) autoTimer = setTimeout(autoTick, 260);
-  else { playLabel(); lockBoard(); }
+  else { autoRun = null; playLabel(); lockBoard(); }
 }
-function stopAuto() { clearTimeout(autoTimer); autoLeft = 0; playLabel(); lockBoard(); }
+function stopAuto() { clearTimeout(autoTimer); autoLeft = 0; autoRun = null; playLabel(); lockBoard(); }
 
 function play() {
   readBet(); writeBet();
   if (st.mode === 'manual') { dropOne(); return; }
   if (autoLeft) { stopAuto(); return; }
   autoLeft = st.autoN;
+  autoRun = Math.random().toString(36).slice(2, 12); autoI = 0;
   lockBoard();
   autoTick();
 }
