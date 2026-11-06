@@ -1,7 +1,7 @@
 // Serveur multijoueur de Croco Casino : un Worker Cloudflare + un Durable Object (stockage SQLite).
 // Le site reste sur GitHub Pages ; il se connecte ici en WebSocket quand js/config.js donne l'adresse.
 import { DurableObject } from 'cloudflare:workers';
-import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
+import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, WELCOME_BONUS, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
 import { newMarket, advance, setMarks } from '../../js/engine/market.js';
 import { timeTo } from '../../js/engine/crash.js';
 import { workDay } from '../../js/engine/work.js';
@@ -734,9 +734,12 @@ export class Casino extends DurableObject {
     if (!/^\d{4}$/.test(pin)) return this.askLogin(ws, 'Le code fait 4 chiffres.');
     if (this.sql.exec('SELECT 1 FROM players WHERE name = ?', name).toArray().length) return this.askLogin(ws, 'Pseudo déjà pris.');
     const salt = crypto.randomUUID();
-    this.sql.exec('INSERT INTO players (name, token, data, created, pin) VALUES (?, ?, ?, ?, ?)',
-      name, 'compte:' + crypto.randomUUID(), JSON.stringify(newPlayer()), Date.now(), `${salt}:${await this.pinHash(pin, salt)}`);
+    const start = newPlayer();
+    start.balance = WELCOME_BONUS; // cadeau de bienvenue : ce n'est pas un dépôt
+    this.sql.exec('INSERT INTO players (name, token, data, created, pin, score) VALUES (?, ?, ?, ?, ?, ?)',
+      name, 'compte:' + crypto.randomUUID(), JSON.stringify(start), Date.now(), `${salt}:${await this.pinHash(pin, salt)}`, score(start));
     const id = this.sql.exec('SELECT id FROM players WHERE name = ?', name).one().id;
+    this.addHist(id, WELCOME_BONUS, WELCOME_BONUS, 'Cadeau de bienvenue', 'wallet'); // le graphique du profil part de là
     await this.remember(msg.token, id);
     return this.welcome(ws, id);
   }

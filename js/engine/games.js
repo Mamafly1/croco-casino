@@ -76,6 +76,9 @@ export function historyLabel(game, action, params, result, feed) {
 // Une série ne compte que pour une partie, et ne fait qu'une ligne dans l'historique et le fil.
 function autoRun(params) { return typeof params.auto === 'string' && params.auto ? params.auto.slice(0, 24) : null; }
 
+// Cadeau à la création d'un compte (en ligne)
+export const WELCOME_BONUS = 50;
+
 export function newPlayer() {
   return { balance: 0, deposits: 0, inventory: [], played: {}, bj: null, gifs: {}, spent: 0, stocks: {}, crash: null, work: null, bank: 0 };
 }
