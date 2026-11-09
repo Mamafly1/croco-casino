@@ -129,7 +129,8 @@ export function feedText(e) {
     case 'slots': return e.run ? `Machine à sous auto ${nf0.format(e.n)}` : e.payout > 0 ? `Machine à sous ×${nfx.format(e.payout / e.bet)}` : 'Machine à sous';
     case 'roulette': return `Roulette : ${e.n}`;
     case 'blackjack': return `Blackjack : ${({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' })[e.result] || e.result}`;
-    case 'cases': return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
+    case 'cases': if (e.run) return `Caisses auto ${nf0.format(e.n)}`;
+      return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
     case 'crash': return e.mult ? `Fusée : retirée à ×${nfx.format(e.mult)}` : `Fusée : boum à ×${nfx.format(e.point)}`;
     case 'rps': return `Chifoumi contre ${e.vs || 'le croco'} : ${({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[e.outcome] || ''}${e.score ? ' ' + e.score : ''}`;
     case 'stocks': return `Bourse : ${e.act === 'buy' ? 'achète' : 'vend'} ${e.co}`;
@@ -148,7 +149,7 @@ export function mountFeed(el, { game = null, limit = 12 } = {}) {
     if (!list.length) { el.innerHTML = '<p class="feed-empty">Rien pour l’instant. Les parties de tout le monde s’affichent ici.</p>'; return; }
     el.innerHTML = '<ul class="feed">' + list.map((e) => {
       const net = e.game === 'cases' ? e.payout : e.payout - e.bet;
-      let cls = e.game === 'cases' ? (e.item && ['covert', 'rare'].includes(e.item.t) ? 'pos' : '') : net > 0.004 ? 'pos' : net < -0.004 ? 'neg' : '';
+      let cls = e.game === 'cases' ? (e.run ? (e.payout > e.bet ? 'pos' : 'neg') : e.item && ['covert', 'rare'].includes(e.item.t) ? 'pos' : '') : net > 0.004 ? 'pos' : net < -0.004 ? 'neg' : '';
       let amt = e.game === 'cases' ? eur(e.payout) : (net > 0.004 ? '+' : '') + eur(net);
       if (e.game === 'stocks') { amt = eur(e.amount); cls = e.act === 'sell' && e.gain != null ? (e.gain >= 0 ? 'pos' : 'neg') : ''; }
       if (e.game === 'gifs') { amt = GIF_MODES[e.mode] || ''; cls = ''; }

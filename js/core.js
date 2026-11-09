@@ -101,7 +101,7 @@ export const casino = {
         if (r.feed && r.feed.run) { // série auto de Plinko : une ligne d'historique et du fil pour toute la série
           let a = local.run;
           if (!a || a.run !== r.feed.run) a = local.run = { run: r.feed.run, n: 0, bet: 0, payout: 0, best: 0, h: null };
-          a.n++; a.bet = money(a.bet + r.feed.bet); a.payout = money(a.payout + r.feed.payout); a.best = Math.max(a.best, r.feed.mult);
+          a.n++; a.bet = money(a.bet + r.feed.bet); a.payout = money(a.payout + r.feed.payout); a.best = Math.max(a.best, r.feed.mult || 0);
           r.feed = { game, run: a.run, n: a.n, bet: a.bet, payout: a.payout, mult: a.best };
           local.hist = local.hist || [];
           const h = local.hist[local.hist.length - 1];

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m31">
+<link rel="stylesheet" href="css/casino.css?v=m32">
 <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
 <style>
 .caselist { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
@@ -90,6 +90,17 @@
   #reveal .specs { padding-bottom: 0; }
   #reveal .btn2 { position: sticky; bottom: 0; margin: 0 -16px; padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--line); }
 }
+/* série auto : résumé trié par valeur */
+.as-verdict { padding: 14px; border-radius: 10px; background: var(--field); text-align: center; font-weight: 800; font-size: 15px; }
+.as-verdict b { display: block; margin-top: 4px; font: 22px/1.2 var(--font-pixel); }
+.as-verdict.pos b { color: var(--win); } .as-verdict.neg b { color: var(--lose); }
+.as-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 52vh; overflow: auto; }
+.as-list li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px 6px 6px; border-radius: 8px; background: var(--field); border-left: 4px solid var(--tc); }
+.as-list img { width: 64px; height: 48px; object-fit: contain; }
+.as-list b { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-list small { color: var(--muted); font-size: 12px; }
+.as-list .v { text-align: right; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.as-list .v small { display: block; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -97,7 +108,21 @@
   <aside class="panel" aria-label="Choix de la caisse">
     <button id="open" class="play" type="button" disabled>Ouvrir</button>
     <p class="msg" id="msg" aria-live="polite"></p>
-    <div class="field">
+    <div class="tabs bet-zone" role="group" aria-label="Mode d'ouverture">
+      <button id="tabOne" type="button" aria-pressed="true">Une caisse</button>
+      <button id="tabAuto" type="button" aria-pressed="false">Auto</button>
+    </div>
+    <div class="field bet-zone" id="autoBox" hidden>
+      <div class="field-head"><span id="autoLabel">Nombre de caisses</span></div>
+      <div class="chips wide" id="autoCount" role="group" aria-labelledby="autoLabel">
+        <button type="button" data-n="10" aria-pressed="true">10</button>
+        <button type="button" data-n="35" aria-pressed="false">35</button>
+        <button type="button" data-n="100" aria-pressed="false">100</button>
+        <button type="button" data-n="custom" aria-pressed="false">Perso</button>
+      </div>
+      <input class="text-in" id="autoN" type="number" min="1" max="300" inputmode="numeric" placeholder="Combien ? (1 à 300)" aria-label="Nombre de caisses" hidden>
+    </div>
+    <div class="field bet-zone">
       <div class="field-head"><span id="clLabel">Caisses CS2 <button class="info-btn" id="infoOpen" type="button" aria-label="Les vraies cotes">i</button></span><span id="caseCount"></span></div>
       <div class="caselist" id="caselist" role="group" aria-labelledby="clLabel"></div>
     </div>
@@ -123,6 +148,16 @@
   </section>
 </main>
 
+<div class="modal" id="autoSum" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="asTitle">
+    <div class="sheet-head"><h2 id="asTitle">Résultat</h2><button class="x" id="asClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="step">
+      <div class="as-verdict" id="asVerdict"></div>
+      <p class="muted small" id="asLine" style="margin:0"></p>
+      <ul class="as-list" id="asList"></ul>
+    </div>
+  </div>
+</div>
 <div class="modal" id="infoBox" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
     <div class="sheet-head"><h2 id="infoTitle">Les vraies cotes</h2><button class="x" id="infoClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -141,6 +176,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=m31"></script>
+<script type="module" src="js/pages/caisses.js?v=m32"></script>
 </body>
 </html>

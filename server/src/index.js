@@ -208,7 +208,7 @@ export class Casino extends DurableObject {
     // Compteurs des classements (record = maximum, ou total cumulé)
     this.sql.exec('CREATE TABLE IF NOT EXISTS records (player_id INTEGER NOT NULL, k TEXT NOT NULL, v REAL NOT NULL DEFAULT 0, PRIMARY KEY (player_id, k))');
     try { this.sql.exec('ALTER TABLE records ADD COLUMN g TEXT'); } catch { /* colonne déjà là : jeu où le record a été fait */ }
-    this.runs = new Map(); // séries auto en cours (Plinko, machine à sous), par joueur et par jeu : une ligne d'historique et du fil par série
+    this.runs = new Map(); // séries auto en cours (Plinko, machine à sous, caisses), par joueur et par jeu : une ligne d'historique et du fil par série
     this.duels = [];
     this.matches = [];
     this.mk = null;
@@ -377,13 +377,13 @@ export class Casino extends DurableObject {
     if (done) this.winRec(id, d, g);
   }
   winRec(id, d, g) { if (d > 0 && WIN_GAMES.includes(g)) this.rec(id, 'win', money(d), 'max', g); }
-  // Série auto (Plinko, machine à sous) : chaque coup met à jour la même ligne d'historique (« Plinko auto 25 »)
+  // Série auto (Plinko, machine à sous, caisses) : chaque coup met à jour la même ligne d'historique (« Plinko auto 25 »)
   // et la même ligne du fil. Les records restent comptés coup par coup.
   autoRunHist(pl, game, d, res) {
     const f = res.feed, key = pl.id + ':' + game;
     let a = this.runs.get(key);
     if (!a || a.run !== f.run) { a = { run: f.run, n: 0, bet: 0, payout: 0, best: 0, d: 0, hist: 0 }; this.runs.set(key, a); }
-    a.n++; a.bet = money(a.bet + f.bet); a.payout = money(a.payout + f.payout); a.d = money(a.d + d); a.best = Math.max(a.best, f.mult);
+    a.n++; a.bet = money(a.bet + f.bet); a.payout = money(a.payout + f.payout); a.d = money(a.d + d); a.best = Math.max(a.best, f.mult || 0);
     this.winRec(pl.id, d, game);
     res.feed = { game, run: a.run, n: a.n, bet: a.bet, payout: a.payout, mult: a.best };
     const l = historyLabel(game, '', {}, res.result, res.feed);

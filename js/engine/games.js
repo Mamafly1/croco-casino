@@ -68,11 +68,12 @@ export function historyLabel(game, action, params, result, feed) {
     if (feed) return 'Blackjack : ' + ({ win: 'gagné', blackjack: 'blackjack', push: 'égalité', lose: 'perdu', bust: 'sauté' }[feed.result] || feed.result);
     return action === 'deal' ? 'Blackjack : mise' : params.action === 'double' ? 'Blackjack : double' : 'Blackjack : séparation';
   }
+  if (game === 'cases' && feed && feed.run) return `Caisses auto ${feed.n}`;
   if (game === 'cases') return action === 'open' ? `Caisse : ${result.item.n}` : params.all ? 'Vente de l’inventaire' : 'Vente';
   return game;
 }
 
-// Mode auto (Plinko, machine à sous) : params.auto = identifiant de la série, params.i = numéro du coup dans la série.
+// Mode auto (Plinko, machine à sous, caisses) : params.auto = identifiant de la série, params.i = numéro du coup dans la série.
 // Une série ne compte que pour une partie, et ne fait qu'une ligne dans l'historique et le fil.
 function autoRun(params) { return typeof params.auto === 'string' && params.auto ? params.auto.slice(0, 24) : null; }
 
@@ -316,18 +317,19 @@ export function run(p, game, action, params = {}, ctx) {
     const price = cases.cost(c);
     if (price > p.balance + 1e-9) throw new GameError(BROKE);
     const it = takeNext(p, c, rng);
-    // La « roue » de l'animation : objets tirés au même hasard, le gagnant à la position 45
+    const run = autoRun(params);
+    // La « roue » de l'animation : objets tirés au même hasard, le gagnant à la position 45 (pas de roue en auto)
     const reel = [];
-    for (let i = 0; i < 52; i++) {
+    for (let i = 0; i < (run ? 0 : 52); i++) {
       const x = i === 45 ? it : cases.open(c, rng);
       reel.push({ n: x.n, t: x.t, i: x.i });
     }
     const item = { ...it, uid: uid(rng), caseId: c.id, at: Date.now() };
     p.balance = money(p.balance - price);
     p.inventory.unshift(item);
-    played(p, 'cases');
+    if (!run || !(Number(params.i) > 0)) played(p, 'cases');
     // L'objet arrive dans l'inventaire : pas de gain en argent immédiat
-    return out({ item, reel, bet: price, payout: 0 }, { game, bet: price, payout: item.value, item: { n: item.n, t: item.t, wear: item.wear, st: item.st, value: item.value } });
+    return out({ item, reel, bet: price, payout: 0 }, { game, bet: price, payout: item.value, mult: money(item.value / price), item: { n: item.n, t: item.t, wear: item.wear, st: item.st, value: item.value }, ...(run ? { run } : {}) });
   }
 
   if (game === 'cases' && action === 'next') {

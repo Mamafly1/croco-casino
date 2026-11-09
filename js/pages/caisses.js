@@ -1,6 +1,6 @@
 // Page caisses CS2 : vraies listes d'objets (fichiers du jeu via ByMykel/CSGO-API), vrais taux publiés par Valve,
 // prix du marché (Skinport), skins en 3D par le visualiseur SkinHub.
-import { casino, mountShell, pageReady, $, eur, esc, nf0, loadCases, reduceMotion, sfx } from '../core.js';
+import { casino, mountShell, pageReady, $, eur, esc, nf0, loadCases, reduceMotion, sfx, lockBet } from '../core.js';
 import { img, imgTag } from '../steamimg.js';
 import { mountFeed, floatBar } from '../widgets.js';
 import { ODDS, TIERS, TIER_INFO, ST_RATE, WEARS, wearProbs, rtp, cost } from '../engine/cases.js';
@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m31');
+    const v = await import('../viewer3d.js?v=m32');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -59,7 +59,7 @@ function select(c) {
   document.querySelectorAll('#caselist button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === c.id)));
   $('casehead').innerHTML = `<div class="case3d" id="case3d">${imgTag(c.i, c.n, '256fx192f')}</div><div><h1>${esc(c.n.toUpperCase())}</h1><p>Sortie le ${esc(c.d || '?')} · ${c.items.length} skins + ${c.rare.length} objets rares</p><p>Caisse ${eur(c.pr)} + clé ${eur(c.key)}</p></div>`;
   showCase3D(c);
-  $('open').textContent = `Ouvrir · ${eur(cost(c))}`;
+  openLabel();
   $('open').disabled = false;
   $('tiers').innerHTML = TIERS.map((t) => {
     const list = pool(c, t);
@@ -151,7 +151,7 @@ function spinTrack(reel) {
   });
 }
 
-$('open').addEventListener('click', async () => {
+async function openOne() {
   if (!sel || opening) return;
   opening = true;
   // Tant que la roulette tourne, l'inventaire n'affiche pas le nouvel objet (sinon il dévoile le résultat)
@@ -179,7 +179,105 @@ $('open').addEventListener('click', async () => {
     if (hiddenNew) { hiddenNew = null; renderInv(); }
     $('open').disabled = !sel;
   }
+}
+
+// ---------- ouverture en série (onglet Auto) ----------
+// Les caisses s'ouvrent à la suite, sans la roue : chaque objet s'ajoute en tête de la bande, puis un résumé trié par
+// valeur dit si la série est rentable. Toute la série ne fait qu'une partie et une ligne « Caisses auto N ».
+let mode = 'one', autoPick = 10, autoOn = false, autoStop = false;
+const autoCount = () => (autoPick === 'custom' ? Math.max(0, Math.min(300, Math.floor(Number($('autoN').value) || 0))) : autoPick);
+function openLabel(left = 0) {
+  const b = $('open');
+  if (!sel) return;
+  b.classList.toggle('stop', autoOn);
+  if (autoOn) { b.textContent = `Arrêter (${left} restante${left > 1 ? 's' : ''})`; return; }
+  const n = autoCount();
+  b.textContent = mode === 'one' ? `Ouvrir · ${eur(cost(sel))}` : n ? `Ouvrir ${n} caisses · ${eur(cost(sel) * n)}` : 'Choisis combien';
+}
+function setMode(m) {
+  mode = m;
+  $('tabOne').setAttribute('aria-pressed', String(m === 'one'));
+  $('tabAuto').setAttribute('aria-pressed', String(m === 'auto'));
+  $('autoBox').hidden = m !== 'auto';
+  openLabel();
+}
+$('tabOne').addEventListener('click', () => setMode('one'));
+$('tabAuto').addEventListener('click', () => setMode('auto'));
+$('autoCount').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  autoPick = b.dataset.n === 'custom' ? 'custom' : +b.dataset.n;
+  document.querySelectorAll('#autoCount button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  $('autoN').hidden = autoPick !== 'custom';
+  if (autoPick === 'custom') $('autoN').focus();
+  openLabel();
 });
+$('autoN').addEventListener('input', () => openLabel());
+
+async function runAuto() {
+  const n = autoCount();
+  if (!n) { $('msg').className = 'msg'; $('msg').textContent = 'Indique combien de caisses ouvrir (1 à 300).'; return; }
+  const c = sel, price = cost(c), run = Math.random().toString(36).slice(2, 12), got = [];
+  autoOn = true; autoStop = false; opening = true;
+  lockBet(true);
+  $('msg').className = 'msg ok'; $('msg').textContent = '';
+  const t = $('track');
+  t.style.transition = 'none'; t.style.transform = 'translateX(8px)'; t.innerHTML = '';
+  let error = '';
+  try {
+    for (let i = 0; i < n && !autoStop; i++) {
+      openLabel(n - i);
+      const r = await casino.play('cases', 'open', { caseId: c.id, auto: run, i });
+      casino.reveal(0);
+      got.push(r.item);
+      t.insertAdjacentHTML('afterbegin', slotHTML(r.item));
+      while (t.children.length > 14) t.lastChild.remove();
+      const tt = r.item.t;
+      if (tt === 'rare') sfx.play('jackpot'); else if (tt === 'covert') sfx.play('win'); else if (tt === 'classified') sfx.play('rise', { vol: 0.7 });
+      else sfx.play('chipLay', { vol: 0.6, gap: 0 });
+      $('msg').textContent = `${i + 1} / ${n}`;
+      await new Promise((ok) => setTimeout(ok, 130));
+    }
+  } catch (err) {
+    error = err.message;
+    if (/Solde insuffisant/.test(err.message)) casino.nudgeDeposit();
+  } finally {
+    autoOn = false; opening = false;
+    lockBet(false);
+    openLabel();
+    renderInv();
+    $('msg').className = 'msg'; $('msg').textContent = error;
+  }
+  if (got.length) showSummary(got, price);
+}
+$('open').addEventListener('click', () => {
+  if (autoOn) { autoStop = true; return; } // s'arrête après la caisse en cours
+  if (mode === 'auto') runAuto(); else openOne();
+});
+
+// Résumé d'une série : objets regroupés (même skin, même usure), du plus cher au moins cher, et le bilan
+function showSummary(got, price) {
+  const groups = new Map();
+  for (const it of got) {
+    const k = [it.n, it.wear || '', it.st ? 1 : 0].join('|');
+    const g = groups.get(k) || { it, n: 0, v: 0 };
+    g.n++; g.v += it.value;
+    groups.set(k, g);
+  }
+  const list = [...groups.values()].sort((a, b) => b.it.value - a.it.value || b.n - a.n);
+  const spent = price * got.length, value = got.reduce((s, x) => s + x.value, 0), net = value - spent;
+  $('asTitle').textContent = `${got.length} caisse${got.length > 1 ? 's' : ''} ouverte${got.length > 1 ? 's' : ''}`;
+  $('asVerdict').className = 'as-verdict ' + (net >= 0 ? 'pos' : 'neg');
+  $('asVerdict').innerHTML = net >= 0 ? `Rentable <b>+${eur(net)}</b>` : `Pas rentable <b>−${eur(-net)}</b>`;
+  $('asLine').textContent = `Coût ${eur(spent)} · valeur reçue ${eur(value)}. Les objets sont dans ton inventaire.`;
+  $('asList').innerHTML = list.map(({ it, n, v }) => `<li style="--tc:${tc(it.t)}">${imgTag(it.i, it.n, '128fx96f')}
+    <span><b title="${esc(it.n)}">${it.st ? 'StatTrak™ ' : ''}${esc(it.n)}</b><small>${esc(it.wear || 'Sans usure')}${n > 1 ? ` · ×${n}` : ''}</small></span>
+    <span class="v">${eur(it.value)}${n > 1 ? `<small>${eur(v)} en tout</small>` : ''}</span></li>`).join('');
+  $('autoSum').hidden = false;
+  sfx.play(net >= 0 ? 'win' : 'lose', { gap: 0 });
+}
+$('asClose').addEventListener('click', () => { $('autoSum').hidden = true; });
+$('autoSum').addEventListener('click', (e) => { if (e.target === $('autoSum')) $('autoSum').hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('autoSum').hidden = true; });
 
 // ---------- visualiseur 3D ----------
 // Le visualiseur SkinHub rend l'objet avec le shader du jeu, à son float et son seed.
