@@ -41,7 +41,7 @@ async function showCase3D(c) {
   const my = ++tokenCase;
   if (disposeCase) { disposeCase(); disposeCase = null; }
   try {
-    const v = await import('../viewer3d.js?v=m32');
+    const v = await import('../viewer3d.js?v=m33');
     const url = await v.caseModel(c.id);
     if (!url || my !== tokenCase) return;
     const host = $('case3d');
@@ -266,14 +266,11 @@ function showSummary(got, price) {
   const list = [...groups.values()].sort((a, b) => b.it.value - a.it.value || b.n - a.n);
   const spent = price * got.length, value = got.reduce((s, x) => s + x.value, 0), net = value - spent;
   $('asTitle').textContent = `${got.length} caisse${got.length > 1 ? 's' : ''} ouverte${got.length > 1 ? 's' : ''}`;
-  $('asVerdict').className = 'as-verdict ' + (net >= 0 ? 'pos' : 'neg');
-  $('asVerdict').innerHTML = net >= 0 ? `Rentable <b>+${eur(net)}</b>` : `Pas rentable <b>−${eur(-net)}</b>`;
-  $('asLine').textContent = `Coût ${eur(spent)} · valeur reçue ${eur(value)}. Les objets sont dans ton inventaire.`;
+  $('asLine').innerHTML = `Coût ${eur(spent)} · valeur reçue ${eur(value)} · <span class="${net >= 0 ? 'pos' : 'neg'}">${net >= 0 ? '+' : '−'}${eur(Math.abs(net))}</span>`;
   $('asList').innerHTML = list.map(({ it, n, v }) => `<li style="--tc:${tc(it.t)}">${imgTag(it.i, it.n, '128fx96f')}
     <span><b title="${esc(it.n)}">${it.st ? 'StatTrak™ ' : ''}${esc(it.n)}</b><small>${esc(it.wear || 'Sans usure')}${n > 1 ? ` · ×${n}` : ''}</small></span>
     <span class="v">${eur(it.value)}${n > 1 ? `<small>${eur(v)} en tout</small>` : ''}</span></li>`).join('');
   $('autoSum').hidden = false;
-  sfx.play(net >= 0 ? 'win' : 'lose', { gap: 0 });
 }
 $('asClose').addEventListener('click', () => { $('autoSum').hidden = true; });
 $('autoSum').addEventListener('click', (e) => { if (e.target === $('autoSum')) $('autoSum').hidden = true; });

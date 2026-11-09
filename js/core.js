@@ -701,7 +701,9 @@ function watchUpdates() {
 export async function forceUpdate() {
   try { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); } catch {}
   try { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.update().catch(() => {}))); } catch {}
-  location.reload();
+  // adresse un peu différente : le navigateur ne peut pas resservir l'ancienne page depuis son cache
+  const u = new URL(location.href); u.searchParams.set('maj', Date.now().toString(36));
+  location.replace(u.toString());
 }
 
 // ---------- petit message en haut de l'écran ----------

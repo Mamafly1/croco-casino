@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m32">
+<link rel="stylesheet" href="css/casino.css?v=m33">
 <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js", "three/addons/": "./vendor/three/addons/" } }</script>
 <style>
 .caselist { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; padding-right: 4px; }
@@ -91,9 +91,8 @@
   #reveal .btn2 { position: sticky; bottom: 0; margin: 0 -16px; padding: 10px 16px max(12px, env(safe-area-inset-bottom, 0px)); background: var(--panel); border-top: 1px solid var(--line); }
 }
 /* série auto : résumé trié par valeur */
-.as-verdict { padding: 14px; border-radius: 10px; background: var(--field); text-align: center; font-weight: 800; font-size: 15px; }
-.as-verdict b { display: block; margin-top: 4px; font: 22px/1.2 var(--font-pixel); }
-.as-verdict.pos b { color: var(--win); } .as-verdict.neg b { color: var(--lose); }
+.as-line { margin: 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.as-line .pos { color: var(--win); } .as-line .neg { color: var(--lose); }
 .as-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 52vh; overflow: auto; }
 .as-list li { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 10px 6px 6px; border-radius: 8px; background: var(--field); border-left: 4px solid var(--tc); }
 .as-list img { width: 64px; height: 48px; object-fit: contain; }
@@ -152,9 +151,8 @@
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="asTitle">
     <div class="sheet-head"><h2 id="asTitle">Résultat</h2><button class="x" id="asClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="step">
-      <div class="as-verdict" id="asVerdict"></div>
-      <p class="muted small" id="asLine" style="margin:0"></p>
       <ul class="as-list" id="asList"></ul>
+      <p class="as-line" id="asLine"></p>
     </div>
   </div>
 </div>
@@ -176,6 +174,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="js/pages/caisses.js?v=m32"></script>
+<script type="module" src="js/pages/caisses.js?v=m33"></script>
 </body>
 </html>

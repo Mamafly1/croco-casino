@@ -233,7 +233,7 @@ function settings(p) {
 // Mise à jour : le bouton n'apparaît que si une nouvelle version est détectée
 const updHtml = () => (hasUpdate()
   ? '<button class="btn-ghost upd" type="button" data-act="update">Nouvelle version disponible : mettre à jour</button>'
-  : '<p class="muted small" style="margin:0">Pas de mise à jour détectée.</p>');
+  : '<button class="btn-ghost" type="button" data-act="update">Forcer la mise à jour</button>');
 async function saveStyle(patch) {
   try { await casino.play('account', 'style', patch); refreshSoon(); } catch (e) { toast(e.message); }
 }
