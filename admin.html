@@ -92,6 +92,7 @@ async function load(done = '') {
           <button class="btn-ghost" data-op="rename">Changer le pseudo</button>
           <button class="btn-ghost" data-op="setBalance">Changer le solde</button>
           <button class="btn-ghost" data-op="addBalance">Ajouter / retirer</button>
+          <button class="btn-ghost" data-op="cleanAdmin">Nettoyer l'historique admin</button>
           <button class="btn-ghost" data-op="resetDeposits">Nouvelles tâches du jour</button>
           <button class="btn-ghost" data-op="resetPin">Code oublié</button>
           <button class="btn-ghost" data-op="logout">Déconnecter</button>
@@ -124,6 +125,7 @@ $('list').addEventListener('click', async (e) => {
     extra.newName = v.trim();
   }
   if (op === 'delete' && prompt(`Supprimer définitivement ${name} ? Tape son pseudo pour confirmer.`) !== name) return;
+  if (op === 'cleanAdmin' && !confirm(`Effacer les ajustements admin du graphique de ${name} ? Son solde ne change pas.`)) return;
   if (op === 'resetPin' && !confirm(`Effacer le code de ${name} ? Le prochain code tapé deviendra le sien.`)) return;
   try { load((await call(op, extra)).message); } catch (err) { say(err.message, true); }
 });

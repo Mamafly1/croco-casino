@@ -599,6 +599,16 @@ export class Casino extends DurableObject {
       this.addHist(row.id, pl.p.balance - before, pl.p.balance, 'Ajustement admin', 'admin');
       return reply(200, { ok: true, message: `${pl.name} : solde ${pl.p.balance} €` });
     }
+    // Efface les ajustements admin de l'historique (graphique du profil), comme s'ils n'avaient jamais eu lieu :
+    // les lignes suivantes ne comptent plus leur montant dans leur solde. Le solde actuel ne change pas.
+    if (op === 'cleanAdmin') {
+      const rows = this.sql.exec("SELECT id, d FROM hist WHERE player_id = ? AND g = 'admin' ORDER BY id", row.id).toArray();
+      for (const r of rows) {
+        this.sql.exec('UPDATE hist SET b = ROUND(b - ?, 2) WHERE player_id = ? AND id > ?', r.d, row.id, r.id);
+        this.sql.exec('DELETE FROM hist WHERE id = ?', r.id);
+      }
+      return reply(200, { ok: true, message: `${rows.length} ajustement(s) admin effacé(s) de l'historique` });
+    }
     if (op === 'rename') {
       const err = await this.renamePlayer(row.id, String(msg.newName || '').trim());
       if (err) return reply(400, { error: err });
