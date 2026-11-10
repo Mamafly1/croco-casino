@@ -422,6 +422,7 @@ export function mountShell(active, { wait = false } = {}) {
       <div>
         <div class="wallet-label">Solde <span class="net" id="net"></span></div>
         <div class="wallet-amount num"><span id="bal">0,00</span> <small>€</small></div>
+        <div class="boost-pill" id="boostPill" hidden></div>
       </div>
       <button class="me-btn" id="meBtn" type="button" title="Mon profil et paramètres" aria-label="Mon profil et paramètres"><span id="meIni">?</span></button>
       <button id="topup" class="topup" type="button">
@@ -444,6 +445,20 @@ export function mountShell(active, { wait = false } = {}) {
   else setTimeout(() => { emit('me', casino.me); emit('feeds', casino.feed); }, 0);
 }
 
+// Boost des gifs reçus : pastille sous le solde (%, temps restant, bonus qu'il reste à toucher)
+let boostEnd = 0;
+function renderBoost() {
+  const el = $('boostPill');
+  if (!el) return;
+  const b = casino.me && casino.me.boost, left = boostEnd - Date.now();
+  if (!b || left <= 0 || b.cap < 0.01) { el.hidden = true; return; }
+  const s = Math.ceil(left / 1000);
+  el.hidden = false;
+  el.textContent = `Boost +${b.pct} % · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} · reste ${eur(b.cap)}`;
+  el.title = `Tes gains nets sont augmentés de ${b.pct} % jusqu'à ${eur(b.cap)} de bonus (cadeau d'un gif reçu)`;
+}
+casino.on('me', (me) => { boostEnd = me && me.boost ? Date.now() + me.boost.left : 0; renderBoost(); });
+setInterval(renderBoost, 1000);
 function renderWallet() {
   const b = $('bal');
   if (b && !counting) b.textContent = nf2.format(casino.shownBalance());

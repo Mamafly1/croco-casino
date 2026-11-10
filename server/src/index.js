@@ -1,7 +1,7 @@
 // Serveur multijoueur de Croco Casino : un Worker Cloudflare + un Durable Object (stockage SQLite).
 // Le site reste sur GitHub Pages ; il se connecte ici en WebSocket quand js/config.js donne l'adresse.
 import { DurableObject } from 'cloudflare:workers';
-import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, WELCOME_BONUS, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
+import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, WELCOME_BONUS, activeBoost, addBoost, applyBoost, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
 import { newMarket, advance, setMarks } from '../../js/engine/market.js';
 import { timeTo } from '../../js/engine/crash.js';
 import { workDay } from '../../js/engine/work.js';
@@ -159,6 +159,8 @@ const colorOf = (style) => { try { return JSON.parse(style || '{}').color || nul
 const totalPlayed = (p) => Object.values(p.played || {}).reduce((a, b) => a + b, 0);
 // Jeux dont une ligne d'historique est un gain net (comptés pour « Le Gros Coup »)
 const WIN_GAMES = ['plinko', 'slots', 'rps', 'crash', 'blackjack', 'roulette'];
+// Jeux où le boost des gifs s'applique (pas les duels entre joueurs, ni les caisses, ni la bourse)
+const BOOST_GAMES = ['plinko', 'slots', 'roulette', 'blackjack', 'crash'];
 // Parties en plusieurs temps : la mise ouvre une ligne d'historique, le résultat la ferme (voir roundHist).
 // Le graphique du solde ne bouge donc qu'au résultat, du gain ou de la perte nette.
 const LOST_LABEL = { crash: 'Fusée : perdu', blackjack: 'Blackjack : perdu', roulette: 'Roulette : perdu' };
@@ -390,7 +392,16 @@ export class Casino extends DurableObject {
     this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g, open) VALUES (?, ?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g, done ? 0 : 1);
     if (done) this.winRec(id, d, g);
   }
-  winRec(id, d, g) { if (d > 0 && WIN_GAMES.includes(g)) this.rec(id, 'win', money(d), 'max', g); }
+  // (le bonus du boost de la partie en cours, this.bonusNow, ne compte pas pour le record)
+  winRec(id, d, g) { d -= this.bonusNow || 0; if (d > 0 && WIN_GAMES.includes(g)) this.rec(id, 'win', money(d), 'max', g); }
+  // Boost des gifs sur une partie qui vient de se finir : bonus ajouté au solde et au gain affiché
+  boostGame(pl, game, action, res) {
+    const f = res.feed;
+    if (!f || !(BOOST_GAMES.includes(game) || (game === 'rps' && action === 'bot'))) return 0;
+    const bonus = applyBoost(pl.p, f.bet, f.payout, Date.now());
+    if (bonus) { res.result.boost = bonus; res.result.payout = money((res.result.payout || 0) + bonus); }
+    return bonus;
+  }
   // Série auto (Plinko, machine à sous, caisses) : chaque coup met à jour la même ligne d'historique (« Plinko auto 25 »)
   // et la même ligne du fil. Les records restent comptés coup par coup.
   autoRunHist(pl, game, d, res) {
@@ -489,7 +500,12 @@ export class Casino extends DurableObject {
       name: pl.name, balance: p.balance, deposits: p.deposits, score: sc, rank,
       inventory: p.inventory, inventoryValue: inventoryValue(p), played: p.played, bj: bjView(p.bj),
       gifs: p.gifs || {}, spent: p.spent || 0, stocks: p.stocks || {}, stocksValue: stocksValue(p), bank: p.bank || 0, style: this.styleOf(pl.id),
+      boost: this.boostView(p),
     };
+  }
+  boostView(p) {
+    const b = activeBoost(p, Date.now());
+    return b ? { pct: b.pct, cap: b.cap, left: b.until - Date.now() } : null;
   }
   board() {
     const titles = this.boardData().titles;
@@ -861,6 +877,7 @@ export class Casino extends DurableObject {
         if (msg.game === 'stocks') ctx.prices = (await this.market()).prices;
         res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
       }
+      this.bonusNow = this.boostGame(pl, msg.game, msg.action, res);
       this.save(pl);
       this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore); // avant autoRunHist : records coup par coup
       const d = pl.p.balance - before, label = historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), round = roundPhase(msg.game, msg.action, res);
@@ -872,7 +889,9 @@ export class Casino extends DurableObject {
       if (msg.game === 'blackjack') this.updateTable(pl);
       if (res.feed) this.pushFeed({ name: pl.name, at: Date.now(), ...res.feed });
       this.boardSoon();
+      this.bonusNow = 0;
     } catch (e) {
+      this.bonusNow = 0;
       const error = e instanceof GameError ? e.message : 'Erreur du serveur.';
       if (!(e instanceof GameError)) console.error(e);
       this.send(ws, { t: 'res', id: msg.id, ok: false, error });
@@ -936,10 +955,14 @@ export class Casino extends DurableObject {
     }
     // au-delà de 120 gifs à l'écran, les plus vieux partent (sinon le téléphone rame)
     this.sql.exec('DELETE FROM gifts WHERE to_id = ? AND id NOT IN (SELECT id FROM gifts WHERE to_id = ? ORDER BY id DESC LIMIT 120)', target.id, target.id);
-    const note = `${pl.name} t’a envoyé ${qty}x ${name}`;
+    // le receveur est boosté (voir addBoost)
+    const tp = this.load(target.id), boost = tp && addBoost(tp.p, mode, qty, now);
+    if (boost) this.save(tp);
+    const mins = boost ? Math.max(1, Math.round((boost.until - now) / 60000)) : 0;
+    const note = `${pl.name} t’a envoyé ${qty}x ${name}` + (boost ? ` : boost +${boost.pct} % sur tes gains pendant ${mins} min` : '');
     for (const ws of this.ctx.getWebSockets()) {
       const w2 = ws.deserializeAttachment();
-      if (w2 && w2.id === target.id) this.send(ws, { t: 'gifs', add, note });
+      if (w2 && w2.id === target.id) { this.send(ws, { t: 'gifs', add, note }); if (tp) this.send(ws, { t: 'me', me: this.me(tp) }); }
     }
     return { result: { ...r.result, to: target.name }, feed: { game: 'gifs', bet: 0, payout: 0, to: target.name, qty, gif: name, mode } };
   }
@@ -958,8 +981,10 @@ export class Casino extends DurableObject {
     const before = pl.p.balance;
     const res = run(pl.p, 'crash', 'state', {}, { rng, now: Date.now() });
     if (!res.result.done) { this.crashTimer(id); return; }
+    this.bonusNow = this.boostGame(pl, 'crash', 'state', res);
     this.save(pl);
     this.roundHist(pl.id, 'crash', pl.p.balance - before, pl.p.balance, historyLabel('crash', 'state', {}, res.result), { done: true });
+    this.bonusNow = 0;
     for (const ws of this.ctx.getWebSockets()) {
       const w = ws.deserializeAttachment();
       if (w && w.id === id) this.send(ws, { t: 'crash', result: res.result, me: this.me(pl) });
@@ -1168,11 +1193,13 @@ export class Casino extends DurableObject {
         const pl = this.load(+id);
         if (!pl) continue;
         const payout = roulette.settle(b.bets, n);
-        b.payout = payout;
         pl.p.balance = money(pl.p.balance + payout);
+        this.bonusNow = applyBoost(pl.p, b.total, payout, Date.now()); // boost des gifs
+        b.payout = money(payout + this.bonusNow);
         pl.p.played.roulette = (pl.p.played.roulette || 0) + 1;
         this.save(pl);
-        this.roundHist(pl.id, 'roulette', payout, pl.p.balance, `Roulette : ${n}`, { done: true });
+        this.roundHist(pl.id, 'roulette', b.payout, pl.p.balance, `Roulette : ${n}`, { done: true });
+        this.bonusNow = 0;
         events.push({ name: pl.name, at: Date.now(), game: 'roulette', bet: b.total, payout, n });
       }
       await this.ctx.storage.put('round', r);

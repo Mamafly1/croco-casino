@@ -665,3 +665,5 @@ body.betlock .bet-zone { display: none !important; }
 .auto-btn.on { background: var(--gold) !important; color: var(--gold-ink); }
 /* sur téléphone, un jeu fait au moins un écran : on peut toujours le faire défiler jusqu'en haut (voir pageReady) */
 @media (max-width: 760px) { body.is-game main { min-height: calc(100svh - 16px); } }
+.boost-pill { display: inline-block; margin-top: 3px; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--gold-ink); font-size: 10px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.boost-pill[hidden] { display: none; }

@@ -14,6 +14,32 @@ export const PACKS = [10, 20, 50, 100]; // montants proposés au dépôt (pris s
 // Gifs envoyés sur l'écran des autres : prix par gif selon le mode d'apparition
 export const GIF_PRICES = { dvd: 1.5, gravity: 2.5, full: 10 };
 export const GIF_MODES = { dvd: 'DVD', gravity: 'Gravité', full: 'Plein écran' };
+// Boost offert avec un gif : un bonus en % sur le gain net des parties gagnées pendant un moment. Chaque gif ajoute son %
+// (jusqu'à +50 %) et sa durée (jusqu'à 10 min). Le bonus total ne dépasse jamais 80 % du prix des gifs : s'envoyer des
+// gifs entre potes coûte toujours plus que ce que ça rapporte.
+export const GIF_BOOST = { dvd: { pct: 5, ms: 60000 }, gravity: { pct: 10, ms: 120000 }, full: { pct: 20, ms: 120000 } };
+export const BOOST_MAX_PCT = 50, BOOST_MAX_MS = 600000, BOOST_CAP_SHARE = 0.8;
+export function activeBoost(p, now) { const b = p.boost; return b && b.until > now && b.cap >= 0.01 ? b : null; }
+export function addBoost(p, mode, qty, now) {
+  const g = GIF_BOOST[mode];
+  if (!g || !(qty > 0)) return null;
+  const b = activeBoost(p, now) || { pct: 0, cap: 0, until: now };
+  b.pct = Math.min(BOOST_MAX_PCT, b.pct + g.pct * qty);
+  b.cap = money(b.cap + GIF_PRICES[mode] * BOOST_CAP_SHARE * qty);
+  b.until = Math.min(now + BOOST_MAX_MS, Math.max(b.until, now) + g.ms * qty);
+  p.boost = b;
+  return b;
+}
+// Bonus d'une partie gagnée (0 si pas de boost ou partie perdue) ; il est ajouté au solde et retiré du plafond
+export function applyBoost(p, bet, payout, now) {
+  const b = activeBoost(p, now), net = payout - bet;
+  if (!b || !(net > 0)) return 0;
+  const bonus = money(Math.min(b.cap, (net * b.pct) / 100));
+  if (bonus < 0.01) return 0;
+  b.cap = money(b.cap - bonus);
+  p.balance = money(p.balance + bonus);
+  return bonus;
+}
 export const GIF_MAX_SEND = 30;
 export const STOCK_MIN = 10; // € minimum par achat d'actions
 export const RPS_MULT = 1.97; // contre le croco : gagné ×1,97, égalité remboursée → retour 99 %
