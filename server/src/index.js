@@ -229,7 +229,7 @@ export class Casino extends DurableObject {
         this.rec(0, '_v2', 1);
       }
       // Migrations : tout ou rien (transaction), et une migration qui plante ne doit jamais empêcher le serveur de démarrer
-      for (const [flag, fn] of [['_v3', this.migrateV3], ['_v4', this.migrateV4], ['_v5', this.migrateV5]]) {
+      for (const [flag, fn] of [['_v3', this.migrateV3], ['_v4', this.migrateV4], ['_v5', this.migrateV5], ['_v6', this.migrateV6]]) {
         if (this.sql.exec('SELECT 1 FROM records WHERE k = ?', flag).toArray().length) continue;
         try { ctx.storage.transactionSync(() => { fn.call(this); this.rec(0, flag, 1); }); } catch (e) { console.error('migration', flag, e); }
       }
@@ -358,6 +358,20 @@ export class Casino extends DurableObject {
       const p = JSON.parse(row.data);
       if (p.played && p.played.slots) { p.played.slots = Math.max(1, p.played.slots - n); this.sql.exec('UPDATE players SET data = ? WHERE id = ?', JSON.stringify(p), id); }
     }
+  }
+  // Efface les ajustements admin de l'historique d'un joueur ; les lignes suivantes ne comptent plus leur montant
+  cleanAdminHist(id) {
+    const rows = this.sql.exec("SELECT id, d FROM hist WHERE player_id = ? AND g = 'admin' ORDER BY id", id).toArray();
+    for (const r of rows) {
+      this.sql.exec('UPDATE hist SET b = ROUND(b - ?, 2) WHERE player_id = ? AND id > ?', r.d, id, r.id);
+      this.sql.exec('DELETE FROM hist WHERE id = ?', r.id);
+    }
+    return rows.length;
+  }
+  // Une seule fois (v6) : le +67 676 767 € de troll de Bifidus (et son retrait) sort de son graphique
+  migrateV6() {
+    const row = this.sql.exec("SELECT id FROM players WHERE name = 'Bifidus'").toArray()[0];
+    if (row) this.cleanAdminHist(row.id);
   }
   // Ligne d'historique d'une partie en plusieurs temps (voir roundPhase) : start = nouvelle partie (une ancienne restée
   // ouverte est perdue), done = résultat connu (la ligne se ferme, avec le gain ou la perte nette).
@@ -602,12 +616,8 @@ export class Casino extends DurableObject {
     // Efface les ajustements admin de l'historique (graphique du profil), comme s'ils n'avaient jamais eu lieu :
     // les lignes suivantes ne comptent plus leur montant dans leur solde. Le solde actuel ne change pas.
     if (op === 'cleanAdmin') {
-      const rows = this.sql.exec("SELECT id, d FROM hist WHERE player_id = ? AND g = 'admin' ORDER BY id", row.id).toArray();
-      for (const r of rows) {
-        this.sql.exec('UPDATE hist SET b = ROUND(b - ?, 2) WHERE player_id = ? AND id > ?', r.d, row.id, r.id);
-        this.sql.exec('DELETE FROM hist WHERE id = ?', r.id);
-      }
-      return reply(200, { ok: true, message: `${rows.length} ajustement(s) admin effacé(s) de l'historique` });
+      const n = this.cleanAdminHist(row.id);
+      return reply(200, { ok: true, message: `${n} ajustement(s) admin effacé(s) de l'historique` });
     }
     if (op === 'rename') {
       const err = await this.renamePlayer(row.id, String(msg.newName || '').trim());
