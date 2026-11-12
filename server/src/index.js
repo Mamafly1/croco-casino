@@ -43,6 +43,7 @@ export default {
     if (url.pathname === '/health') return new Response('ok');
     if (url.pathname === '/admin') return adminRoute(request, env);
     if (url.pathname === '/gifs') return gifRoute(request, env, ctx, url);
+    if (url.pathname === '/gifproxy') return gifProxyRoute(request, env, ctx, url);
     if (url.pathname === '/media' || url.pathname.startsWith('/media/')) return mediaRoute(request, env, url);
     if (url.pathname !== '/ws') return new Response('Croco Casino : rien ici.', { status: 404 });
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('WebSocket attendu', { status: 426 });
@@ -103,6 +104,27 @@ async function gifRoute(request, env, ctx, url) {
     ctx.waitUntil(cache.put(cacheKey, res.clone()));
   }
   return new Response(res.body, { status: res.status, headers: { ...h, 'Content-Type': 'application/json' } });
+}
+// Secours pour les réseaux qui bloquent les serveurs de gifs (wifi d'école…) : le gif passe par notre serveur.
+// Seulement depuis des hébergeurs de gifs connus (pas un relais ouvert vers n'importe quel site), gardé un jour en cache.
+const GIF_HOSTS = /(^|\.)(klipy\.com|tenor\.com|giphy\.com)$/;
+async function gifProxyRoute(request, env, ctx, url) {
+  const h = getCors(request, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
+  let src;
+  try { src = new URL(String(url.searchParams.get('u') || '')); } catch { return json(400, { error: 'Lien invalide.' }, h); }
+  if (src.protocol !== 'https:' || !GIF_HOSTS.test(src.hostname)) return json(403, { error: 'Hébergeur de gif non autorisé.' }, h);
+  const cacheKey = new Request('https://cache.croco/gifproxy?u=' + encodeURIComponent(src.toString()));
+  let res = await caches.default.match(cacheKey);
+  if (!res) {
+    let r;
+    try { r = await fetch(src.toString(), { headers: { Accept: 'image/*,video/*' } }); } catch { return json(502, { error: 'Gif introuvable.' }, h); }
+    const type = r.headers.get('Content-Type') || '';
+    if (!r.ok || !/^(image|video)\//.test(type)) return json(502, { error: 'Gif introuvable.' }, h);
+    res = new Response(r.body, { headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=86400' } });
+    ctx.waitUntil(caches.default.put(cacheKey, res.clone()));
+  }
+  return new Response(res.body, { status: 200, headers: { ...h, 'Content-Type': res.headers.get('Content-Type'), 'Cache-Control': 'public, max-age=86400' } });
 }
 // Réponse Klipy -> { items: [{ id, title, url, preview, w, h }], hasNext }. Lecture prudente : plusieurs formes possibles.
 function klipyItems(d) {

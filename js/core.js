@@ -445,6 +445,18 @@ export function mountShell(active, { wait = false } = {}) {
   else setTimeout(() => { emit('me', casino.me); emit('feeds', casino.feed); }, 0);
 }
 
+// Gifs bloqués par certains réseaux (wifi d'école…) : si une image d'un hébergeur de gifs ne charge pas,
+// on la redemande en passant par notre serveur (route /gifproxy)
+const GIF_HOSTS = /(^|\.)(klipy\.com|tenor\.com|giphy\.com)$/;
+if (SERVER_URL) document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (!el || (el.tagName !== 'IMG' && el.tagName !== 'VIDEO') || el.dataset.viaProxy) return;
+  let u; try { u = new URL(el.currentSrc || el.src); } catch { return; }
+  if (!GIF_HOSTS.test(u.hostname)) return;
+  el.dataset.viaProxy = '1';
+  el.src = SERVER_URL.replace(/\/+$/, '') + '/gifproxy?u=' + encodeURIComponent(u.toString());
+}, true);
+
 // Boost des gifs reçus : pastille sous le solde (%, temps restant, bonus qu'il reste à toucher)
 let boostEnd = 0;
 function renderBoost() {
