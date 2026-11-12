@@ -18,7 +18,7 @@ const current = [0, 0, 0]; // case du milieu affichée
 
 function setCell() {
   const w = reels[0].clientWidth;
-  cell = Math.round(Math.min(w, 150) * 0.9);
+  cell = Math.round(Math.min(w, matchMedia('(min-width: 1100px)').matches ? 210 : 150) * 0.9); // plus grand sur PC
   $('window').style.setProperty('--cell', cell + 'px');
 }
 function drawStatic(only = -1) {
