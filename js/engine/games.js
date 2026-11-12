@@ -9,7 +9,7 @@ import * as crash from './crash.js';
 import * as work from './work.js';
 import { COMPANIES, FEE, marks } from './market.js';
 
-export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots', 'crash', 'rps', 'stocks'];
+export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots', 'crash', 'rps', 'c4', 'stocks'];
 export const PACKS = [10, 20, 50, 100]; // montants proposés au dépôt (pris sur le compte en banque)
 // Gifs envoyés sur l'écran des autres : prix par gif selon le mode d'apparition
 export const GIF_PRICES = { dvd: 1.5, gravity: 2.5, full: 10 };

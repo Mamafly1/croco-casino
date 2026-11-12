@@ -70,7 +70,7 @@ function soloMarket() {
   return local.market;
 }
 // Ces actions n'ont pas d'animation : leur résultat s'affiche tout de suite
-const NO_HOLD = ['wallet', 'work', 'gifs', 'stocks'];
+const NO_HOLD = ['wallet', 'work', 'gifs', 'stocks', 'c4'];
 
 export const casino = {
   online: !!SERVER_URL,
@@ -262,7 +262,7 @@ function connect() {
     if (m.t === 'welcome') {
       everConnected = true; retry = 0;
       casino.me = m.me; casino.board = m.board; casino.boards = m.boards || []; casino.feed = m.feed; casino.round = m.round; casino.table = m.table; casino.onlineCount = m.online;
-      casino.onlineNames = m.onlineNames || []; casino.duels = m.duels || [];
+      casino.onlineNames = m.onlineNames || []; casino.duels = m.duels || []; casino.c4 = m.c4 || null;
       local.name = m.me.name; saveLocal();
       closeLogin();
       setStatus('online');
@@ -278,6 +278,8 @@ function connect() {
       if (m.ok) w.resolve(m); else w.reject(new GameError(m.error));
     } else if (m.t === 'me') { casino.me = m.me; emit('me', m.me); renderWallet(); }
     else if (m.t === 'duelOffer') duelOffer(m.duel);
+    else if (m.t === 'c4') { casino.c4 = m.c4; emit('c4', m.c4); }
+    else if (m.t === 'c4offer') c4Offer(m.inv);
     else if (m.t === 'feed') addFeed(m.e);
     else if (m.t === 'feedAll') { casino.feed = m.feed; emit('feeds', m.feed); }
     else if (m.t === 'board') { casino.board = m.board; if (m.boards) casino.boards = m.boards; emit('board', m.board); emit('boards', casino.boards); }
@@ -660,6 +662,40 @@ function setupInstall() {
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; show(false); });
   addEventListener('appinstalled', () => { const b = $('installBar'); if (b) b.remove(); });
   if (/iphone|ipad|ipod/i.test(navigator.userAgent)) setTimeout(() => show(true), 1500);
+}
+
+// ---------- invitation reçue au Croco 4 : fenêtre Accepter / Refuser ----------
+function c4Offer(inv) {
+  if (!inv || seenOffers.has(inv.id)) return;
+  seenOffers.add(inv.id);
+  const old = $('duelOffer'); if (old) old.remove();
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.id = 'duelOffer';
+  m.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="doTitle">
+    <div class="sheet-head"><h2 id="doTitle">Partie de Croco 4</h2><button class="x" type="button" data-close aria-label="Fermer">${X_ICON}</button></div>
+    <div class="step">
+      <p class="duel-offer"><b>${esc(inv.from)}</b> te défie au Croco 4. Chaque pion posé vaut <b>${eur(inv.val)}</b> ; le gagnant ramasse tous les pions du plateau.</p>
+      <div class="offer-btns"><button class="btn-pix no" type="button" data-no>Refuser</button><button class="btn-pix yes" type="button" data-yes>Accepter</button></div>
+      <p class="muted small" id="doMsg">Tu peux aussi répondre plus tard depuis la page Croco 4.</p>
+    </div></div>`;
+  document.body.appendChild(m);
+  sfx.play('notify');
+  m.addEventListener('click', async (e) => {
+    if (e.target === m || e.target.closest('[data-close]')) return m.remove();
+    const yes = e.target.closest('[data-yes]'), no = e.target.closest('[data-no]');
+    if (!yes && !no) return;
+    m.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+    try {
+      await casino.play('c4', yes ? 'accept' : 'decline', { id: inv.id });
+      m.remove();
+      if (yes && !/croco4\.html/.test(location.pathname)) location.href = 'croco4.html';
+      else if (no) toast(`Partie de ${inv.from} refusée`);
+    } catch (err) {
+      $('doMsg').textContent = err.message;
+      m.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+    }
+  });
 }
 
 // ---------- défi reçu au chifoumi : fenêtre Accepter / Refuser ----------

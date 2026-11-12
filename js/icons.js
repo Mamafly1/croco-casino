@@ -79,6 +79,17 @@ const ART = {
     '.r.r.r.r.',
     '.rrr.rrr.',
   ],
+  c4: [
+    'bbbbbbbbb',
+    'bkbkbkbkb',
+    'bbbbbbbbb',
+    'bkbrbkbkb',
+    'bbbbbbbbb',
+    'bgbrbgbkb',
+    'bbbbbbbbb',
+    'bgbrbgbgb',
+    'bbbbbbbbb',
+  ],
   stocks: [
     '.....ggg.',
     '......gg.',
@@ -166,5 +177,6 @@ export const GAME_INFO = {
   slots: { name: 'Machine à sous', href: 'slots.html' },
   crash: { name: 'Fusée', href: 'fusee.html' },
   rps: { name: 'Pierre-feuille-ciseaux', short: 'Chifoumi', href: 'pfc.html' },
+  c4: { name: 'Croco 4', href: 'croco4.html' },
   stocks: { name: 'Bourse', href: 'bourse.html' },
 };

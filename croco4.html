@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Croco 4</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#181818">
+<link rel="icon" type="image/png" href="img/app/favicon.png">
+<link rel="apple-touch-icon" href="img/app/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/casino.css?v=m38">
+<style>
+/* plateau : 7 colonnes, 6 rangées ; on touche une colonne pour y lâcher un pion */
+.c4-arena { display: grid; gap: 12px; padding: 16px; border-radius: 12px; background: radial-gradient(120% 90% at 50% 0%, #34342f 0%, var(--bg) 100%); }
+.c4-arena h1 { margin: 0; text-align: center; font: clamp(14px, 3vw, 22px)/1.4 var(--font-pixel); color: var(--gold); text-shadow: 3px 3px 0 var(--red); }
+.c4-players { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.c4-p { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 10px; background: var(--field); border: 2px solid transparent; }
+.c4-p.turn { border-color: var(--gold); }
+.c4-p.right { flex-direction: row-reverse; text-align: right; }
+.c4-p b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.c4-p small { display: block; color: var(--muted); font-size: 12px; }
+.disc { flex: none; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.3); }
+.disc.p0 { background: #ffbf17; } .disc.p1 { background: #de0607; }
+.c4-pot { text-align: center; font-weight: 800; }
+.c4-pot b { display: block; font: 18px/1.3 var(--font-pixel); color: var(--gold); }
+.c4-pot small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.c4-status { margin: 0; min-height: 1.4em; text-align: center; font-weight: 800; }
+.c4-timer { height: 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.35); overflow: hidden; }
+.c4-timer i { display: block; height: 100%; width: 100%; background: var(--gold); transition: width 0.25s linear; }
+.c4-board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: clamp(3px, 1vw, 8px); width: min(100%, 560px); margin: 0 auto; padding: clamp(6px, 1.4vw, 12px); border-radius: 14px; background: #2643b8; box-shadow: inset 0 -6px 0 #1a2f80, 0 10px 24px rgba(0, 0, 0, 0.35); }
+.c4-col { display: grid; grid-template-rows: repeat(6, 1fr); gap: clamp(3px, 1vw, 8px); padding: 2px; border: 0; border-radius: 10px; background: none; cursor: pointer; }
+.c4-col:hover:not(:disabled), .c4-col:focus-visible { background: rgba(255, 255, 255, 0.12); }
+.c4-col:disabled { cursor: default; }
+.c4-cell { aspect-ratio: 1; border-radius: 50%; background: #121a3a; box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.45); }
+.c4-cell.p0 { background: #ffbf17; box-shadow: inset 0 -4px 0 #b07a00; }
+.c4-cell.p1 { background: #de0607; box-shadow: inset 0 -4px 0 #8f0405; }
+.c4-cell.last { animation: c4drop 0.35s cubic-bezier(.3, .0, .6, 1); }
+.c4-cell.win { outline: 3px solid #f0f0e6; outline-offset: -3px; animation: c4win 0.8s ease-in-out infinite alternate; }
+@keyframes c4drop { from { transform: translateY(-260%); } to { transform: translateY(0); } }
+@keyframes c4win { to { filter: brightness(1.35); } }
+.c4-empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+.inv-list { display: grid; gap: 6px; }
+.inv-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--field); font-size: 13.5px; }
+.inv-row .btns { display: flex; gap: 6px; }
+.inv-row button { min-height: 36px; padding: 0 10px; }
+.val-custom { margin-top: 6px; }
+@media (min-width: 1100px) { .c4-arena { min-height: max(420px, calc(100svh - 110px)); align-content: center; } }
+</style>
+</head>
+<body>
+<main class="game split">
+  <aside class="panel" aria-label="Partie">
+    <button id="play" class="play" type="button">Défier</button>
+    <button id="resign" class="btn-ghost" type="button" hidden>Abandonner la partie</button>
+    <p class="msg" id="msg" aria-live="polite"></p>
+    <div class="field bet-zone">
+      <label class="field-head" for="to"><span>Qui défier ?</span><span class="muted small">joueurs en ligne</span></label>
+      <select class="text-in" id="to"></select>
+    </div>
+    <div class="field bet-zone">
+      <div class="field-head"><span id="valLabel">Valeur d’un pion</span><span class="num" id="betMax"></span></div>
+      <div class="chips" id="vals" role="group" aria-labelledby="valLabel">
+        <button type="button" data-v="1" aria-pressed="true">1 €</button>
+        <button type="button" data-v="5" aria-pressed="false">5 €</button>
+        <button type="button" data-v="10" aria-pressed="false">10 €</button>
+        <button type="button" data-v="custom" aria-pressed="false">Perso</button>
+      </div>
+      <input class="text-in val-custom" id="valIn" type="text" inputmode="decimal" placeholder="ex. 2,50 (0,10 à 100 €)" autocomplete="off" hidden>
+    </div>
+    <section class="field" id="invBox" hidden>
+      <div class="field-head"><span>Invitations</span></div>
+      <div class="inv-list" id="invs"></div>
+    </section>
+    <section class="stats" aria-label="Règles"><details class="odds"><summary><h2>Les règles</h2></summary>
+      <p class="odds-note">Aligne 4 pions de ta couleur (en ligne, en colonne ou en diagonale). Pas de mise au départ : avant la partie, vous choisissez la valeur d’un pion. Chaque pion que tu poses te coûte cette valeur et part dans la cagnotte. Celui qui aligne 4 pions ramasse toute la cagnotte (ses pions et ceux de l’autre). Plateau plein sans gagnant : chacun reprend ses pions. 30 s par coup, sinon la partie est perdue. Le casino ne prend rien.</p>
+    </details></section>
+  </aside>
+  <section class="stage" aria-label="Croco 4">
+    <div class="c4-arena">
+      <h1>CROCO 4</h1>
+      <div id="c4Game"><p class="c4-empty">Défie un joueur en ligne : choisis la valeur d’un pion, puis touche « Défier ».</p></div>
+    </div>
+    <section class="surface" aria-labelledby="feedTitle">
+      <h2 class="h-label" id="feedTitle" style="margin-bottom:10px">Croco 4 en direct</h2>
+      <div id="feed"></div>
+    </section>
+  </section>
+</main>
+<script type="module" src="js/pages/croco4.js?v=m38"></script>
+</body>
+</html>

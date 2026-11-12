@@ -4,6 +4,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, readBet, GameError, money, GAMES, WELCOME_BONUS, activeBoost, addBoost, applyBoost, historyLabel, rpsOutcome, RPS_MOVES, RPS_MULT, GIF_MODES } from '../../js/engine/games.js';
 import { newMarket, advance, setMarks } from '../../js/engine/market.js';
 import { timeTo } from '../../js/engine/crash.js';
+import * as c4 from '../../js/engine/c4.js';
 import { workDay } from '../../js/engine/work.js';
 import * as roulette from '../../js/engine/roulette.js';
 import { view as bjView } from '../../js/engine/blackjack.js';
@@ -180,12 +181,12 @@ async function sha256(s) {
 const colorOf = (style) => { try { return JSON.parse(style || '{}').color || null; } catch { return null; } };
 const totalPlayed = (p) => Object.values(p.played || {}).reduce((a, b) => a + b, 0);
 // Jeux dont une ligne d'historique est un gain net (comptés pour « Le Gros Coup »)
-const WIN_GAMES = ['plinko', 'slots', 'rps', 'crash', 'blackjack', 'roulette'];
+const WIN_GAMES = ['plinko', 'slots', 'rps', 'crash', 'blackjack', 'roulette', 'c4'];
 // Jeux où le boost des gifs s'applique (pas les duels entre joueurs, ni les caisses, ni la bourse)
 const BOOST_GAMES = ['plinko', 'slots', 'roulette', 'blackjack', 'crash'];
 // Parties en plusieurs temps : la mise ouvre une ligne d'historique, le résultat la ferme (voir roundHist).
 // Le graphique du solde ne bouge donc qu'au résultat, du gain ou de la perte nette.
-const LOST_LABEL = { crash: 'Fusée : perdu', blackjack: 'Blackjack : perdu', roulette: 'Roulette : perdu' };
+const LOST_LABEL = { crash: 'Fusée : perdu', blackjack: 'Blackjack : perdu', roulette: 'Roulette : perdu', c4: 'Croco 4 : perdu' };
 function roundPhase(game, action, res) {
   const r = res.result || {};
   if (game === 'crash') return action === 'start' ? { start: true } : r.done ? { done: true } : null;
@@ -239,6 +240,8 @@ export class Casino extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       this.duels = (await ctx.storage.get('duels')) || [];
       this.matches = (await ctx.storage.get('matches')) || [];
+      this.c4 = (await ctx.storage.get('c4')) || { invites: [], games: [] };
+      for (const g of this.c4.games) if (g.phase === 'play') this.c4Timer(g);
       this.mk = (await ctx.storage.get('market')) || newMarket(Date.now());
       setMarks(this.mk.prices);
       // Une seule fois : compteurs de départ à partir de l'historique, et score recalculé en « argent total »
@@ -463,7 +466,7 @@ export class Casino extends DurableObject {
   track(id, game, action, res, played) {
     const f = res.feed || {}, r = res.result || {};
     if (f.bet > 0 && f.payout > f.bet) this.rec(id, 'mult', money(f.payout / f.bet), 'max', game); // seulement les gains
-    if (played > 0 && !(game === 'rps' && action !== 'bot')) this.rec(id, 'parties', played); // un duel est compté à sa fin
+    if (played > 0 && !(game === 'rps' && action !== 'bot') && game !== 'c4') this.rec(id, 'parties', played); // un duel est compté à sa fin
     if (game === 'rps' && f.outcome === 'win') this.rec(id, 'rps', 1);
     if (game === 'work' && action === 'submit' && r.pay) this.rec(id, 'tasks', r.pay > 0 ? 1 : 0);
     if (game === 'stocks' && f.act === 'sell') this.rec(id, 'stock', f.gain || 0);
@@ -769,7 +772,7 @@ export class Casino extends DurableObject {
     this.send(ws, {
       t: 'welcome', me: this.me(pl), board: this.board(), boards: this.boardData().list, feed: this.feed,
       round: await this.roundView(), table: [...this.table.values()], online: this.activeCount(), onlineNames: this.activeNames(),
-      duels: this.duelView(),
+      duels: this.duelView(), c4: this.c4View(pl.id),
     });
     // Les gifs qu'on lui a envoyés et qu'il n'a pas encore jetés
     this.sql.exec('DELETE FROM gifts WHERE expires > 0 AND expires < ?', Date.now());
@@ -845,6 +848,7 @@ export class Casino extends DurableObject {
       ws.serializeAttachment({ ...who, at: Date.now() });
       if (this.activeNames().join('|') !== was) this.broadcast(this.online());
       if (this.matches.length) await this.checkMatches();
+      if (this.c4.games.length || this.c4.invites.length) await this.checkC4();
       return;
     }
     if (msg.t === 'gifrm') { this.sql.exec('DELETE FROM gifts WHERE id = ? AND to_id = ?', Number(msg.gid), who.id); return; }
@@ -895,6 +899,7 @@ export class Casino extends DurableObject {
       else if (msg.game === 'gifs' && msg.action === 'send') res = this.sendGifs(pl, msg.params || {}, ctx);
       else if (msg.game === 'account') res = await this.account(pl, msg.action, msg.params || {});
       else if (msg.game === 'rps' && ['duel', 'accept', 'cancel', 'move', 'decline'].includes(msg.action)) res = await this.duel(pl, msg.action, msg.params || {});
+      else if (msg.game === 'c4') res = await this.c4Action(pl, msg.action, msg.params || {});
       else {
         if (msg.game === 'stocks') ctx.prices = (await this.market()).prices;
         res = run(pl.p, msg.game, msg.action, msg.params || {}, ctx);
@@ -903,7 +908,8 @@ export class Casino extends DurableObject {
       this.save(pl);
       this.track(pl.id, msg.game, msg.action, res, totalPlayed(pl.p) - playedBefore); // avant autoRunHist : records coup par coup
       const d = pl.p.balance - before, label = historyLabel(msg.game, msg.action, msg.params || {}, res.result, res.feed), round = roundPhase(msg.game, msg.action, res);
-      if (res.feed && res.feed.run) this.autoRunHist(pl, msg.game, d, res);
+      if (res.noHist) { /* Croco 4 : l'historique est tenu par la partie elle-même */ }
+      else if (res.feed && res.feed.run) this.autoRunHist(pl, msg.game, d, res);
       else if (round) this.roundHist(pl.id, msg.game, d, pl.p.balance, label, round);
       else this.addHist(pl.id, d, pl.p.balance, label, msg.game);
       if (msg.game === 'crash' && msg.action === 'start') this.crashTimer(pl.id);
@@ -1152,6 +1158,126 @@ export class Casino extends DurableObject {
     this.pushMatch(m);
     this.matchTimer(m);
     return { result: { match: m.id, bet: d.bet, payout: 0, label: 'duel accepté' } };
+  }
+  // ---------- Croco 4 (quatre à la suite, en duel) ----------
+  // Pas de mise de départ : chaque pion posé coûte la valeur choisie à l'invitation, et le gagnant ramasse tous les pions
+  // du plateau (les siens et ceux de l'autre). Plateau plein : chacun reprend ses pions. 30 s par coup, sinon perdu.
+  c4Game(id) { return this.c4.games.find((g) => g.phase === 'play' && g.p.some((q) => q.id === id)); }
+  c4View(id) {
+    const invites = this.c4.invites.filter((x) => x.fromId === id || x.toId === id)
+      .map((x) => ({ id: x.id, from: x.from, to: x.to, val: x.val, mine: x.fromId === id }));
+    const g = this.c4Game(id) || this.c4.games.filter((x) => x.p.some((q) => q.id === id) && Date.now() - (x.end || 0) < 120000).pop();
+    if (!g) return { invites, game: null };
+    const me = g.p[0].id === id ? 0 : 1;
+    return { invites, game: { id: g.id, me, names: g.p.map((q) => q.name), val: g.val, board: g.board, turn: g.turn, paid: g.paid, pot: g.pot,
+      left: Math.max(0, g.deadline - Date.now()), phase: g.phase, winner: g.winner, line: g.line, last: g.last, why: g.why || '' } };
+  }
+  pushC4(ids) { for (const id of new Set(ids)) this.notify(id, { t: 'c4', c4: this.c4View(id) }); }
+  async saveC4() {
+    this.c4.games = this.c4.games.filter((g) => g.phase === 'play' || Date.now() - (g.end || 0) < 120000);
+    await this.ctx.storage.put('c4', this.c4);
+  }
+  c4Timer(g) { setTimeout(() => this.c4Tick(g.id), Math.max(0, g.deadline - Date.now()) + 100); }
+  async c4Tick(gid) {
+    const g = this.c4.games.find((x) => x.id === gid && x.phase === 'play');
+    if (!g || Date.now() < g.deadline - 50) return;
+    this.c4Finish(g, 1 - g.turn, 'temps écoulé', null); // celui qui devait jouer perd
+    await this.saveC4();
+    this.pushC4(g.p.map((q) => q.id));
+  }
+  // Coups en retard (le serveur a pu s'endormir) et invitations trop vieilles : réglés au prochain signe de vie
+  async checkC4() {
+    for (const g of this.c4.games.filter((x) => x.phase === 'play' && x.deadline < Date.now())) await this.c4Tick(g.id);
+    const old = this.c4.invites.filter((x) => Date.now() - x.at > 10 * 60000);
+    if (old.length) { this.c4.invites = this.c4.invites.filter((x) => !old.includes(x)); await this.saveC4(); this.pushC4(old.flatMap((x) => [x.fromId, x.toId])); }
+  }
+  // Fin de partie : w = gagnant (0 ou 1) ou -1 (égalité : chacun reprend ses pions)
+  c4Finish(g, w, why, pl) {
+    Object.assign(g, { phase: 'done', winner: w, why, end: Date.now() });
+    for (let k = 0; k < 2; k++) {
+      const cur = pl && pl.id === g.p[k].id, P = cur ? pl : this.load(g.p[k].id);
+      if (!P) continue;
+      const pay = w === -1 ? g.paid[k] : w === k ? g.pot : 0;
+      P.p.balance = money(P.p.balance + pay);
+      if (g.pot > 0) { P.p.played.c4 = (P.p.played.c4 || 0) + 1; this.rec(P.id, 'parties', 1); }
+      this.save(P);
+      const label = `Croco 4 contre ${g.p[1 - k].name} : ${w === -1 ? 'égalité' : w === k ? 'gagné' : 'perdu'}`;
+      this.roundHist(P.id, 'c4', pay, P.p.balance, label, { done: true });
+      if (!cur) this.notify(P.id, { t: 'me', me: this.me(P) });
+    }
+    if (w >= 0 && g.pot > 0) this.pushFeed({ name: g.p[w].name, at: Date.now(), game: 'c4', bet: g.paid[w], payout: g.pot, outcome: 'win', vs: g.p[1 - w].name });
+    this.boardSoon();
+  }
+  async c4Action(pl, action, params) {
+    await this.checkC4();
+    const out = (result) => ({ result: { payout: 0, ...result }, noHist: true });
+    if (action === 'state') return out({ c4: this.c4View(pl.id) });
+    if (action === 'invite') {
+      const t = this.sql.exec('SELECT id, name FROM players WHERE name = ?', String(params.to || '')).toArray()[0];
+      if (!t) throw new GameError('Joueur introuvable.');
+      if (t.id === pl.id) throw new GameError('Tu ne peux pas te défier toi-même.');
+      if (!this.activeNames().includes(t.name)) throw new GameError(`${t.name} n’est pas en ligne.`);
+      const val = money(Number(params.val));
+      if (!(val >= c4.C4_MIN && val <= c4.C4_MAX)) throw new GameError('Un pion vaut entre 0,10 € et 100 €.');
+      if (val > pl.p.balance + 1e-9) throw new GameError('Il te faut au moins de quoi poser un pion.');
+      if (this.c4Game(pl.id)) throw new GameError('Finis d’abord ta partie en cours.');
+      this.c4.invites = this.c4.invites.filter((x) => !(x.fromId === pl.id && x.toId === t.id));
+      if (this.c4.invites.filter((x) => x.fromId === pl.id).length >= 3) throw new GameError('3 invitations en attente maximum.');
+      const inv = { id: crypto.randomUUID().slice(0, 8), fromId: pl.id, from: pl.name, toId: t.id, to: t.name, val, at: Date.now() };
+      this.c4.invites.push(inv);
+      await this.saveC4();
+      this.pushC4([pl.id, t.id]);
+      this.notify(t.id, { t: 'c4offer', inv: { id: inv.id, from: inv.from, val } });
+      return out({ label: 'invitation envoyée' });
+    }
+    if (action === 'drop' || action === 'resign') {
+      const g = this.c4Game(pl.id);
+      if (!g) throw new GameError('Aucune partie en cours.');
+      const i = g.p[0].id === pl.id ? 0 : 1;
+      if (action === 'resign') this.c4Finish(g, 1 - i, 'abandon', pl);
+      else {
+        if (g.turn !== i) throw new GameError('Ce n’est pas ton tour.');
+        const col = Number(params.col);
+        if (!c4.canDrop(g.board, col)) throw new GameError('Cette colonne est pleine.');
+        if (pl.p.balance + 1e-9 < g.val) throw new GameError(`Solde insuffisant : un pion coûte ${String(g.val).replace('.', ',')} €.`);
+        pl.p.balance = money(pl.p.balance - g.val);
+        g.paid[i] = money(g.paid[i] + g.val); g.pot = money(g.pot + g.val);
+        const r = c4.drop(g.board, col, i);
+        g.last = [col, r];
+        this.save(pl);
+        this.roundHist(pl.id, 'c4', -g.val, pl.p.balance, `Croco 4 contre ${g.p[1 - i].name} : en cours`, { start: g.paid[i] === g.val });
+        const line = c4.winLine(g.board, col, r);
+        if (line) { g.line = line; this.c4Finish(g, i, 'quatre à la suite', pl); }
+        else if (c4.full(g.board)) this.c4Finish(g, -1, 'plateau plein', pl);
+        else { g.turn = 1 - i; g.deadline = Date.now() + c4.C4_MOVE_MS; this.c4Timer(g); }
+      }
+      await this.saveC4();
+      this.pushC4(g.p.map((q) => q.id));
+      return out({ c4: this.c4View(pl.id) });
+    }
+    const inv = this.c4.invites.find((x) => x.id === params.id);
+    if (!inv) throw new GameError('Cette invitation n’existe plus.');
+    this.c4.invites = this.c4.invites.filter((x) => x !== inv);
+    if (action === 'decline' || action === 'cancel') {
+      if (action === 'decline' && inv.toId !== pl.id) throw new GameError('Cette invitation ne t’est pas adressée.');
+      if (action === 'cancel' && inv.fromId !== pl.id) throw new GameError('Ce n’est pas ton invitation.');
+      await this.saveC4();
+      this.pushC4([inv.fromId, inv.toId]);
+      if (action === 'decline') this.notify(inv.fromId, { t: 'note', text: `${pl.name} a refusé ta partie de Croco 4.` });
+      return out({ label: action === 'decline' ? 'invitation refusée' : 'invitation annulée' });
+    }
+    // accept : la partie commence, celui qui a invité joue en premier
+    if (inv.toId !== pl.id) throw new GameError('Cette invitation est pour quelqu’un d’autre.');
+    if (this.c4Game(pl.id)) throw new GameError('Finis d’abord ta partie en cours.');
+    if (this.c4Game(inv.fromId)) throw new GameError(`${inv.from} est déjà en pleine partie.`);
+    const g = { id: crypto.randomUUID().slice(0, 8), p: [{ id: inv.fromId, name: inv.from }, { id: pl.id, name: pl.name }], val: inv.val,
+      board: c4.newBoard(), turn: 0, paid: [0, 0], pot: 0, deadline: Date.now() + c4.C4_MOVE_MS, phase: 'play', winner: null, line: null, last: null };
+    this.c4.games.push(g);
+    await this.saveC4();
+    this.c4Timer(g);
+    this.notify(inv.fromId, { t: 'note', text: `${pl.name} a accepté : la partie de Croco 4 commence, à toi de jouer !` });
+    this.pushC4([inv.fromId, pl.id]);
+    return out({ label: 'partie acceptée', c4: this.c4View(pl.id) });
   }
   async refundDuel(d, current) {
     this.duels = this.duels.filter((x) => x !== d);

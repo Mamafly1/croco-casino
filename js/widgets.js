@@ -132,6 +132,7 @@ export function feedText(e) {
     case 'cases': if (e.run) return `Caisses auto ${nf0.format(e.n)}`;
       return e.item ? `${e.item.st ? 'StatTrak™ ' : ''}${e.item.n}${e.item.wear ? ' (' + e.item.wear + ')' : ''}` : 'Caisse';
     case 'crash': return e.mult ? `Fusée : retirée à ×${nfx.format(e.mult)}` : `Fusée : boum à ×${nfx.format(e.point)}`;
+    case 'c4': return `Croco 4 contre ${e.vs} : gagné`;
     case 'rps': return `Chifoumi contre ${e.vs || 'le croco'} : ${({ win: 'gagné', lose: 'perdu', draw: 'égalité' })[e.outcome] || ''}${e.score ? ' ' + e.score : ''}`;
     case 'stocks': return `Bourse : ${e.act === 'buy' ? 'achète' : 'vend'} ${e.co}`;
     case 'gifs': return `→ ${e.to} : ${e.qty}× ${e.gif}`;
