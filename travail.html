@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&family=Patrick+Hand&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m39">
+<link rel="stylesheet" href="css/casino.css?v=m40">
 <style>
 .work { max-width: 900px; margin: 0 auto; display: grid; gap: 12px; }
 .work-head { display: grid; gap: 6px; }
@@ -28,9 +28,6 @@
 .task { display: grid; gap: 12px; }
 .task h2 { margin: 0; font: 14px/1.5 var(--font-pixel); }
 .brief { margin: 0; font-weight: 700; }
-.postit { padding: 12px 14px; border-radius: 4px; background: #ffe680; color: #2a2300; font-weight: 700; box-shadow: 3px 3px 0 #b07a00; transform: rotate(-0.6deg); }
-.postit ul, .postit ol { margin: 4px 0 0; padding-left: 20px; }
-.postit li { margin: 3px 0; }
 .check-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .check-row .btn-main { flex: 1 1 200px; }
 .tmsg { margin: 0; font-weight: 800; color: var(--lose); min-height: 1.3em; }
@@ -137,30 +134,62 @@ body.dnd { user-select: none; -webkit-user-select: none; }
   .mail-body { grid-template-columns: minmax(0, 1fr); }
   .mail-folders { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; border-right: 0; border-bottom: 1px solid #c9c9bd; }
 }
-/* bureau du PC (recopier des codes) */
-.desk { position: relative; min-height: 340px; padding: 14px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, #3b6fd8 0%, #1d3f86 55%, #10224d 100%); }
-.desk-icons { display: grid; gap: 14px; width: 64px; }
+/* bureau du PC : fond d'écran, post-it scotché (on le touche pour l'agrandir), notification, fenêtre par-dessus */
+.desk { position: relative; display: grid; padding: 14px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, #3b6fd8 0%, #1d3f86 55%, #10224d 100%); }
+.desk.wood { background: repeating-linear-gradient(90deg, #6b4423 0 16px, #72482a 16px 34px); box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.35); }
+.desk-icons { position: absolute; left: 12px; top: 14px; display: grid; gap: 14px; width: 64px; }
 .desk-icons span { display: grid; justify-items: center; gap: 2px; color: #fff; font-size: 10.5px; font-weight: 700; text-align: center; text-shadow: 0 1px 2px #000; }
 .desk-icons i { display: block; width: 30px; height: 26px; border-radius: 4px; background: #ffbf17; box-shadow: inset 0 -6px 0 #b07a00; }
 .desk-icons span:nth-child(2) i { background: #9fb0ff; box-shadow: inset 0 -6px 0 #4b69ff; }
 .desk-icons span:nth-child(3) i { background: #d9d9cf; box-shadow: inset 0 -6px 0 #8a8a80; }
-.desk-win { position: absolute; left: 86px; right: 14px; top: 92px; border: 2px solid #4b69ff; border-radius: 8px; overflow: hidden; background: #f0f0e6; color: #181818; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); }
+.desk-top { position: relative; z-index: 3; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; gap: 10px; margin-bottom: -14px; }
+.desk-main { position: relative; z-index: 2; display: grid; gap: 10px; }
+.desk:not(.wood) .desk-main, .desk:not(.wood) .desk-top { margin-left: 84px; }
+.desk-win { border: 2px solid #4b69ff; border-radius: 8px; overflow: hidden; background: #f0f0e6; color: #181818; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); }
 .desk-win .in { display: grid; gap: 8px; padding: 12px; }
 .desk-win label { display: grid; gap: 3px; font-size: 12px; font-weight: 800; color: #4a4a40; }
 .desk-win input { height: 44px; padding: 0 10px; border: 2px solid #a8a89c; border-radius: 6px; background: #fff; color: #181818; font: 700 16px ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
-/* post-it collé avec un bout de scotch ; on le touche pour l'agrandir */
-.sticky { position: absolute; z-index: 3; top: 12px; right: 16px; width: min(210px, 52%); padding: 22px 14px 12px; border: 0; background: linear-gradient(180deg, #fff3a0, #ffe36b); color: #2a2300; text-align: left; transform: rotate(3deg); box-shadow: 2px 8px 14px rgba(0, 0, 0, 0.35); cursor: zoom-in; }
+.desk .ex, .desk .mail { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4); }
+.wbtns { display: flex; gap: 9px; align-items: center; }
+.wbtns svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+/* notification du PC */
+.notif { display: flex; gap: 10px; align-items: flex-start; max-width: 320px; padding: 10px 12px; border-radius: 10px; background: rgba(22, 28, 44, 0.95); color: #f0f0e6; font-size: 13px; line-height: 1.4; border-left: 4px solid #3ddc5f; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45); }
+.notif b { display: block; font-size: 12px; color: #3ddc5f; }
+.notif svg { flex: none; width: 22px; height: 22px; }
+/* post-it scotché */
+.sticky { position: relative; z-index: 3; width: min(260px, 100%); padding: 22px 14px 12px; border: 0; background: linear-gradient(180deg, #fff3a0, #ffe36b); color: #2a2300; text-align: left; transform: rotate(2.5deg); box-shadow: 2px 8px 14px rgba(0, 0, 0, 0.35); cursor: zoom-in; }
 .sticky::before { content: ""; position: absolute; top: -9px; left: 50%; width: 74px; height: 22px; transform: translateX(-50%) rotate(-4deg); background: rgba(240, 240, 230, 0.55); border-left: 1px dashed rgba(0, 0, 0, 0.12); border-right: 1px dashed rgba(0, 0, 0, 0.12); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
-.sticky .t { display: block; margin-bottom: 4px; font: 16px/1.2 'Patrick Hand', cursive; color: #6b5a00; }
+.sticky .t { display: block; margin-bottom: 4px; font: 17px/1.2 'Patrick Hand', cursive; color: #6b5a00; }
 .sticky .c { display: block; font: 21px/1.35 'Patrick Hand', cursive; letter-spacing: 0.06em; }
+.sticky ul, .sticky ol { margin: 0; padding-left: 18px; font: 16px/1.3 'Patrick Hand', cursive; }
+.sticky li { margin: 2px 0; }
 .sticky .z { display: block; margin-top: 6px; font: 11px var(--font-body); font-weight: 700; color: #8a7400; }
 .sticky-zoom { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, 0.6); cursor: zoom-out; }
 .sticky-zoom[hidden] { display: none; }
-.sticky-zoom .sticky { position: relative; top: auto; right: auto; width: min(92vw, 520px); padding: 40px 28px 24px; transform: rotate(-1.5deg); cursor: zoom-out; }
+.sticky-zoom .sticky { width: min(92vw, 560px); padding: 40px 28px 24px; transform: rotate(-1.5deg); cursor: zoom-out; }
 .sticky-zoom .sticky::before { width: 120px; height: 32px; top: -14px; }
-.sticky-zoom .sticky .t { font-size: 24px; }
+.sticky-zoom .sticky .t { font-size: 26px; }
 .sticky-zoom .sticky .c { font-size: clamp(30px, 8vw, 44px); }
-@media (max-width: 600px) { .desk-icons { display: none; } .desk-win { left: 12px; top: 186px; } .desk { min-height: 470px; } .desk .sticky { left: 50%; right: auto; transform: translateX(-50%) rotate(2deg); width: min(240px, 80%); } }
+.sticky-zoom .sticky ul, .sticky-zoom .sticky ol { font-size: clamp(20px, 5vw, 26px); }
+@media (max-width: 600px) {
+  .desk-icons { display: none; }
+  .desk:not(.wood) .desk-main, .desk:not(.wood) .desk-top { margin-left: 0; }
+  .desk-top { justify-content: center; }
+}
+/* gestionnaire de fichiers (antivirus) */
+.fm-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; background: #e2e2d8; border-bottom: 1px solid #c9c9bd; font-size: 12px; font-weight: 700; color: #4a4a40; }
+.fm-bar .fm-path { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid #c9c9bd; border-radius: 6px; background: #fff; }
+.fm-list { list-style: none; margin: 0; padding: 0; background: #fff; }
+.fm-list li + li { border-top: 1px solid #ecece4; }
+.fm-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; min-height: 46px; padding: 6px 10px; border: 0; background: #fff; color: #181818; text-align: left; font-size: 13px; }
+.fm-row b { display: block; font-weight: 700; overflow-wrap: anywhere; }
+.fm-row small { color: #6b6b60; font-size: 11.5px; }
+.fm-row em { font-style: normal; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; background: #e2e2d8; color: #6b6b60; white-space: nowrap; }
+.fm-row.on { background: #ffe9e9; }
+.fm-row.on em { background: #de0607; color: #fff; }
+/* factures papier sur le bureau en bois */
+.desk.wood .invs { position: relative; z-index: 2; }
+.desk.wood .inv { box-shadow: 0 6px 12px rgba(0, 0, 0, 0.35); }
 /* tableur */
 .xl-app { border: 2px solid #1b7a43; border-radius: 8px; overflow: hidden; background: #fff; }
 .xl-app .ex-title { background: #1b7a43; }
@@ -170,8 +199,65 @@ body.dnd { user-select: none; -webkit-user-select: none; }
 .xl .xl-h, .xl .xl-n { background: #e7e7dd; color: #55554c; font-weight: 700; text-align: center; width: 1%; white-space: nowrap; }
 .xl .xl-q { font-weight: 800; background: #f6f6ef; }
 .xl .xl-in { padding: 0; background: #fff7c2; }
-.xl .xl-in input { width: 100%; min-width: 70px; height: 38px; padding: 0 8px; border: 0; outline: 0; background: transparent; color: #181818; font: 700 16px var(--font-body); text-align: right; }
+.xl .xl-in input { width: 100%; min-width: 90px; height: 38px; padding: 0 8px; border: 0; outline: 0; background: transparent; color: #181818; font: 700 16px var(--font-body); text-align: right; }
 .xl .xl-in:focus-within { box-shadow: inset 0 0 0 2px #1b7a43; }
+.xl td[data-ref] { cursor: cell; }
+.xl .xl-pick { box-shadow: inset 0 0 0 3px #4b69ff; background: #dfe5ff; }
+.xl-fx input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid #c9c9bd; border-radius: 4px; background: #fff; color: #181818; font: 600 15px ui-monospace, monospace; }
+.xl-fx input[readonly] { background: #f6f6ef; color: #6b6b60; }
+/* baie réseau : câbles (gauche) et panneau de brassage (droite), fils derrière */
+.rack { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 0 34%; padding: 16px 14px; border-radius: 8px; background: linear-gradient(180deg, #2b2d33, #1c1d22); border: 3px solid #3c3f47; box-shadow: inset 0 0 0 2px #121318, inset 0 0 30px rgba(0, 0, 0, 0.6); }
+.rack::before, .rack::after { content: ""; position: absolute; top: 8px; bottom: 8px; width: 8px; background: radial-gradient(circle, #6b6f7a 2px, transparent 3px) 0 0 / 8px 22px; }
+.rack::before { left: 4px; } .rack::after { right: 4px; }
+.rack svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.rack .col { position: relative; z-index: 1; display: grid; gap: 10px; }
+.rack .plug { min-height: 44px; border: 0; border-radius: 6px 14px 14px 6px; color: transparent; box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.3), 0 3px 0 #000; }
+.rack .plug.sel { outline: 3px solid #fff; outline-offset: 2px; }
+.rack .port { min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 2px solid #4a4d56; border-radius: 6px; background: #121318; font: 800 15px var(--font-body); text-transform: uppercase; letter-spacing: 0.04em; }
+.rack .port i { flex: none; width: 18px; height: 14px; border-radius: 2px; background: #000; box-shadow: inset 0 0 0 2px #555; }
+/* photocopieuse */
+.copier { display: grid; gap: 0; max-width: 460px; margin: 0 auto; }
+.cp-lid { height: 26px; margin: 0 18px; border-radius: 10px 10px 2px 2px; background: linear-gradient(180deg, #d8d8d0, #b9b9b0); box-shadow: inset 0 -4px 0 #9a9a90; }
+.cp-body { display: grid; gap: 12px; padding: 14px; border-radius: 6px 6px 12px 12px; background: linear-gradient(180deg, #ececE4, #cfcfc6); border: 2px solid #a8a89c; color: #181818; }
+.cp-brand { display: flex; justify-content: space-between; font: 10px/1.6 var(--font-pixel); color: #6b6b60; }
+.cp-panel { display: grid; gap: 10px; padding: 12px; border-radius: 10px; background: #3a3d44; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.08); }
+.cp-lcd { min-height: 46px; display: grid; place-items: center; padding: 6px; border-radius: 6px; background: #1d3b1d; color: #8fe39b; font: 11px/1.6 var(--font-pixel); text-align: center; box-shadow: inset 0 0 0 2px #0f220f; }
+.cp-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cp-keys button { min-height: 50px; border: 0; border-radius: 8px; background: #e9e9e1; color: #181818; font-weight: 800; box-shadow: 0 4px 0 #8a8a80; }
+.cp-keys button:active { transform: translateY(2px); box-shadow: 0 2px 0 #8a8a80; }
+.cp-keys button.lit { background: var(--gold); box-shadow: 0 0 16px var(--gold), 0 4px 0 #b07a00; }
+.cp-ctrl { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.cp-ctrl button { min-height: 46px; padding: 0 14px; border: 0; border-radius: 999px; font-weight: 800; color: #fff; }
+.cp-ctrl .go { background: #1b7a43; box-shadow: 0 4px 0 #0f4a28; }
+.cp-ctrl .clr { background: #de0607; box-shadow: 0 4px 0 #8f0405; }
+.cp-ctrl button:disabled { opacity: 0.55; }
+.cp-tray { height: 18px; margin: 0 26px; border-radius: 0 0 8px 8px; background: repeating-linear-gradient(180deg, #f6f6ef 0 3px, #dcdcd2 3px 5px); border: 2px solid #a8a89c; border-top: 0; }
+/* standard téléphonique : fiche scotchée + appels en attente */
+.taped { position: relative; padding: 18px 14px 12px; background: #fbfbf4; color: #181818; transform: rotate(-0.8deg); box-shadow: 2px 8px 16px rgba(0, 0, 0, 0.35); background-image: repeating-linear-gradient(180deg, transparent 0 23px, #dfe7f5 23px 24px); }
+.taped::before, .taped::after { content: ""; position: absolute; top: -8px; width: 64px; height: 20px; background: rgba(240, 240, 230, 0.6); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.taped::before { left: 12px; transform: rotate(-8deg); } .taped::after { right: 12px; transform: rotate(7deg); }
+.taped b { display: block; margin-bottom: 6px; font: 18px/1.2 'Patrick Hand', cursive; }
+.taped table { width: 100%; border-collapse: collapse; font: 16px/1.35 'Patrick Hand', cursive; }
+.taped td { padding: 1px 4px; vertical-align: top; }
+.taped td:first-child { font-weight: 700; white-space: nowrap; }
+.pbx { margin-top: 14px; border-radius: 12px; overflow: hidden; background: #24262c; color: #f0f0e6; border: 2px solid #3c3f47; }
+.pbx-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #2f3239; font: 10px/1.6 var(--font-pixel); color: #8fe39b; }
+.call-list { list-style: none; margin: 0; padding: 0; }
+.call { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; min-height: 52px; padding: 8px 12px; border: 0; border-top: 1px solid #33363d; background: none; color: inherit; text-align: left; }
+.call.sel { background: #33405e; }
+.call .led { width: 10px; height: 10px; border-radius: 50%; background: #ff5a52; box-shadow: 0 0 8px #ff5a52; animation: blink 1s steps(2) infinite; }
+.call.done .led { background: #3ddc5f; box-shadow: 0 0 8px #3ddc5f; animation: none; }
+.call b { display: block; font-size: 14px; }
+.call small { display: block; color: #a8aab3; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.call em { font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #3c3f47; color: #a8aab3; white-space: nowrap; }
+.call.done em { background: #1b7a43; color: #fff; }
+.call-detail { display: grid; gap: 8px; padding: 12px; border-top: 1px solid #33363d; background: #1c1d22; }
+.call-detail p { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 2px; background: #33405e; font-size: 14px; }
+.call-detail .tr { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.call-detail .tr span { font-size: 12px; font-weight: 800; color: #a8aab3; text-transform: uppercase; }
+.call-detail .tr button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: #3c3f47; color: #f0f0e6; font-weight: 800; }
+.call-detail .tr button[aria-pressed="true"] { background: #1b7a43; }
+@keyframes blink { to { opacity: 0.25; } }
 /* entrepôt */
 .wh { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; padding: 8px; border-radius: 8px; background: #3a3a33; }
 .wh span { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 4px; background: #2c2c28; }
@@ -194,6 +280,6 @@ body.dnd { user-select: none; -webkit-user-select: none; }
   <div class="jobs" id="jobs"></div>
   <section class="surface task" id="task" hidden aria-live="polite"></section>
 </main>
-<script type="module" src="js/pages/travail.js?v=m39"></script>
+<script type="module" src="js/pages/travail.js?v=m40"></script>
 </body>
 </html>

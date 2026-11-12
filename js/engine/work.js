@@ -167,11 +167,14 @@ const change = {
   title: 'Tiens la caisse',
   gen(r) {
     const items = ['un café', 'un croissant', 'un sandwich', 'des chewing-gums', 'un journal', 'une salade', 'un jus', 'un ticket de loto', 'des piles'];
+    // Calcul mental rapide : des centimes ronds, et trois monnaies différentes à rendre (moins de 5 €, un billet de 5,
+    // un billet de 10) pour se servir de tous les billets et de toutes les pièces
+    const CENTS = [0.1, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 0.05, 0.95];
     const clients = [];
-    for (let i = 0; i < 3; i++) {
-      const price = Math.round((int(r, 60, 4500) / 100) * 20) / 20; // multiple de 5 centimes
-      const paid = [5, 10, 20, 50].find((n) => n > price + 0.04) || 100;
-      clients.push({ who: pick(r, NAMES), what: pick(r, items), price, paid });
+    for (const [lo, hi] of shuffle(r, [[0, 4], [5, 9], [10, 18]])) {
+      const change = Math.round((int(r, lo, hi) + pick(r, CENTS)) * 100) / 100;
+      const paid = [5, 10, 20, 50].find((n) => n >= change + 1);
+      clients.push({ who: pick(r, NAMES), what: pick(r, items), price: Math.round((paid - change) * 100) / 100, paid });
     }
     return { brief: 'Rends la monnaie exacte à chaque client avec les pièces et billets.', coins: [20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05], clients, sol: clients.map((c) => Math.round((c.paid - c.price) * 100)) };
   },
@@ -238,8 +241,9 @@ const cables = {
     const cols = shuffle(r, CABLE_COLORS).slice(0, n);
     const left = cols.map((c) => c[0]);
     const right = shuffle(r, left);
-    const label = r() < 0.5; // variante : les prises de droite n'ont que le nom de la couleur
-    return { brief: label ? 'Relie chaque câble à la prise qui porte le nom de sa couleur.' : 'Relie chaque câble à la prise de la même couleur.', colors: Object.fromEntries(cols), left, right, label, sol: left.map((c) => right.indexOf(c)) };
+    // piège : chaque nom de prise est écrit dans une AUTRE couleur ; c'est le mot qui compte, pas l'encre
+    const ink = right.map((_, i) => right[(i + 1) % right.length]);
+    return { brief: 'Relie chaque câble à la prise qui porte le NOM de sa couleur. Attention : l’encre des noms ne correspond pas !', colors: Object.fromEntries(cols), left, right, ink, sol: left.map((c) => right.indexOf(c)) };
   },
   // réponse : pour chaque câble de gauche, l'indice de la prise de droite
   same(sol, ans) { return Array.isArray(ans) && eq(sol, ans.map(Number)); },

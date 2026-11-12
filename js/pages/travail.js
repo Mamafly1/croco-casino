@@ -80,7 +80,6 @@ async function submit() {
 }
 
 // ---------- les tâches ----------
-const postit = (title, items, ordered) => `<div class="postit">${title}<${ordered ? 'ol' : 'ul'}>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}></div>`;
 // Glisser-déposer au doigt et à la souris. Souris : on attrape en bougeant un peu. Doigt : appui long (la page
 // peut encore défiler tant qu'on n'a pas tenu), puis on glisse. On lâche sur une cible ; un clic n'est pas déclenché.
 function dragDrop(root, { item, target, onDrop }) {
@@ -139,9 +138,27 @@ function dragDrop(root, { item, target, onDrop }) {
 }
 const AV_COLORS = ['#4b69ff', '#de0607', '#1b7a43', '#b07a00', '#8847ff', '#e47a3c', '#0f8b8d'];
 const avColor = (s) => AV_COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
-const winTitle = (t) => `<div class="ex-title"><span>${t}</span><span>_ □ ×</span></div>`;
+// barre de titre de fenêtre, avec de vrais petits boutons (réduire, agrandir, fermer)
+const WIN_BTNS = '<span class="wbtns" aria-hidden="true"><svg viewBox="0 0 10 10"><path d="M1.5 8.5h7"/></svg><svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7"/></svg><svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7"/></svg></span>';
+const winTitle = (t) => `<div class="ex-title"><span>${t}</span>${WIN_BTNS}</div>`;
+// contenu d'un post-it : un titre et une liste (ou du texte libre déjà prêt)
+const noteList = (title, items, ordered) => `<span class="t">${title}</span><${ordered ? 'ol' : 'ul'}>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`;
+const SHIELD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="#3ddc5f"/><path d="M8 12l3 3 5-6" stroke="#10224d" stroke-width="2.4" fill="none"/></svg>';
+// Bureau : fond d'écran (ou bureau en bois), post-it scotché qu'on touche pour l'agrandir, notification du PC, et la fenêtre
+function deskScene({ main = '', note = '', notif = '', wood = false }) {
+  return `<div class="desk${wood ? ' wood' : ''}">
+      ${wood ? '' : '<div class="desk-icons" aria-hidden="true"><span><i></i>Documents</span><span><i></i>Croco Mail</span><span><i></i>Corbeille</span></div>'}
+      <div class="desk-top">${notif ? `<div class="notif" role="status">${SHIELD}<span><b>CROCO ANTIVIRUS</b>${notif}</span></div>` : ''}${note ? `<button type="button" class="sticky" aria-label="Agrandir le post-it">${note}<span class="z">Touche pour agrandir</span></button>` : ''}</div>
+      <div class="desk-main">${main}</div>
+    </div>${note ? `<div class="sticky-zoom" hidden><div class="sticky" role="dialog" aria-label="Post-it agrandi">${note}<span class="z">Touche pour refermer</span></div></div>` : ''}`;
+}
+function wireDesk(root) {
+  const z = root.querySelector('.sticky-zoom'), s = root.querySelector('.desk .sticky');
+  if (!z || !s) return;
+  s.addEventListener('click', () => { z.hidden = false; sfx.play('slide', { vol: 0.5 }); });
+  z.addEventListener('click', () => { z.hidden = true; });
+}
 
-const options = (list, empty = 'Choisir…') => `<option value="">${empty}</option>` + list.map((x) => `<option>${esc(x)}</option>`).join('');
 
 const FILE_ICO = {
   dir: '<svg width="22" height="18" viewBox="0 0 22 18" aria-hidden="true"><path d="M1 3h7l2 2h11v12H1z" fill="#ffbf17" stroke="#b07a00"/></svg>',
@@ -156,9 +173,9 @@ const R = {
   // PC de quelqu'un : naviguer, créer, renommer, couper/coller, supprimer
   files(k, root) {
     let tree = k.tree.slice(), cwd = '', sel = null, clip = null, naming = null;
-    root.innerHTML = postit(`Note de ${esc(k.owner)} :`, k.steps, true) + `
-      <div class="ex" style="margin-top:12px">
-        <div class="ex-title"><span>PC DE ${esc(k.owner.toUpperCase())}</span><span>_ □ ×</span></div>
+    root.innerHTML = deskScene({ note: noteList(`Note de ${esc(k.owner)} :`, k.steps, true), main: `
+      <div class="ex">
+        ${winTitle(`PC DE ${esc(k.owner.toUpperCase())}`)}
         <div class="ex-bar">
           <button type="button" data-a="up">↑ Retour</button><button type="button" data-a="open">Ouvrir</button>
           <button type="button" data-a="new">Nouveau dossier</button><button type="button" data-a="ren">Renommer</button>
@@ -167,7 +184,8 @@ const R = {
         <form class="ex-name" hidden><input aria-label="Nom" autocomplete="off"><button type="submit">OK</button><button type="button" data-a="cancel">Annuler</button></form>
         <div class="ex-path"></div><ul class="ex-list"></ul>
         <div class="ex-hint">Astuce : maintiens un fichier ou un dossier et glisse-le sur un dossier (ou sur « ↑ Retour » pour le remonter).</div>
-      </div>`;
+      </div>` });
+    wireDesk(root);
     const ex = root.querySelector('.ex'), form = ex.querySelector('.ex-name'), input = form.querySelector('input');
     const name = (p) => p.replace(/\/$/, '').split('/').pop();
     const inDir = (p) => { const s = p.replace(/\/$/, ''); const i = s.lastIndexOf('/'); return (i < 0 ? '' : s.slice(0, i + 1)) === cwd; };
@@ -251,12 +269,13 @@ const R = {
   mailsort(k, root) {
     const put = k.mails.map(() => '');
     let sel = 0;
-    root.innerHTML = postit('Post-it collé sur l’écran :', k.note) + `
-      <div class="mail" style="margin-top:12px">${winTitle('CROCO MAIL')}
+    root.innerHTML = deskScene({ note: noteList('Règles de tri :', k.note), main: `
+      <div class="mail">${winTitle('CROCO MAIL')}
         <div class="mail-bar"><span>Boîte de réception</span><span class="mail-search">Rechercher…</span></div>
         <div class="mail-body"><nav class="mail-folders" aria-label="Dossiers"></nav><ul class="mail-list"></ul></div>
         <div class="ex-hint">Touche un mail puis un dossier, ou glisse le mail sur le dossier.</div>
-      </div>`;
+      </div>` });
+    wireDesk(root);
     const fold = root.querySelector('.mail-folders'), list = root.querySelector('.mail-list');
     const draw = () => {
       const left = put.filter((x) => !x).length;
@@ -332,57 +351,157 @@ const R = {
 
   stamp(k, root) {
     const on = new Set();
-    root.innerHTML = postit('Règle du jour :', [k.rule]) + `<div class="invs" style="margin-top:12px">${k.invoices.map((f, i) => `
+    root.innerHTML = deskScene({ wood: true, note: `<span class="t">Règle du jour :</span><span class="c" style="font-size:19px;letter-spacing:0">${esc(k.rule)}</span>`,
+      main: `<div class="invs">${k.invoices.map((f, i) => `
       <button type="button" class="inv" data-i="${i}" aria-pressed="false"><b>FACTURE ${esc(f.num)}</b><span>${esc(f.sup)}</span><span>${esc(f.month)}</span>
-      <span><b style="font-size:11px">${f.amount} €</b></span><span class="${f.signed ? 'sig' : 'nosig'}">${f.signed ? 'Signée' : 'Pas signée'}</span></button>`).join('')}</div>`;
-    root.addEventListener('click', (e) => {
+      <span><b style="font-size:11px">${f.amount} €</b></span><span class="${f.signed ? 'sig' : 'nosig'}">${f.signed ? 'Signée' : 'Pas signée'}</span></button>`).join('')}</div>` });
+    wireDesk(root);
+    root.querySelector('.invs').addEventListener('click', (e) => {
       const b = e.target.closest('.inv'); if (!b) return;
       const i = +b.dataset.i;
       if (on.has(i)) on.delete(i); else on.add(i);
       b.classList.toggle('on', on.has(i)); b.setAttribute('aria-pressed', String(on.has(i)));
+      sfx.play(on.has(i) ? 'chipLay' : 'slide', { vol: 0.6 });
     });
     return () => [...on].sort((a, b) => a - b);
   },
 
-  // Vrai tableur : les réponses se tapent directement dans les cases jaunes de la colonne C
+  // Vrai tableur : on tape les réponses dans les cases jaunes, nombres ou formules (=C2+C5, =SOMME(C2:C9), =MAX(C2:C9)).
+  // Pour écrire une formule : « = », puis toucher une case (sa référence s'ajoute), « + », une autre case… La barre fx du
+  // haut montre et modifie la case active. Marche à la souris comme au doigt (toucher une case ne ferme pas le clavier).
   sheet(k, root) {
-    const n0 = k.rows.length + 2; // rangée de la première question (1 = en-têtes, puis les ventes, puis une ligne vide)
+    const n0 = k.rows.length + 2; // rangée vide entre les ventes et les questions
+    const cols = ['A', 'B', 'C'], data = {};
+    k.rows.forEach((r, i) => { data['A' + (i + 2)] = r.city; data['B' + (i + 2)] = r.seller; data['C' + (i + 2)] = r.n; });
     root.innerHTML = `<div class="xl-app">${winTitle('CROCO TABLEUR · ventes.xls')}
-      <div class="xl-fx"><span class="xl-ref" id="xlRef">C${n0 + 1}</span><span class="xl-f">fx</span><span id="xlVal"></span></div>
-      <div style="overflow-x:auto"><table class="xl"><thead><tr><th class="xl-h"></th><th class="xl-h">A</th><th class="xl-h">B</th><th class="xl-h">C</th></tr></thead><tbody>
+      <div class="xl-fx"><span class="xl-ref" id="xlRef">C${n0 + 1}</span><span class="xl-f">fx</span><input id="xlFx" autocomplete="off" spellcheck="false" aria-label="Contenu de la case"></div>
+      <div style="overflow-x:auto"><table class="xl"><thead><tr><th class="xl-h"></th>${cols.map((c) => `<th class="xl-h">${c}</th>`).join('')}</tr></thead><tbody>
         <tr><td class="xl-n">1</td><th>Ville</th><th>Vendeur</th><th>Ventes</th></tr>
-        ${k.rows.map((r, i) => `<tr><td class="xl-n">${i + 2}</td><td>${esc(r.city)}</td><td>${esc(r.seller)}</td><td class="n">${r.n}</td></tr>`).join('')}
+        ${k.rows.map((r, i) => `<tr><td class="xl-n">${i + 2}</td><td data-ref="A${i + 2}">${esc(r.city)}</td><td data-ref="B${i + 2}">${esc(r.seller)}</td><td class="n" data-ref="C${i + 2}">${r.n}</td></tr>`).join('')}
         <tr><td class="xl-n">${n0}</td><td></td><td></td><td></td></tr>
-        ${k.qs.map((q, i) => `<tr><td class="xl-n">${n0 + i + 1}</td><td colspan="2" class="xl-q">${esc(q)}</td><td class="xl-in"><input inputmode="numeric" data-i="${i}" data-ref="C${n0 + i + 1}" autocomplete="off" aria-label="${esc(q)}"></td></tr>`).join('')}
-      </tbody></table></div></div>`;
-    const show = (el) => { $('xlRef').textContent = el.dataset.ref; $('xlVal').textContent = el.value; };
-    root.addEventListener('focusin', (e) => { if (e.target.dataset.ref) show(e.target); });
-    root.addEventListener('input', (e) => { if (e.target.dataset.ref) show(e.target); });
-    return () => [...root.querySelectorAll('.xl-in input')].map((x) => x.value.trim());
+        ${k.qs.map((q, i) => `<tr><td class="xl-n">${n0 + i + 1}</td><td colspan="2" class="xl-q">${esc(q)}</td><td class="xl-in"><input data-i="${i}" data-ref="C${n0 + i + 1}" autocomplete="off" spellcheck="false" aria-label="${esc(q)}"></td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="ex-hint">Formules : « = » puis touche les cases, avec + entre elles. Ou =SOMME(C2:C${n0 - 1}), =MAX(C2:C${n0 - 1}).</div></div>`;
+    const cells = [...root.querySelectorAll('.xl-in input')], fx = root.querySelector('#xlFx'), refEl = root.querySelector('#xlRef');
+    const raw = cells.map(() => ''); // ce que le joueur a tapé (nombre ou formule)
+    let act = 0, editor = null; // case jaune active, et le champ en cours d'écriture (la case ou la barre fx)
+    // ---- calcul d'une formule (sans eval) : nombres, cases, + - * / ( ), SOMME/SUM, MAX, MIN, MOYENNE sur une plage ----
+    const valueOf = (ref, depth) => {
+      if (ref in data) return typeof data[ref] === 'number' ? data[ref] : 0;
+      const ci = cells.findIndex((c) => c.dataset.ref === ref);
+      return ci >= 0 && depth < 5 ? num(raw[ci], depth + 1) : 0;
+    };
+    const range = (a, b, depth) => {
+      const [, ca, ra] = a.match(/([A-Z])(\d+)/), [, cb, rb] = b.match(/([A-Z])(\d+)/), out = [];
+      for (let c = Math.min(ca.charCodeAt(0), cb.charCodeAt(0)); c <= Math.max(ca.charCodeAt(0), cb.charCodeAt(0)); c++)
+        for (let r = Math.min(+ra, +rb); r <= Math.max(+ra, +rb); r++) { const ref = String.fromCharCode(c) + r; if (typeof data[ref] === 'number' || cells.some((x) => x.dataset.ref === ref)) out.push(valueOf(ref, depth)); }
+      return out;
+    };
+    function evalF(src, depth) {
+      const t = src.toUpperCase().replace(/\s+/g, '').replace(/,/g, '.').match(/[A-Z]+\(|[A-Z]\d+:[A-Z]\d+|[A-Z]\d+|\d+(\.\d+)?|[-+*/();]/g) || [];
+      let i = 0;
+      const peek = () => t[i], next = () => t[i++];
+      const expr = () => { let v = term(); while (peek() === '+' || peek() === '-') { const o = next(), w = term(); v = o === '+' ? v + w : v - w; } return v; };
+      const term = () => { let v = fact(); while (peek() === '*' || peek() === '/') { const o = next(), w = fact(); v = o === '*' ? v * w : v / w; } return v; };
+      const fact = () => {
+        const x = next();
+        if (x === '-') return -fact();
+        if (x === '(') { const v = expr(); next(); return v; }
+        if (/^[A-Z]+\($/.test(x)) {
+          const vals = [];
+          while (peek() && peek() !== ')') { const a = next(); if (a === ';') continue; if (/:/.test(a)) vals.push(...range(...a.split(':'), depth)); else { i--; vals.push(expr()); } }
+          next();
+          const f = x.slice(0, -1);
+          if (f === 'SOMME' || f === 'SUM') return vals.reduce((a, b) => a + b, 0);
+          if (f === 'MAX') return Math.max(...vals);
+          if (f === 'MIN') return Math.min(...vals);
+          if (f === 'MOYENNE' || f === 'AVERAGE') return vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+          return NaN;
+        }
+        if (/^[A-Z]\d+$/.test(x)) return valueOf(x, depth);
+        return Number(x);
+      };
+      const v = expr();
+      return i === t.length ? v : NaN;
+    }
+    const num = (s, depth = 0) => { s = String(s || '').trim(); if (!s) return 0; return s.startsWith('=') ? evalF(s.slice(1), depth) : Number(s.replace(',', '.')); };
+    const shown = (ci) => { const s = raw[ci].trim(); if (!s.startsWith('=')) return s; const v = num(s); return Number.isFinite(v) ? String(Math.round(v * 100) / 100).replace('.', ',') : '#ERREUR'; };
+    const paint = () => cells.forEach((c, ci) => { if (c !== document.activeElement) c.value = shown(ci); });
+    const select = (ci) => { act = ci; refEl.textContent = cells[ci].dataset.ref; fx.value = raw[ci]; fx.readOnly = false; };
+    // on écrit dans la case ou dans la barre fx : les deux restent synchronisées
+    root.addEventListener('focusin', (e) => {
+      const ci = cells.indexOf(e.target);
+      if (ci >= 0) { select(ci); editor = e.target; e.target.value = raw[ci]; }
+      else if (e.target === fx) editor = fx;
+    });
+    root.addEventListener('input', (e) => {
+      if (e.target === fx) { raw[act] = fx.value; }
+      else { const ci = cells.indexOf(e.target); if (ci < 0) return; raw[ci] = e.target.value; fx.value = raw[ci]; }
+      paint();
+    });
+    root.addEventListener('focusout', () => setTimeout(() => { if (!root.contains(document.activeElement)) editor = null; paint(); }, 0));
+    // en pleine formule (« = », « + »…), toucher une case ajoute sa référence sans fermer le clavier
+    const picking = () => !!editor && raw[act].startsWith('=') && /[=+\-*/(;:]$/.test(raw[act]);
+    let pickedAt = 0; // une case vient d'être ajoutée à la formule : on garde le clavier sur la case qu'on écrit
+    const keep = (e) => {
+      const td = e.target.closest('td[data-ref], td.xl-in');
+      if (!td || e.target === editor) return;
+      if (picking() || (td.dataset.ref && Date.now() - pickedAt < 600)) e.preventDefault();
+    };
+    root.addEventListener('mousedown', keep);
+    root.addEventListener('touchstart', keep, { passive: false });
+    root.addEventListener('pointerdown', (e) => {
+      const td = e.target.closest('td[data-ref], td.xl-in');
+      if (!td || e.target === editor) return;
+      const ref = td.dataset.ref || td.querySelector('input').dataset.ref;
+      if (picking() && ref !== cells[act].dataset.ref) {
+        const ed = editor;
+        pickedAt = Date.now();
+        raw[act] += ref;
+        fx.value = raw[act];
+        if (ed === cells[act]) ed.value = raw[act];
+        td.classList.add('xl-pick'); setTimeout(() => td.classList.remove('xl-pick'), 400);
+        sfx.play('key', { vol: 0.6, gap: 0 });
+        setTimeout(() => ed.focus(), 0);
+      } else if (td.dataset.ref && !picking()) { refEl.textContent = ref; fx.value = String(data[ref] ?? ''); fx.readOnly = true; }
+    });
+    root.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); const ci = cells.indexOf(e.target) >= 0 ? cells.indexOf(e.target) : act; if (cells[ci + 1]) cells[ci + 1].focus(); else e.target.blur(); } });
+    select(0);
+    return () => raw.map((x) => { const v = num(x); return x.trim() ? String(Number.isFinite(v) ? Math.round(v * 100) / 100 : x) : ''; });
   },
 
   cables(k, root) {
     const link = k.left.map(() => -1);
-    let pick = -1;
-    root.innerHTML = `<div class="wires"><svg aria-hidden="true"></svg>
+    let pick = 0;
+    root.innerHTML = `<div class="rack"><svg aria-hidden="true"></svg>
       <div class="col">${k.left.map((c, i) => `<button type="button" class="plug" data-l="${i}" style="background:${k.colors[c]}" aria-label="Câble ${c}">${esc(c)}</button>`).join('')}</div>
-      <div class="col">${k.right.map((c, i) => `<button type="button" class="plug${k.label ? ' lab' : ''}" data-r="${i}" style="background:${k.colors[c]}" aria-label="Prise ${c}">${esc(c)}</button>`).join('')}</div></div>`;
-    const wrap = root.querySelector('.wires'), svg = wrap.querySelector('svg');
+      <div class="col">${k.right.map((c, i) => `<button type="button" class="port" data-r="${i}" style="color:${k.colors[(k.ink || k.right)[i]]}" aria-label="Prise ${c}"><i></i>${esc(c)}</button>`).join('')}</div></div>`;
+    const wrap = root.querySelector('.rack'), svg = wrap.querySelector('svg');
     const draw = () => {
       const W = wrap.getBoundingClientRect();
       svg.setAttribute('viewBox', `0 0 ${W.width} ${W.height}`);
-      svg.innerHTML = link.map((r, l) => {
+      // des fils qui pendent derrière (décor), puis les câbles branchés
+      let h = '';
+      for (let i = 0; i < 5; i++) { const y = 20 + (i * (W.height - 40)) / 4; h += `<path d="M10 ${y}C${W.width * 0.4} ${y + 60} ${W.width * 0.6} ${y - 50} ${W.width - 10} ${y + 10}" stroke="#2f323a" stroke-width="6" fill="none"/>`; }
+      h += link.map((r, l) => {
         if (r < 0) return '';
         const a = wrap.querySelector(`[data-l="${l}"]`).getBoundingClientRect(), b = wrap.querySelector(`[data-r="${r}"]`).getBoundingClientRect();
-        const x1 = a.right - W.left, y1 = a.top + a.height / 2 - W.top, x2 = b.left - W.left, y2 = b.top + b.height / 2 - W.top;
-        return `<path d="M${x1} ${y1}C${(x1 + x2) / 2} ${y1} ${(x1 + x2) / 2} ${y2} ${x2} ${y2}" stroke="${k.colors[k.left[l]]}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
+        const x1 = a.right - W.left - 4, y1 = a.top + a.height / 2 - W.top, x2 = b.left - W.left + 12, y2 = b.top + b.height / 2 - W.top;
+        const d = `M${x1} ${y1}C${(x1 + x2) / 2} ${y1 + 30} ${(x1 + x2) / 2} ${y2 + 30} ${x2} ${y2}`;
+        return `<path d="${d}" stroke="#000" stroke-opacity=".5" stroke-width="10" fill="none" stroke-linecap="round" transform="translate(0 3)"/><path d="${d}" stroke="${k.colors[k.left[l]]}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
       }).join('');
+      svg.innerHTML = h;
       wrap.querySelectorAll('[data-l]').forEach((b) => b.classList.toggle('sel', +b.dataset.l === pick));
     };
     wrap.addEventListener('click', (e) => {
       const l = e.target.closest('[data-l]'), r = e.target.closest('[data-r]');
       if (l) pick = +l.dataset.l;
-      if (r && pick >= 0) { const ri = +r.dataset.r; for (let i = 0; i < link.length; i++) if (link[i] === ri) link[i] = -1; link[pick] = ri; pick = link.indexOf(-1); }
+      if (r && pick >= 0) {
+        const ri = +r.dataset.r;
+        for (let i = 0; i < link.length; i++) if (link[i] === ri) link[i] = -1;
+        link[pick] = ri; pick = link.indexOf(-1);
+        sfx.play('chipLay', { vol: 0.7 });
+      }
       draw();
     });
     addEventListener('resize', draw);
@@ -392,18 +511,13 @@ const R = {
 
   code(k, root) {
     const TITLE = { 'licence Windows': 'Activation de Windows', 'code Wi-Fi des invités': 'Wi-Fi · réseau Invités', 'numéro de commande': 'Suivi de commande', 'code de la photocopieuse': 'Photocopieuse · codes d’accès' };
-    const note = `<span class="t">${esc(k.what || 'Codes')} :</span>${k.codes.map((c) => `<span class="c">${esc(c)}</span>`).join('')}`;
-    root.innerHTML = `<div class="desk">
-        <div class="desk-icons" aria-hidden="true"><span><i></i>Documents</span><span><i></i>Croco Mail</span><span><i></i>Corbeille</span></div>
-        <div class="desk-win">${winTitle(esc((TITLE[k.what] || 'Saisie des codes').toUpperCase()))}
-          <div class="in">${k.codes.map((_, i) => `<label>Code ${i + 1}<input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>`).join('')}</div></div>
-        <button type="button" class="sticky" aria-label="Agrandir le post-it">${note}<span class="z">Touche pour agrandir</span></button>
-      </div>
-      <div class="sticky-zoom" hidden><div class="sticky" role="dialog" aria-label="Post-it agrandi">${note}<span class="z">Touche pour refermer</span></div></div>`;
-    const zoom = root.querySelector('.sticky-zoom');
-    root.querySelector('.desk .sticky').addEventListener('click', () => { zoom.hidden = false; sfx.play('slide', { vol: 0.5 }); });
-    zoom.addEventListener('click', () => { zoom.hidden = true; });
-    return () => [...root.querySelectorAll('input')].map((x) => x.value);
+    root.innerHTML = deskScene({
+      note: `<span class="t">${esc(k.what || 'Codes')} :</span>${k.codes.map((c) => `<span class="c">${esc(c)}</span>`).join('')}`,
+      main: `<div class="desk-win">${winTitle(esc((TITLE[k.what] || 'Saisie des codes').toUpperCase()))}
+        <div class="in">${k.codes.map((_, i) => `<label>Code ${i + 1}<input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>`).join('')}</div></div>`,
+    });
+    wireDesk(root);
+    return () => [...root.querySelectorAll('.desk-win input')].map((x) => x.value);
   },
 
   count(k, root) {
@@ -422,32 +536,60 @@ const R = {
 
   antivirus(k, root) {
     const on = new Set(), q = !!k.files[0].size;
-    root.innerHTML = `<div class="invs">${k.files.map((f, i) => `
-      <button type="button" class="inv${q ? ' q' : ''}" data-i="${i}" aria-pressed="false">${FILE_ICO.file(f.n)}<span style="overflow-wrap:anywhere;font-weight:700">${esc(f.n)}</span>
-      ${q ? `<span>${f.size} Mo · ${esc(f.from)}</span>` : ''}</button>`).join('')}</div>`;
-    root.addEventListener('click', (e) => {
-      const b = e.target.closest('.inv'); if (!b) return;
+    root.innerHTML = deskScene({ notif: esc(k.brief), main: `<div class="desk-win">${winTitle('GESTIONNAIRE DE FICHIERS')}
+      <div class="fm-bar"><span class="fm-path">Ce PC › Analyse en cours</span><span id="fmCount">0 sélectionné</span></div>
+      <ul class="fm-list">${k.files.map((f, i) => `<li><button type="button" class="fm-row" data-i="${i}" aria-pressed="false">${FILE_ICO.file(f.n)}
+        <span><b>${esc(f.n)}</b>${q ? `<small>${f.size} Mo · ${esc(f.from)}</small>` : ''}</span><em>${q ? 'OK' : 'Sain'}</em></button></li>`).join('')}</ul>
+      <div class="ex-hint">Touche un fichier pour le ${q ? 'mettre en quarantaine' : 'marquer comme virus'} (touche encore pour annuler).</div></div>` });
+    root.querySelector('.fm-list').addEventListener('click', (e) => {
+      const b = e.target.closest('.fm-row'); if (!b) return;
       const i = +b.dataset.i;
       if (on.has(i)) on.delete(i); else on.add(i);
       b.classList.toggle('on', on.has(i)); b.setAttribute('aria-pressed', String(on.has(i)));
+      b.querySelector('em').textContent = on.has(i) ? (q ? 'Quarantaine' : 'Virus') : (q ? 'OK' : 'Sain');
+      root.querySelector('#fmCount').textContent = `${on.size} sélectionné${on.size > 1 ? 's' : ''}`;
+      sfx.play('switch', { vol: 0.5 });
     });
-    if (!q) root.insertAdjacentHTML('afterbegin', '<p class="muted small">Touche un fichier pour le marquer comme virus.</p>');
     return () => [...on].sort((a, b) => a - b);
   },
 
   phone(k, root) {
-    root.innerHTML = `<div class="ref"><div class="card2"><b>FICHE DU STANDARD</b><table>${Object.entries(k.guide).map(([s, ks]) => `<tr><td><b style="font:inherit;font-weight:800;display:inline">${esc(s)}</b></td><td>${ks.map(esc).join(', ')}</td></tr>`).join('')}</table></div></div>
-      <div class="rows" style="margin-top:12px">${k.calls.map((c, i) => `<div class="row"><span><span class="who">${esc(c.who)}</span> : « ${esc(c.text)} »</span>
-      <select class="text-in" data-i="${i}" aria-label="Service pour l’appel de ${esc(c.who)}">${options(k.services, 'Transférer à…')}</select></div>`).join('')}</div>`;
-    return () => [...root.querySelectorAll('select')].map((s) => s.value);
+    const to = k.calls.map(() => '');
+    let cur = 0;
+    root.innerHTML = `<div class="taped"><b>Fiche du standard</b><table>${Object.entries(k.guide).map(([sv, ks]) => `<tr><td>${esc(sv)}</td><td>${ks.map(esc).join(', ')}</td></tr>`).join('')}</table></div>
+      <div class="pbx"><div class="pbx-head"><span>STANDARD</span><span id="pbxLeft"></span></div><ul class="call-list"></ul><div class="call-detail"></div></div>`;
+    const list = root.querySelector('.call-list'), det = root.querySelector('.call-detail');
+    const draw = () => {
+      const left = to.filter((x) => !x).length;
+      root.querySelector('#pbxLeft').textContent = left ? `${left} EN ATTENTE` : 'TOUT TRANSFÉRÉ';
+      list.innerHTML = k.calls.map((c, i) => `<li><button type="button" class="call${i === cur ? ' sel' : ''}${to[i] ? ' done' : ''}" data-i="${i}"><span class="led"></span>
+        <span><b>Ligne ${i + 1} · ${esc(c.who)}</b><small>« ${esc(c.text)} »</small></span><em>${to[i] ? '→ ' + esc(to[i]) : 'En attente'}</em></button></li>`).join('');
+      const c = k.calls[cur];
+      det.innerHTML = `<p><b>${esc(c.who)}</b> : « ${esc(c.text)} »</p>
+        <div class="tr"><span>Transférer à</span>${k.services.map((sv) => `<button type="button" data-s="${esc(sv)}" aria-pressed="${to[cur] === sv}">${esc(sv)}</button>`).join('')}</div>`;
+    };
+    list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { cur = +b.dataset.i; draw(); } });
+    det.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-s]'); if (!b) return;
+      to[cur] = b.dataset.s;
+      sfx.play('switch', { vol: 0.6 });
+      const next = to.findIndex((x) => !x);
+      if (next >= 0) cur = next;
+      draw();
+    });
+    draw();
+    return () => to.slice();
   },
 
   printer(k, root) {
     const typed = [];
     let replays = 1, showing = false;
-    root.innerHTML = `<div class="printer"><div class="screen" id="pscreen">APPUIE SUR « VOIR LA COMBINAISON »</div>
-      <div class="keys">${k.keys.map((n, i) => `<button type="button" data-k="${i}">${esc(n)}</button>`).join('')}</div>
-      <div class="check-row" style="width:100%"><button type="button" class="btn-ghost" id="pshow">Voir la combinaison</button><button type="button" class="btn-ghost" id="pclear">Effacer</button></div></div>`;
+    root.innerHTML = `<div class="copier"><div class="cp-lid"></div><div class="cp-body">
+      <div class="cp-brand"><span>CROCO COPY 3000</span><span>BOURRAGE</span></div>
+      <div class="cp-panel"><div class="cp-lcd" id="pscreen">APPUIE SUR « VOIR LA COMBINAISON »</div>
+        <div class="cp-keys keys">${k.keys.map((n, i) => `<button type="button" data-k="${i}">${esc(n)}</button>`).join('')}</div>
+        <div class="cp-ctrl"><button type="button" class="go" id="pshow">Voir la combinaison</button><button type="button" class="clr" id="pclear">Effacer</button></div></div>
+      </div><div class="cp-tray"></div></div>`;
     const keys = [...root.querySelectorAll('[data-k]')], scr = root.querySelector('#pscreen');
     const screen = () => { scr.textContent = typed.length ? typed.map((i) => k.keys[i]).join(' › ') : 'À TOI'; };
     root.querySelector('#pshow').addEventListener('click', async (e) => {
@@ -471,6 +613,7 @@ const R = {
     root.querySelector('.keys').addEventListener('click', (e) => {
       const b = e.target.closest('[data-k]'); if (!b || showing) return;
       typed.push(+b.dataset.k);
+      sfx.play('key', { vol: 0.8, gap: 0 });
       b.classList.add('lit'); setTimeout(() => b.classList.remove('lit'), 160);
       screen();
     });
