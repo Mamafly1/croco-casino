@@ -682,3 +682,4 @@ body.betlock .bet-zone { display: none !important; }
 }
 /* très grands écrans : la barre du haut s'élargit pour afficher le nom de chaque jeu sans rien couper */
 @media (min-width: 1700px) { .top { max-width: 1600px; } }
+.rec-item { display: block; max-width: 190px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-body); color: var(--muted); font-size: 12px; font-weight: 600; }

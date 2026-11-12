@@ -10,6 +10,10 @@ import * as roulette from '../../js/engine/roulette.js';
 import { view as bjView } from '../../js/engine/blackjack.js';
 import { rng } from '../../js/engine/rng.js';
 import caseData from '../../data/cases.json';
+import { rarity } from '../../js/engine/cases.js';
+const CASE_BY_ID = new Map(caseData.cases.map((c) => [c.id, c]));
+// Parties jouées vite à la suite (moins de 5 s entre deux) : une seule ligne d'historique
+const QUICK = { plinko: (n) => `Plinko : ${n} billes`, rps: (n) => `Chifoumi : ${n} parties` };
 
 const BET_MS = 15000;   // durée des mises d'un tour de roulette
 const SHOW_MS = 10000;  // affichage du résultat avant le tour suivant
@@ -35,6 +39,7 @@ const BOARDS = [
   { key: 'stock', label: 'Argent gagné en revendant des actions', col: 'GAINS', title: 'Yomi Denzel', unit: 'eur' },
   { key: 'gifts', label: 'Argent dépensé en gifs', col: 'DÉPENSÉ', title: 'Sonion', unit: 'eur' },
   { key: 'parties', label: 'Nombre de parties jouées', col: 'PARTIES', title: 'The Gambler', unit: 'n' },
+  { key: 'rare', label: 'L’objet le plus rare du casino (encore dans l’inventaire)', col: 'RARETÉ', title: 'Ich Ich', unit: 'rare' },
 ];
 const NAME_RE = /^[\p{L}\p{N} _.\-]{2,16}$/u;
 
@@ -256,7 +261,7 @@ export class Casino extends DurableObject {
         this.rec(0, '_v2', 1);
       }
       // Migrations : tout ou rien (transaction), et une migration qui plante ne doit jamais empêcher le serveur de démarrer
-      for (const [flag, fn] of [['_v3', this.migrateV3], ['_v4', this.migrateV4], ['_v5', this.migrateV5], ['_v6', this.migrateV6]]) {
+      for (const [flag, fn] of [['_v3', this.migrateV3], ['_v4', this.migrateV4], ['_v5', this.migrateV5], ['_v6', this.migrateV6], ['_v7', this.migrateV7]]) {
         if (this.sql.exec('SELECT 1 FROM records WHERE k = ?', flag).toArray().length) continue;
         try { ctx.storage.transactionSync(() => { fn.call(this); this.rec(0, flag, 1); }); } catch (e) { console.error('migration', flag, e); }
       }
@@ -400,6 +405,28 @@ export class Casino extends DurableObject {
     const row = this.sql.exec("SELECT id FROM players WHERE name = 'Bifidus'").toArray()[0];
     if (row) this.cleanAdminHist(row.id);
   }
+  // Une seule fois (v7) : les anciennes parties de Plinko à la main et de chifoumi contre le croco jouées
+  // à moins d'une minute d'écart (sans autre jeu entre) ne font plus qu'une ligne ; et le classement « Ich Ich » est rempli.
+  migrateV7() {
+    const single = { plinko: /^Plinko ×/, rps: /^Chifoumi : (gagné|perdu|égalité)$/ };
+    const rows = this.sql.exec('SELECT id, player_id, at, d, l, g, open FROM hist ORDER BY player_id, id').toArray();
+    let grp = [];
+    const flush = () => {
+      if (grp.length > 1) {
+        const keep = grp[grp.length - 1], ids = grp.slice(0, -1).map((r) => r.id);
+        this.sql.exec('UPDATE hist SET d = ?, l = ? WHERE id = ?', money(grp.reduce((a, r) => a + r.d, 0)), QUICK[keep.g](grp.length), keep.id);
+        for (let i = 0; i < ids.length; i += 50) { const part = ids.slice(i, i + 50); this.sql.exec(`DELETE FROM hist WHERE id IN (${part.map(() => '?').join(',')})`, ...part); }
+      }
+      grp = [];
+    };
+    for (const r of rows) {
+      const ok = single[r.g] && !r.open && single[r.g].test(r.l), prev = grp[grp.length - 1];
+      if (prev && (!ok || r.g !== prev.g || r.player_id !== prev.player_id || r.at - prev.at >= 60000)) flush();
+      if (ok) grp.push(r);
+    }
+    flush();
+    for (const r of this.sql.exec('SELECT id, data FROM players').toArray()) this.rareRec(r.id, JSON.parse(r.data));
+  }
   // Ligne d'historique d'une partie en plusieurs temps (voir roundPhase) : start = nouvelle partie (une ancienne restée
   // ouverte est perdue), done = résultat connu (la ligne se ferme, avec le gain ou la perte nette).
   roundHist(id, g, d, b, l, { start = false, done = false } = {}) {
@@ -517,6 +544,15 @@ export class Casino extends DurableObject {
   save(pl) {
     const games = GAMES.filter((g) => pl.p.played[g]);
     this.sql.exec('UPDATE players SET data = ?, score = ?, games = ? WHERE id = ?', JSON.stringify(pl.p), score(pl.p), JSON.stringify(games), pl.id);
+    this.rareRec(pl.id, pl.p);
+  }
+  // Classement « Ich Ich » : l'objet le plus rare que le joueur a encore dans son inventaire (1 chance sur N)
+  rareRec(id, p) {
+    let best = null, v = 0;
+    for (const it of p.inventory || []) { const r = rarity(it, CASE_BY_ID.get(it.caseId)); if (r > v) { v = r; best = it; } }
+    if (!best) { this.sql.exec("DELETE FROM records WHERE player_id = ? AND k = 'rare'", id); return; }
+    const name = `${best.st ? 'StatTrak™ ' : ''}${best.n}${best.wear ? ' (' + best.wear + ')' : ''}`;
+    this.sql.exec("INSERT INTO records (player_id, k, v, g) VALUES (?, 'rare', ?, ?) ON CONFLICT(player_id, k) DO UPDATE SET v = excluded.v, g = excluded.g", id, v, name);
   }
   me(pl) {
     const p = pl.p, sc = score(p);
@@ -729,8 +765,21 @@ export class Casino extends DurableObject {
 
   addHist(id, d, b, l, g) {
     if (!d) return;
-    this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, Date.now(), money(d), b, l, g);
     if (!l.startsWith('Chifoumi contre')) this.winRec(id, d, g); // un duel arrive en brut (mise prise avant) : pas compté
+    // Plinko à la main, chifoumi contre le croco (la roulette fait déjà une ligne par tour) : les coups à moins de 5 s d'écart font une seule ligne
+    const now = Date.now(), quick = QUICK[g] && !l.startsWith('Chifoumi contre');
+    this.quick ||= new Map();
+    if (quick) {
+      const q = this.quick.get(id);
+      if (q && q.g === g && now - q.at < 5000) {
+        q.n++; q.at = now; q.d = money(q.d + d);
+        this.sql.exec('UPDATE hist SET at = ?, d = ?, b = ?, l = ? WHERE id = ?', now, q.d, b, QUICK[g](q.n), q.hist);
+        return;
+      }
+    }
+    this.sql.exec('INSERT INTO hist (player_id, at, d, b, l, g) VALUES (?, ?, ?, ?, ?, ?)', id, now, money(d), b, l, g);
+    if (quick) this.quick.set(id, { g, hist: this.sql.exec('SELECT last_insert_rowid() AS id').one().id, n: 1, at: now, d: money(d) });
+    else this.quick.delete(id);
     if (Math.random() < 0.01) this.sql.exec('DELETE FROM hist WHERE player_id = ? AND id NOT IN (SELECT id FROM hist WHERE player_id = ? ORDER BY id DESC LIMIT 20000)', id, id);
   }
   // Profil public d'un joueur : stats, inventaire CS, historique du solde

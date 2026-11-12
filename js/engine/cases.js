@@ -40,6 +40,19 @@ export function wearProbs(f) {
   });
 }
 
+// Rareté d'un objet obtenu : il y avait 1 chance sur N de tirer exactement ce skin, dans cette usure et ce StatTrak
+export function rarity(it, c) {
+  if (!c || !it) return 0;
+  const list = pool(c, it.t);
+  if (!list.length) return 0;
+  const src = list.find((x) => x.n === it.n);
+  let p = ODDS[it.t] / list.length;
+  const pw = src && wearProbs(src.f);
+  if (pw && it.wear) { const w = pw.find((x) => x.id === it.wear); if (w && w.p > 0) p *= w.p; }
+  if (src && src.st) p *= it.st ? ST_RATE : 1 - ST_RATE;
+  return p > 0 ? Math.round(1 / p) : 0;
+}
+
 export function cost(c) { return Math.round((c.pr + c.key) * 100) / 100; }
 
 function priceOf(it, wear, st) {

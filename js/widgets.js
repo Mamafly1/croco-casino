@@ -36,7 +36,7 @@ export function mountBoard(el, { limit = 10 } = {}) {
       `<td class="r">${fmtScore(r.score)}</td><td><div class="ico">${gamesCell(r.games || [])}</div></td>`)).join(''), 3) + mine + `${note ? `<p class="lb-note">${note}</p>` : ''}` };
     const others = casino.online ? (casino.boards || []).map((b) => ({
       title: b.title.toUpperCase(),
-      html: `<p class="lb-sub">${esc(b.label)}</p>` + table(`<th>JOUEUR</th><th class="r">${esc(b.col || '')}</th>`, b.rows.map((r, i) => row(r, i, '', `<td class="r">${recGame(r.g)}${fmtUnit(r.v, b.unit)}</td>`)).join(''), 2),
+      html: `<p class="lb-sub">${esc(b.label)}</p>` + table(`<th>JOUEUR</th><th class="r">${esc(b.col || '')}</th>`, b.rows.map((r, i) => row(r, i, '', `<td class="r">${b.unit === 'rare' ? `<small class="rec-item">${esc(r.g || '')}</small>` : recGame(r.g)}${fmtUnit(r.v, b.unit)}</td>`)).join(''), 2),
     })) : [];
     return [general, ...others];
   };
@@ -115,6 +115,7 @@ const recGame = (g) => (g && GAME_INFO[g] ? `<span class="rec-g" title="${esc(GA
 function fmtUnit(v, unit) {
   if (unit === 'eur') return eur(v);
   if (unit === 'x') return '×' + nfx.format(v);
+  if (unit === 'rare') return '1 sur ' + nf0.format(v);
   return nf0.format(v);
 }
 
