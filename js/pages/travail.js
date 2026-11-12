@@ -1,6 +1,6 @@
 // Page Travail : les 3 tâches du jour. Chaque tâche est un petit jeu de bureau ; le serveur vérifie la réponse et paie.
 import { casino, mountShell, $, eur, esc, toast, sfx } from '../core.js';
-import { makeTask } from '../engine/work.js';
+import { makeTask, checkTask, TASKS } from '../engine/work.js';
 import { pixelIcon } from '../icons.js';
 
 mountShell('work');
@@ -73,6 +73,66 @@ async function submit() {
 
 // ---------- les tâches ----------
 const postit = (title, items, ordered) => `<div class="postit">${title}<${ordered ? 'ol' : 'ul'}>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</${ordered ? 'ol' : 'ul'}></div>`;
+// Glisser-déposer au doigt et à la souris. Souris : on attrape en bougeant un peu. Doigt : appui long (la page
+// peut encore défiler tant qu'on n'a pas tenu), puis on glisse. On lâche sur une cible ; un clic n'est pas déclenché.
+function dragDrop(root, { item, target, onDrop }) {
+  let st = null, skipClick = false;
+  const clear = () => {
+    if (!st) return;
+    clearTimeout(st.timer);
+    if (st.ghost) st.ghost.remove();
+    if (st.over) st.over.classList.remove('drop-over');
+    st.el.classList.remove('dragging');
+    document.body.classList.remove('dnd');
+    st = null;
+  };
+  const move = (x, y) => {
+    st.ghost.style.transform = `translate(${x - st.dx}px, ${y - st.dy}px)`;
+    const hit = document.elementFromPoint(x, y), t = hit && hit.closest(target);
+    const ok = t && t !== st.el && root.contains(t) ? t : null;
+    if (ok !== st.over) { if (st.over) st.over.classList.remove('drop-over'); if (ok) ok.classList.add('drop-over'); st.over = ok; }
+  };
+  const begin = () => {
+    st.ready = true;
+    if (navigator.vibrate) navigator.vibrate(12);
+    const r = st.el.getBoundingClientRect(), g = st.el.cloneNode(true);
+    g.classList.add('drag-ghost'); g.style.width = r.width + 'px';
+    document.body.appendChild(g);
+    Object.assign(st, { ghost: g, dx: st.x0 - r.left, dy: st.y0 - r.top });
+    st.el.classList.add('dragging'); document.body.classList.add('dnd');
+    move(st.x0, st.y0);
+  };
+  root.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest(item);
+    if (!el || e.button > 0) return;
+    clear();
+    st = { el, x0: e.clientX, y0: e.clientY, pid: e.pointerId, touch: e.pointerType !== 'mouse' };
+    if (st.touch) st.timer = setTimeout(begin, 280);
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!st || e.pointerId !== st.pid) return;
+    if (!st.ready) {
+      const d = Math.hypot(e.clientX - st.x0, e.clientY - st.y0);
+      if (st.touch) { if (d > 10) clear(); } else if (d > 6) begin();
+      return;
+    }
+    move(e.clientX, e.clientY);
+  });
+  document.addEventListener('pointerup', (e) => {
+    if (!st || e.pointerId !== st.pid) return;
+    const s = st, t = s.over;
+    clear();
+    if (s.ready) { skipClick = true; setTimeout(() => { skipClick = false; }, 0); if (t) onDrop(s.el, t); }
+  });
+  document.addEventListener('pointercancel', clear);
+  document.addEventListener('touchmove', (e) => { if (st && st.ready) e.preventDefault(); }, { passive: false }); // pas de défilement pendant qu'on glisse
+  root.addEventListener('click', (e) => { if (skipClick) { e.stopPropagation(); e.preventDefault(); } }, true);
+  root.addEventListener('contextmenu', (e) => { if (e.target.closest(item)) e.preventDefault(); });
+}
+const AV_COLORS = ['#4b69ff', '#de0607', '#1b7a43', '#b07a00', '#8847ff', '#e47a3c', '#0f8b8d'];
+const avColor = (s) => AV_COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
+const winTitle = (t) => `<div class="ex-title"><span>${t}</span><span>_ □ ×</span></div>`;
+
 const options = (list, empty = 'Choisir…') => `<option value="">${empty}</option>` + list.map((x) => `<option>${esc(x)}</option>`).join('');
 
 const FILE_ICO = {
@@ -98,6 +158,7 @@ const R = {
         </div>
         <form class="ex-name" hidden><input aria-label="Nom" autocomplete="off"><button type="submit">OK</button><button type="button" data-a="cancel">Annuler</button></form>
         <div class="ex-path"></div><ul class="ex-list"></ul>
+        <div class="ex-hint">Astuce : maintiens un fichier ou un dossier et glisse-le sur un dossier (ou sur « ↑ Retour » pour le remonter).</div>
       </div>`;
     const ex = root.querySelector('.ex'), form = ex.querySelector('.ex-name'), input = form.querySelector('input');
     const name = (p) => p.replace(/\/$/, '').split('/').pop();
@@ -112,6 +173,30 @@ const R = {
       b('ren').disabled = b('del').disabled = b('cut').disabled = !sel; b('paste').disabled = !clip;
     };
     const ask = (mode, value) => { naming = mode; form.hidden = false; input.value = value; input.focus(); input.select(); };
+    // déplace src (fichier ou dossier) dans le dossier dir ; renvoie son nouveau chemin, ou null si impossible
+    const moveTo = (src, dir) => {
+      const isDir = src.endsWith('/'), n = name(src);
+      if (isDir && dir.startsWith(src)) { $('tmsg').textContent = 'Impossible de mettre un dossier dans lui-même.'; return null; }
+      const parentOf = (p) => { const x = p.replace(/\/$/, ''), i = x.lastIndexOf('/'); return i < 0 ? '' : x.slice(0, i + 1); };
+      if (parentOf(src) === dir) return null; // déjà là
+      if (tree.some((p) => p !== src && parentOf(p) === dir && name(p).toLowerCase() === n.toLowerCase())) { $('tmsg').textContent = `Il y a déjà « ${n} » là-bas.`; return null; }
+      const dest = dir + n + (isDir ? '/' : '');
+      tree = tree.map((p) => (p === src ? dest : isDir && p.startsWith(src) ? dest + p.slice(src.length) : p));
+      if (clip && clip.startsWith(src)) clip = null;
+      $('tmsg').textContent = '';
+      return dest;
+    };
+    dragDrop(ex, {
+      item: '.ex-list button[data-p]', target: '.ex-list button[data-p$="/"], [data-a="up"]',
+      onDrop: (el, t) => {
+        const src = el.dataset.p;
+        let dir;
+        if (t.dataset.a === 'up') { if (!cwd) return; const s = cwd.replace(/\/$/, ''); dir = s.includes('/') ? s.slice(0, s.lastIndexOf('/') + 1) : ''; }
+        else dir = t.dataset.p;
+        if (dir === src) return;
+        if (moveTo(src, dir)) { sel = null; sfx.play('switch', { vol: 0.6 }); draw(); }
+      },
+    });
     ex.querySelector('.ex-list').addEventListener('click', (e) => {
       const b = e.target.closest('button[data-p]'); if (!b) return;
       const p = b.dataset.p;
@@ -126,14 +211,7 @@ const R = {
       if (act === 'new') return ask('new', 'Nouveau dossier');
       if (act === 'ren' && sel) return ask('ren', name(sel));
       if (act === 'cut' && sel) clip = sel;
-      if (act === 'paste' && clip) {
-        const isDir = clip.endsWith('/'), n = name(clip);
-        if (isDir && cwd.startsWith(clip)) { $('tmsg').textContent = 'Impossible de mettre un dossier dans lui-même.'; return; }
-        if (exists(n)) { $('tmsg').textContent = `Il y a déjà « ${n} » ici.`; return; }
-        const dest = cwd + n + (isDir ? '/' : '');
-        tree = tree.map((p) => (p === clip ? dest : isDir && p.startsWith(clip) ? dest + p.slice(clip.length) : p));
-        clip = null; sel = dest;
-      }
+      if (act === 'paste' && clip) { const d = moveTo(clip, cwd); if (!d) return; clip = null; sel = d; }
       if (act === 'del' && sel) { const s = sel; tree = tree.filter((p) => p !== s && !(s.endsWith('/') && p.startsWith(s))); if (clip && clip.startsWith(s)) clip = null; sel = null; }
       $('tmsg').textContent = '';
       draw();
@@ -161,11 +239,37 @@ const R = {
     return () => tree;
   },
 
+  // Logiciel de messagerie : on range un mail en le glissant sur un dossier, ou en le touchant puis en touchant le dossier
   mailsort(k, root) {
-    root.innerHTML = postit('Post-it collé sur l’écran :', k.note) + `<div class="rows" style="margin-top:12px">${k.mails.map((m, i) => `
-      <div class="row"><span><span class="who">${esc(m.from)}</span> · <span class="sub">${esc(m.subject)}</span></span>
-      <select class="text-in" data-i="${i}" aria-label="Dossier pour le mail de ${esc(m.from)}">${options(k.boxes, 'Ranger dans…')}</select></div>`).join('')}</div>`;
-    return () => [...root.querySelectorAll('select')].map((s) => s.value);
+    const put = k.mails.map(() => '');
+    let sel = 0;
+    root.innerHTML = postit('Post-it collé sur l’écran :', k.note) + `
+      <div class="mail" style="margin-top:12px">${winTitle('CROCO MAIL')}
+        <div class="mail-bar"><span>Boîte de réception</span><span class="mail-search">Rechercher…</span></div>
+        <div class="mail-body"><nav class="mail-folders" aria-label="Dossiers"></nav><ul class="mail-list"></ul></div>
+        <div class="ex-hint">Touche un mail puis un dossier, ou glisse le mail sur le dossier.</div>
+      </div>`;
+    const fold = root.querySelector('.mail-folders'), list = root.querySelector('.mail-list');
+    const draw = () => {
+      const left = put.filter((x) => !x).length;
+      fold.innerHTML = `<button type="button" class="inbox" disabled>Réception <em>${left}</em></button>` +
+        k.boxes.map((b) => `<button type="button" data-box="${esc(b)}">${esc(b)}<em>${put.filter((x) => x === b).length || ''}</em></button>`).join('');
+      list.innerHTML = k.mails.map((m, i) => `<li><button type="button" class="mail-row${i === sel ? ' sel' : ''}${put[i] ? ' done' : ''}" data-i="${i}">
+        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${esc(m.subject)}</small></span>
+        <em class="mail-tag${put[i] ? '' : ' todo'}">${esc(put[i] || 'À ranger')}</em></button></li>`).join('');
+    };
+    const file = (i, box) => {
+      put[i] = box;
+      sfx.play('switch', { vol: 0.5 });
+      const next = put.findIndex((x) => !x);
+      sel = next < 0 ? -1 : next;
+      draw();
+    };
+    list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { sel = +b.dataset.i; draw(); } });
+    fold.addEventListener('click', (e) => { const b = e.target.closest('[data-box]'); if (b && sel >= 0) file(sel, b.dataset.box); });
+    dragDrop(root.querySelector('.mail'), { item: '.mail-row', target: '[data-box]', onDrop: (el, t) => file(+el.dataset.i, t.dataset.box) });
+    draw();
+    return () => put.slice();
   },
 
   mailreply(k, root) {
@@ -173,10 +277,33 @@ const R = {
       <div class="card2"><b>AGENDA</b><table>${k.meetings.map((m) => `<tr><td>${esc(m.t)}</td><td>${esc(m.h)}</td><td>${esc(m.room)}</td></tr>`).join('')}</table></div>
       <div class="card2"><b>CATALOGUE</b><table>${k.cat.map((c) => `<tr><td>${esc(c.n)}</td><td>${esc(c.price)}</td></tr>`).join('')}</table></div>
       <div class="card2"><b>ANNUAIRE</b><table>${k.phones.map((p) => `<tr><td>${esc(p.n)}</td><td>poste ${esc(p.ext)}</td></tr>`).join('')}</table></div>
-    </div><div class="rows" style="margin-top:12px">${k.mails.map((m, i) => `
-      <div class="row"><span><span class="who">${esc(m.from)}</span> : « ${esc(m.q)} »</span>
-      <div class="opts" role="radiogroup">${m.opts.map((o, j) => `<label><input type="radio" name="r${i}" value="${j}">${esc(o)}</label>`).join('')}</div></div>`).join('')}</div>`;
-    return () => k.mails.map((_, i) => { const c = root.querySelector(`input[name="r${i}"]:checked`); return c ? +c.value : -1; });
+    </div>
+    <div class="mail" style="margin-top:12px">${winTitle('CROCO MAIL')}
+      <div class="mail-bar"><span>Boîte de réception · ${k.mails.length} mails</span><span class="mail-search">Rechercher…</span></div>
+      <ul class="mail-list"></ul><div class="mail-read"></div>
+    </div>`;
+    const ans = k.mails.map(() => -1);
+    let open = 0;
+    const list = root.querySelector('.mail-list'), read = root.querySelector('.mail-read');
+    const draw = () => {
+      list.innerHTML = k.mails.map((m, i) => `<li><button type="button" class="mail-row${i === open ? ' sel' : ''}${ans[i] >= 0 ? ' done' : ''}" data-i="${i}">
+        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${esc(m.q)}</small></span>
+        <em class="mail-tag${ans[i] >= 0 ? '' : ' todo'}">${ans[i] >= 0 ? 'Répondu' : 'Non lu'}</em></button></li>`).join('');
+      const m = k.mails[open];
+      read.innerHTML = `<div class="hd"><b>${esc(m.from)}</b><span>À : moi · Objet : Petite question</span></div><p class="msg-txt">« ${esc(m.q)} »</p>
+        <div class="reply"><span>Réponse rapide</span>${m.opts.map((o, j) => `<button type="button" data-o="${j}" aria-pressed="${ans[open] === j}">${esc(o)}</button>`).join('')}</div>`;
+    };
+    list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { open = +b.dataset.i; draw(); } });
+    read.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-o]'); if (!b) return;
+      ans[open] = +b.dataset.o;
+      sfx.play('switch', { vol: 0.5 });
+      const next = ans.findIndex((x) => x < 0);
+      if (next >= 0) open = next;
+      draw();
+    });
+    draw();
+    return () => ans.slice();
   },
 
   change(k, root) {
@@ -246,7 +373,19 @@ const R = {
   },
 
   code(k, root) {
-    root.innerHTML = `<div class="codes">${k.codes.map((c, i) => `<div class="codebox">${esc(c)}</div><input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Code ${i + 1}">`).join('')}</div>`;
+    const TITLE = { 'licence Windows': 'Activation de Windows', 'code Wi-Fi des invités': 'Wi-Fi · réseau Invités', 'numéro de commande': 'Suivi de commande', 'code de la photocopieuse': 'Photocopieuse · codes d’accès' };
+    const note = `<span class="t">${esc(k.what || 'Codes')} :</span>${k.codes.map((c) => `<span class="c">${esc(c)}</span>`).join('')}`;
+    root.innerHTML = `<div class="desk">
+        <div class="desk-icons" aria-hidden="true"><span><i></i>Documents</span><span><i></i>Croco Mail</span><span><i></i>Corbeille</span></div>
+        <div class="desk-win">${winTitle(esc((TITLE[k.what] || 'Saisie des codes').toUpperCase()))}
+          <div class="in">${k.codes.map((_, i) => `<label>Code ${i + 1}<input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>`).join('')}</div></div>
+        <button type="button" class="sticky" aria-label="Agrandir le post-it">${note}<span class="z">Touche pour agrandir</span></button>
+        <div class="desk-bar" aria-hidden="true"><span class="start"></span><span>Démarrer</span><span class="clock">${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+      </div>
+      <div class="sticky-zoom" hidden><div class="sticky" role="dialog" aria-label="Post-it agrandi">${note}<span class="z">Touche pour refermer</span></div></div>`;
+    const zoom = root.querySelector('.sticky-zoom');
+    root.querySelector('.desk .sticky').addEventListener('click', () => { zoom.hidden = false; sfx.play('slide', { vol: 0.5 }); });
+    zoom.addEventListener('click', () => { zoom.hidden = true; });
     // une touche de clavier à chaque lettre (6 touches différentes, hauteur et force qui varient ; plus sourd pour effacer)
     root.addEventListener('input', (e) => {
       const del = /^delete/.test(e.inputType || '');
@@ -326,3 +465,19 @@ const R = {
     return () => typed.slice();
   },
 };
+
+// ---------- mode essai : travail.html?essai=mailsort (ou files, code…) ----------
+// Une tâche d'entraînement, vérifiée sur place : rien n'est envoyé au serveur, rien n'est payé.
+const essai = new URLSearchParams(location.search).get('essai');
+if (essai && TASKS[essai]) {
+  const seed = Math.floor(Math.random() * 1e9), k = makeTask(essai, seed), box = $('task');
+  box.hidden = false;
+  box.innerHTML = `<h2>Essai · ${esc(k.title)}</h2><p class="brief">${esc(k.brief)}</p><div id="tbody"></div>
+    <p class="tmsg" id="tmsg"></p><div class="check-row"><button class="btn-main" id="tgo" type="button">Vérifier</button></div>`;
+  const get = R[essai](k, $('tbody'));
+  $('tgo').addEventListener('click', () => {
+    const ok = checkTask(essai, seed, get());
+    $('tmsg').textContent = ok ? 'Bravo, c’est juste ! (mode essai : rien n’est payé)' : 'Pas encore : vérifie et réessaie.';
+    sfx.play(ok ? 'up' : 'lose', { vol: 0.8 });
+  });
+}

@@ -254,7 +254,7 @@ const code = {
     const what = pick(r, ['licence Windows', 'code Wi-Fi des invités', 'numéro de commande', 'code de la photocopieuse']);
     const codes = [];
     for (let i = 0; i < 3; i++) codes.push(fmt.map((k) => Array.from({ length: k }, () => pick(r, CODE_CH.split(''))).join('')).join('-'));
-    return { brief: `Recopie les 3 codes (${what}) sans faute.`, codes, sol: codes };
+    return { brief: `Recopie les 3 codes (${what}) sans faute.`, what, codes, sol: codes };
   },
   same(sol, ans) {
     const c = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
