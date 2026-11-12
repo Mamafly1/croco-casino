@@ -69,10 +69,7 @@ function measure() {
 
 const rtp = () => plinkoRtp(st.rows, st.risk);
 const chanceText = (p) => '1 chance sur ' + nf0.format(Math.round(1 / p)) + ' (' + pf.format(p * 100) + ' %)';
-function showOddsDefault() {
-  const t = TABLES[st.rows][st.risk], p = probs(st.rows);
-  $('oddsbar').innerHTML = `<span>Retour moyen <b>${nfx.format(rtp() * 100)} %</b></span><span>Max <b>${mult(t[0])}</b> : ${chanceText(p[0] * 2)}</span><span>Appuie sur un bac pour voir ses chances</span>`;
-}
+function showOddsDefault() { writeOddsNote(); } // (les infos générales sont dans « Les vraies cotes »)
 // Bulle sous le plateau, sa flèche alignée sur le bac
 function showBin(b) {
   const k = +b.dataset.k, t = TABLES[st.rows][st.risk], p = probs(st.rows), pop = $('binpop');
@@ -89,8 +86,9 @@ function writeOddsNote() {
   const t = TABLES[st.rows][st.risk], p = probs(st.rows);
   let lose = 0;
   for (let k = 0; k <= st.rows; k++) if (t[k] < 1) lose += p[k];
-  $('oddsNote').innerHTML = 'Chaque croco va à gauche ou à droite à chaque clou, au hasard. Résultat : il finit presque toujours au milieu.<br>' +
-    `<strong>${nfx.format(lose * 100)} %</strong> des lâchers rapportent moins que la mise. Le ${mult(t[0])} sort <strong>1 fois sur ${nf0.format(Math.round(1 / (p[0] * 2)))}</strong>. Sur la durée, le jeu garde environ <strong>${nfx.format(100 - rtp() * 100)} %</strong> de tout ce qui est misé.`;
+  $('oddsNote').innerHTML = `Retour moyen <strong>${nfx.format(rtp() * 100)} %</strong> · Max <strong>${mult(t[0])}</strong> : ${chanceText(p[0] * 2)}. Appuie sur un bac pour voir ses chances.<br>` +
+    'Chaque croco va à gauche ou à droite à chaque clou, au hasard. Résultat : il finit presque toujours au milieu.<br>' +
+    `<strong>${nfx.format(lose * 100)} %</strong> des lâchers rapportent moins que la mise. Sur la durée, le jeu garde environ <strong>${nfx.format(100 - rtp() * 100)} %</strong> de tout ce qui est misé.`;
 }
 
 // Infos d'un bac sous le plateau : au survol, ou tant qu'on appuie dessus (elles s'en vont quand on lâche)

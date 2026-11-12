@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m41">
+<link rel="stylesheet" href="css/casino.css?v=m42">
 <style>
 .felt { position: relative; padding: 18px 16px; border-radius: 14px 14px 140px 140px / 14px 14px 60px 60px; background: radial-gradient(120% 100% at 50% 0%, var(--felt), var(--felt-2)); display: grid; gap: 18px; min-height: 460px; align-content: space-between; border: 3px solid #3a2a12; box-shadow: inset 0 0 0 2px var(--gold-deep); }
 .zone { display: grid; justify-items: center; gap: 8px; }
@@ -34,7 +34,25 @@
 .seat .cards { --cw: 30px; justify-content: flex-start; min-height: 0; }
 .seat small { color: var(--muted); }
 .seat-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 26px; gap: 6px; align-items: center; } .seat-row b { text-align: right; }
-@media (min-width: 1100px) { .felt { min-height: max(460px, calc(100svh - 110px)); } .cards { --cw: clamp(70px, 6vw, 104px); } }
+/* PC seulement (le téléphone garde son tapis et ses boutons) */
+@media (min-width: 1100px) {
+  .felt { min-height: max(460px, calc(100svh - 110px)); padding: 28px 30px;
+    background: radial-gradient(70% 55% at 50% 42%, rgba(255, 255, 255, 0.07), transparent 70%), repeating-radial-gradient(circle at 50% 120%, rgba(0, 0, 0, 0.05) 0 2px, transparent 2px 6px), radial-gradient(120% 100% at 50% 0%, #1f7a49, #0d3d24);
+    border: 10px solid #5a3a17; box-shadow: inset 0 0 0 3px var(--gold-deep), inset 0 0 60px rgba(0, 0, 0, 0.45), 0 18px 40px rgba(0, 0, 0, 0.4); }
+  /* l'arc doré imprimé sur le tapis, avec les règles au milieu */
+  .felt::before { content: ""; position: absolute; left: 12%; right: 12%; top: 44%; height: 30%; border: 3px solid rgba(255, 191, 23, 0.45); border-top: 0; border-radius: 0 0 50% 50% / 0 0 100% 100%; pointer-events: none; }
+  .rules { font-size: 13px; color: rgba(255, 191, 23, 0.75); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+  .zone h2 { letter-spacing: 0.12em; }
+  .cards { --cw: clamp(70px, 6vw, 104px); }
+  .hand { padding: 12px 16px; }
+  .hand.active { background: rgba(0, 0, 0, 0.22); box-shadow: 0 0 0 2px var(--gold), 0 0 24px rgba(255, 191, 23, 0.35); }
+  /* actions : de gros boutons, un par ligne, tous de la même couleur */
+  .acts { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .acts button, .acts button.main { min-height: 64px; font-size: 18px; letter-spacing: 0.04em; color: #0d3d24; background: linear-gradient(180deg, #3ddc5f, #22b14a); box-shadow: 0 5px 0 #157a33; }
+  .acts button:not(:disabled):hover { filter: brightness(1.08); }
+  .acts button:not(:disabled):active { transform: translateY(3px); box-shadow: 0 2px 0 #157a33; }
+  #deal { min-height: 64px; font-size: 18px; }
+}
 </style>
 </head>
 <body>
@@ -91,6 +109,6 @@
     </section>
   </section>
 </main>
-<script type="module" src="js/pages/blackjack.js?v=m41"></script>
+<script type="module" src="js/pages/blackjack.js?v=m42"></script>
 </body>
 </html>

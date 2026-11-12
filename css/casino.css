@@ -673,6 +673,7 @@ body.betlock .bet-zone { display: none !important; }
   .top, .game { max-width: 1480px; }
   .top { flex-wrap: nowrap; }
   .top .wallet { flex: none; margin-left: auto; }
+  .top .nav { justify-content: space-between; }
   .game { grid-template-columns: 320px minmax(0, 1fr); }
   /* le profil prend plus de place, son inventaire et son graphique respirent */
   #profileBox .sheet.wide { width: min(100%, 1100px); }

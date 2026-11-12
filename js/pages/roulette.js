@@ -240,6 +240,7 @@ async function soloSpin() {
   spinning = true; label();
   try {
     const res = await casino.play('roulette', 'spin', { bets });
+    seenHint();
     $('msg').textContent = '';
     $('bigres').innerHTML = '';
     await spinTo(res.n);
@@ -261,6 +262,7 @@ async function onlineBet() {
   if (!totalBet()) { $('msg').textContent = 'Pose au moins un jeton sur le tapis.'; return; }
   try {
     const res = await casino.play('roulette', 'bet', { bets });
+    seenHint();
     casino.reveal(0);
     myStake = money(myStake + res.bet);
     bets = {}; stack.length = 0; renderBets();
@@ -306,22 +308,24 @@ function renderTableBets(r) {
     cell.appendChild(span);
   }
 }
-function renderPlayers(r) {
+// hide = true pendant que la bille tourne : les gains ne s'affichent qu'une fois le numéro tombé (sinon ça spoile)
+function renderPlayers(r, hide = false) {
   const list = (r && r.players) || [];
   $('playersBox').hidden = !list.length;
   $('players').innerHTML = list.map((p) => {
     const me = p.name === casino.me.name;
     const where = Object.entries(p.bets || {}).map(([k, v]) => `${keyLabel(k)} ${eur(v)}`).join(' · ');
     return `<li><span class="pl-who"><i class="pl-dot" style="--pc:${me ? 'var(--gold)' : pcolor(p.name)}"></i><b>${me ? 'Toi' : escN(p.name)}</b><small>${escN(where)}</small></span>`
-      + `<span class="num">${eur(p.total)}${p.payout != null ? ` → <span class="${p.payout > 0 ? 'pos' : 'neg'}">${eur(p.payout)}</span>` : ''}</span></li>`;
+      + `<span class="num">${eur(p.total)}${p.payout != null && !hide ? ` → <span class="${p.payout > 0 ? 'pos' : 'neg'}">${eur(p.payout)}</span>` : ''}</span></li>`;
   }).join('');
 }
 async function onRound(r) {
   if (!r) return;
+  const fresh = r.phase === 'spun' && !(r.id === lastRoundId && lastPhase === 'spun'); // la bille va tourner
   assignColors(r);
-  renderPlayers(r);
+  renderPlayers(r, fresh);
   renderTableBets(r);
-  drawHistory(r.history || []);
+  drawHistory(fresh ? (r.history || []).slice(1) : r.history || []); // le nouveau numéro n'arrive qu'à la fin
   if (r.id !== lastRoundId && r.phase === 'betting') { myStake = 0; }
   const mine = (r.players || []).find((p) => p.name === casino.me.name);
   if (mine) myStake = mine.total;
@@ -347,6 +351,8 @@ async function onRound(r) {
     $('bigres').innerHTML = '';
     await spinTo(r.n, Math.max(2000, Math.min(7500, r.endsAt - Date.now() - 2000)));
     spinning = false;
+    renderPlayers(r);
+    drawHistory(r.history || []);
     if (mine) { casino.reveal(payout); stats.add(mine.total, payout, payout / mine.total); }
     showResult(r.n, payout, mine ? mine.total : 0);
     $('phase').textContent = 'RÉSULTAT';
@@ -362,6 +368,10 @@ async function onRound(r) {
 }
 
 $('play').addEventListener('click', () => (online ? onlineBet() : soloSpin()));
+// l'aide « Clique sur le tapis… » ne s'affiche que tant qu'on n'a jamais misé
+const HINT_KEY = 'croco-roulette-aide';
+const seenHint = () => { try { localStorage.setItem(HINT_KEY, '1'); } catch {} $('tapHint').hidden = true; };
+try { if (localStorage.getItem(HINT_KEY)) $('tapHint').hidden = true; } catch {}
 $('histBtn').addEventListener('click', (e) => {
   const open = e.currentTarget.closest('.status').classList.toggle('show-hist');
   e.currentTarget.setAttribute('aria-expanded', String(open));
