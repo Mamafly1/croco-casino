@@ -66,7 +66,10 @@ function renderGame() {
   let status;
   if (playing) status = myTurn ? 'À toi de jouer : touche une colonne' : `${esc(g.names[op])} réfléchit…`;
   else if (g.winner === -1) status = 'Plateau plein : égalité, chacun reprend ses pions';
-  else status = g.winner === me ? `Gagné (${esc(g.why)}) : tu ramasses ${eur(g.pot)} !` : `Perdu (${esc(g.why)})`;
+  else {
+    const why = g.why && g.why !== 'quatre à la suite' ? ` (${esc(g.why)})` : '';
+    status = g.winner === me ? `Gagné${why} : tu ramasses ${eur(g.pot)} !` : `Perdu${why}`;
+  }
   box.innerHTML = `<div class="c4-players">
       <div class="c4-p${playing && g.turn === me ? ' turn' : ''}"><span class="disc p${me}"></span><span><b>Toi</b><small>${eur(g.paid[me])} posés</small></span></div>
       <div class="c4-pot"><small>Cagnotte</small><b>${eur(g.pot)}</b><small>1 pion = ${eur(g.val)}</small></div>
