@@ -475,7 +475,7 @@ const R = {
     let pick = 0;
     root.innerHTML = `<div class="rack"><svg aria-hidden="true"></svg>
       <div class="col">${k.left.map((c, i) => `<button type="button" class="plug" data-l="${i}" style="background:${k.colors[c]}" aria-label="Câble ${c}">${esc(c)}</button>`).join('')}</div>
-      <div class="col">${k.right.map((c, i) => `<button type="button" class="port" data-r="${i}" style="color:${k.colors[(k.ink || k.right)[i]]}" aria-label="Prise ${c}"><i></i>${esc(c)}</button>`).join('')}</div></div>`;
+      <div class="col">${k.right.map((c, i) => `<button type="button" class="port" data-r="${i}" style="background:${k.colors[(k.ink || k.right)[i]]}" aria-label="Prise ${c}"><i></i>${esc(c)}</button>`).join('')}</div></div>`;
     const wrap = root.querySelector('.rack'), svg = wrap.querySelector('svg');
     const draw = () => {
       const W = wrap.getBoundingClientRect();
