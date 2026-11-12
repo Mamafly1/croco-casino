@@ -5,7 +5,7 @@ import { run, newPlayer, score, inventoryValue, stocksValue, readRouletteBets, r
 import { newMarket, advance, setMarks } from '../../js/engine/market.js';
 import { timeTo } from '../../js/engine/crash.js';
 import * as c4 from '../../js/engine/c4.js';
-import { workDay } from '../../js/engine/work.js';
+import { workDay, TASK_TYPES } from '../../js/engine/work.js';
 import * as roulette from '../../js/engine/roulette.js';
 import { view as bjView } from '../../js/engine/blackjack.js';
 import { rng } from '../../js/engine/rng.js';
@@ -656,6 +656,13 @@ export class Casino extends DurableObject {
     }
     // Efface les ajustements admin de l'historique (graphique du profil), comme s'ils n'avaient jamais eu lieu :
     // les lignes suivantes ne comptent plus leur montant dans leur solde. Le solde actuel ne change pas.
+    // Test : aujourd'hui, ce joueur a les 12 tâches (10 € chacune) ; demain, il revient à 3 tâches normales
+    if (op === 'allTasks') {
+      const pl = this.load(row.id);
+      pl.p.work = { day: workDay(), tasks: TASK_TYPES.map((type) => ({ type, seed: Math.floor(Math.random() * 2 ** 31), pay: 10, done: false })) };
+      this.save(pl); refresh(row.id);
+      return reply(200, { ok: true, message: `${pl.name} a les ${TASK_TYPES.length} tâches aujourd’hui` });
+    }
     if (op === 'cleanAdmin') {
       const n = this.cleanAdminHist(row.id);
       return reply(200, { ok: true, message: `${n} ajustement(s) admin effacé(s) de l'historique` });

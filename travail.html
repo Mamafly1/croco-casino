@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=DM+Sans:opsz,wght@9..40,500;9..40,700;9..40,800&family=Press+Start+2P&family=Patrick+Hand&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/casino.css?v=m38">
+<link rel="stylesheet" href="css/casino.css?v=m39">
 <style>
 .work { max-width: 900px; margin: 0 auto; display: grid; gap: 12px; }
 .work-head { display: grid; gap: 6px; }
@@ -138,7 +138,7 @@ body.dnd { user-select: none; -webkit-user-select: none; }
   .mail-folders { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; border-right: 0; border-bottom: 1px solid #c9c9bd; }
 }
 /* bureau du PC (recopier des codes) */
-.desk { position: relative; min-height: 380px; padding: 14px 14px 52px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, #3b6fd8 0%, #1d3f86 55%, #10224d 100%); }
+.desk { position: relative; min-height: 340px; padding: 14px; border-radius: 10px; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, #3b6fd8 0%, #1d3f86 55%, #10224d 100%); }
 .desk-icons { display: grid; gap: 14px; width: 64px; }
 .desk-icons span { display: grid; justify-items: center; gap: 2px; color: #fff; font-size: 10.5px; font-weight: 700; text-align: center; text-shadow: 0 1px 2px #000; }
 .desk-icons i { display: block; width: 30px; height: 26px; border-radius: 4px; background: #ffbf17; box-shadow: inset 0 -6px 0 #b07a00; }
@@ -148,9 +148,6 @@ body.dnd { user-select: none; -webkit-user-select: none; }
 .desk-win .in { display: grid; gap: 8px; padding: 12px; }
 .desk-win label { display: grid; gap: 3px; font-size: 12px; font-weight: 800; color: #4a4a40; }
 .desk-win input { height: 44px; padding: 0 10px; border: 2px solid #a8a89c; border-radius: 6px; background: #fff; color: #181818; font: 700 16px ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
-.desk-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: rgba(10, 16, 34, 0.85); color: #fff; font-size: 12px; font-weight: 700; }
-.desk-bar .start { width: 26px; height: 26px; border-radius: 6px; background: #3ddc5f; }
-.desk-bar .clock { margin-left: auto; font-variant-numeric: tabular-nums; }
 /* post-it collé avec un bout de scotch ; on le touche pour l'agrandir */
 .sticky { position: absolute; z-index: 3; top: 12px; right: 16px; width: min(210px, 52%); padding: 22px 14px 12px; border: 0; background: linear-gradient(180deg, #fff3a0, #ffe36b); color: #2a2300; text-align: left; transform: rotate(3deg); box-shadow: 2px 8px 14px rgba(0, 0, 0, 0.35); cursor: zoom-in; }
 .sticky::before { content: ""; position: absolute; top: -9px; left: 50%; width: 74px; height: 22px; transform: translateX(-50%) rotate(-4deg); background: rgba(240, 240, 230, 0.55); border-left: 1px dashed rgba(0, 0, 0, 0.12); border-right: 1px dashed rgba(0, 0, 0, 0.12); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
@@ -163,7 +160,18 @@ body.dnd { user-select: none; -webkit-user-select: none; }
 .sticky-zoom .sticky::before { width: 120px; height: 32px; top: -14px; }
 .sticky-zoom .sticky .t { font-size: 24px; }
 .sticky-zoom .sticky .c { font-size: clamp(30px, 8vw, 44px); }
-@media (max-width: 600px) { .desk-icons { display: none; } .desk-win { left: 12px; top: 186px; } .desk { min-height: 510px; } .desk .sticky { left: 50%; right: auto; transform: translateX(-50%) rotate(2deg); width: min(240px, 80%); } }
+@media (max-width: 600px) { .desk-icons { display: none; } .desk-win { left: 12px; top: 186px; } .desk { min-height: 470px; } .desk .sticky { left: 50%; right: auto; transform: translateX(-50%) rotate(2deg); width: min(240px, 80%); } }
+/* tableur */
+.xl-app { border: 2px solid #1b7a43; border-radius: 8px; overflow: hidden; background: #fff; }
+.xl-app .ex-title { background: #1b7a43; }
+.xl-fx { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-bottom: 1px solid #c9c9bd; background: #f0f0e6; color: #181818; font-size: 13px; }
+.xl-ref { min-width: 44px; padding: 2px 6px; border: 1px solid #c9c9bd; border-radius: 4px; background: #fff; font-weight: 800; text-align: center; }
+.xl-f { color: #8a8a80; font-style: italic; font-weight: 800; }
+.xl .xl-h, .xl .xl-n { background: #e7e7dd; color: #55554c; font-weight: 700; text-align: center; width: 1%; white-space: nowrap; }
+.xl .xl-q { font-weight: 800; background: #f6f6ef; }
+.xl .xl-in { padding: 0; background: #fff7c2; }
+.xl .xl-in input { width: 100%; min-width: 70px; height: 38px; padding: 0 8px; border: 0; outline: 0; background: transparent; color: #181818; font: 700 16px var(--font-body); text-align: right; }
+.xl .xl-in:focus-within { box-shadow: inset 0 0 0 2px #1b7a43; }
 /* entrepôt */
 .wh { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; padding: 8px; border-radius: 8px; background: #3a3a33; }
 .wh span { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 4px; background: #2c2c28; }
@@ -186,6 +194,6 @@ body.dnd { user-select: none; -webkit-user-select: none; }
   <div class="jobs" id="jobs"></div>
   <section class="surface task" id="task" hidden aria-live="polite"></section>
 </main>
-<script type="module" src="js/pages/travail.js?v=m38"></script>
+<script type="module" src="js/pages/travail.js?v=m39"></script>
 </body>
 </html>

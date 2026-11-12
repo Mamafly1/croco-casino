@@ -23,7 +23,7 @@ function renderJobs() {
   const total = day.tasks.reduce((s, t) => s + t.pay, 0), got = day.tasks.filter((t) => t.done).reduce((s, t) => s + t.pay, 0);
   const left = day.tasks.filter((t) => !t.done).length;
   $('dayInfo').innerHTML = (left
-    ? `3 tâches aujourd’hui, payées <b>${eur(total)}</b> en tout sur ton compte en banque. Déjà gagné : <b>${eur(got)}</b>. Les tâches changent à minuit.`
+    ? `${day.tasks.length} tâches aujourd’hui, payées <b>${eur(total)}</b> en tout sur ton compte en banque. Déjà gagné : <b>${eur(got)}</b>. Les tâches changent à minuit.`
     : `Journée finie : tu as gagné <b>${eur(got)}</b>. Reviens demain pour de nouvelles tâches.`) +
     `<span class="bank-line" style="margin-top:8px"><span>Compte en banque : <b id="bankNow">${eur(casino.me.bank || 0)}</b></span><button class="btn-main" id="depNow" type="button" style="width:auto;padding:8px 14px">Déposer au casino</button></span>`;
   $('depNow').addEventListener('click', () => casino.openDeposit());
@@ -37,6 +37,14 @@ $('jobs').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-i]');
   if (!b || b.disabled) return;
   start(+b.dataset.i);
+});
+
+// une touche de clavier à chaque lettre tapée dans une tâche (6 touches différentes, hauteur et force qui varient ;
+// plus sourd pour effacer)
+$('task').addEventListener('input', (e) => {
+  if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName) || e.target.type === 'radio' || e.target.type === 'checkbox') return;
+  const del = /^delete/.test(e.inputType || '');
+  sfx.play('key', { vol: 0.75 + Math.random() * 0.25, rate: del ? 0.85 : 1, vary: 0.07, gap: 15 });
 });
 
 function start(i) {
@@ -58,7 +66,7 @@ async function submit() {
   try {
     const r = await casino.play('work', 'submit', { i, ans: answer() });
     day = r;
-    sfx.play('up'); sfx.gain(true, 0.8);
+    sfx.gain(true, 0.8); // petite note douce (plus de « vroum »)
     toast(`Tâche réussie : +${eur(t.pay)} sur ton compte en banque`);
     open = -1;
     $('task').hidden = true;
@@ -336,11 +344,21 @@ const R = {
     return () => [...on].sort((a, b) => a - b);
   },
 
+  // Vrai tableur : les réponses se tapent directement dans les cases jaunes de la colonne C
   sheet(k, root) {
-    root.innerHTML = `<div style="overflow-x:auto"><table class="xl"><thead><tr><th>Ville</th><th>Vendeur</th><th>Ventes</th></tr></thead><tbody>
-      ${k.rows.map((r) => `<tr><td>${esc(r.city)}</td><td>${esc(r.seller)}</td><td class="n">${r.n}</td></tr>`).join('')}</tbody></table></div>
-      <div class="qs" style="margin-top:12px">${k.qs.map((q, i) => `<label>${esc(q)}<input inputmode="numeric" data-i="${i}" autocomplete="off"></label>`).join('')}</div>`;
-    return () => [...root.querySelectorAll('.qs input')].map((x) => x.value.trim());
+    const n0 = k.rows.length + 2; // rangée de la première question (1 = en-têtes, puis les ventes, puis une ligne vide)
+    root.innerHTML = `<div class="xl-app">${winTitle('CROCO TABLEUR · ventes.xls')}
+      <div class="xl-fx"><span class="xl-ref" id="xlRef">C${n0 + 1}</span><span class="xl-f">fx</span><span id="xlVal"></span></div>
+      <div style="overflow-x:auto"><table class="xl"><thead><tr><th class="xl-h"></th><th class="xl-h">A</th><th class="xl-h">B</th><th class="xl-h">C</th></tr></thead><tbody>
+        <tr><td class="xl-n">1</td><th>Ville</th><th>Vendeur</th><th>Ventes</th></tr>
+        ${k.rows.map((r, i) => `<tr><td class="xl-n">${i + 2}</td><td>${esc(r.city)}</td><td>${esc(r.seller)}</td><td class="n">${r.n}</td></tr>`).join('')}
+        <tr><td class="xl-n">${n0}</td><td></td><td></td><td></td></tr>
+        ${k.qs.map((q, i) => `<tr><td class="xl-n">${n0 + i + 1}</td><td colspan="2" class="xl-q">${esc(q)}</td><td class="xl-in"><input inputmode="numeric" data-i="${i}" data-ref="C${n0 + i + 1}" autocomplete="off" aria-label="${esc(q)}"></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+    const show = (el) => { $('xlRef').textContent = el.dataset.ref; $('xlVal').textContent = el.value; };
+    root.addEventListener('focusin', (e) => { if (e.target.dataset.ref) show(e.target); });
+    root.addEventListener('input', (e) => { if (e.target.dataset.ref) show(e.target); });
+    return () => [...root.querySelectorAll('.xl-in input')].map((x) => x.value.trim());
   },
 
   cables(k, root) {
@@ -380,17 +398,11 @@ const R = {
         <div class="desk-win">${winTitle(esc((TITLE[k.what] || 'Saisie des codes').toUpperCase()))}
           <div class="in">${k.codes.map((_, i) => `<label>Code ${i + 1}<input data-i="${i}" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>`).join('')}</div></div>
         <button type="button" class="sticky" aria-label="Agrandir le post-it">${note}<span class="z">Touche pour agrandir</span></button>
-        <div class="desk-bar" aria-hidden="true"><span class="start"></span><span>Démarrer</span><span class="clock">${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span></div>
       </div>
       <div class="sticky-zoom" hidden><div class="sticky" role="dialog" aria-label="Post-it agrandi">${note}<span class="z">Touche pour refermer</span></div></div>`;
     const zoom = root.querySelector('.sticky-zoom');
     root.querySelector('.desk .sticky').addEventListener('click', () => { zoom.hidden = false; sfx.play('slide', { vol: 0.5 }); });
     zoom.addEventListener('click', () => { zoom.hidden = true; });
-    // une touche de clavier à chaque lettre (6 touches différentes, hauteur et force qui varient ; plus sourd pour effacer)
-    root.addEventListener('input', (e) => {
-      const del = /^delete/.test(e.inputType || '');
-      sfx.play('key', { vol: 0.75 + Math.random() * 0.25, rate: del ? 0.85 : 1, vary: 0.07, gap: 15 });
-    });
     return () => [...root.querySelectorAll('input')].map((x) => x.value);
   },
 
@@ -478,6 +490,6 @@ if (essai && TASKS[essai]) {
   $('tgo').addEventListener('click', () => {
     const ok = checkTask(essai, seed, get());
     $('tmsg').textContent = ok ? 'Bravo, c’est juste ! (mode essai : rien n’est payé)' : 'Pas encore : vérifie et réessaie.';
-    sfx.play(ok ? 'up' : 'lose', { vol: 0.8 });
+    if (ok) sfx.gain(true, 0.8); else sfx.play('lose', { vol: 0.8 });
   });
 }
