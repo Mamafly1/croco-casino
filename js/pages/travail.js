@@ -47,6 +47,9 @@ $('task').addEventListener('input', (e) => {
   sfx.play('key', { vol: 0.75 + Math.random() * 0.25, rate: del ? 0.85 : 1, vary: 0.07, gap: 15 });
 });
 
+// dès qu'on retouche la tâche, l'ancien « Ce n'est pas encore ça » disparaît (sinon on croit que la nouvelle réponse est fausse)
+for (const ev of ['pointerdown', 'input']) $('task').addEventListener(ev, (e) => { if (e.target.closest('#tbody') && $('tmsg')) $('tmsg').textContent = ''; }, true);
+
 function start(i) {
   open = i;
   renderJobs();
