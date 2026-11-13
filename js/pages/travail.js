@@ -169,6 +169,8 @@ const FILE_ICO = {
   },
 };
 
+// espaces insécables : « », ? ! : ne se retrouvent jamais seuls en début de ligne
+const nb = (t) => esc(t).replace(/ ([»?!:;])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
 const R = {
   // PC de quelqu'un : naviguer, créer, renommer, couper/coller, supprimer
   files(k, root) {
@@ -282,7 +284,7 @@ const R = {
       fold.innerHTML = `<button type="button" class="inbox" disabled>Réception <em>${left}</em></button>` +
         k.boxes.map((b) => `<button type="button" data-box="${esc(b)}">${esc(b)}<em>${put.filter((x) => x === b).length || ''}</em></button>`).join('');
       list.innerHTML = k.mails.map((m, i) => `<li><button type="button" class="mail-row${i === sel ? ' sel' : ''}${put[i] ? ' done' : ''}" data-i="${i}">
-        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${esc(m.subject)}</small></span>
+        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${nb(m.subject)}</small></span>
         <em class="mail-tag${put[i] ? '' : ' todo'}">${esc(put[i] || 'À ranger')}</em></button></li>`).join('');
     };
     const file = (i, box) => {
@@ -314,10 +316,10 @@ const R = {
     const list = root.querySelector('.mail-list'), read = root.querySelector('.mail-read');
     const draw = () => {
       list.innerHTML = k.mails.map((m, i) => `<li><button type="button" class="mail-row${i === open ? ' sel' : ''}${ans[i] >= 0 ? ' done' : ''}" data-i="${i}">
-        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${esc(m.q)}</small></span>
+        <i class="mail-av" style="--c:${avColor(m.from)}">${esc(m.from[0].toUpperCase())}</i><span><b>${esc(m.from)}</b><small>${nb(m.q)}</small></span>
         <em class="mail-tag${ans[i] >= 0 ? '' : ' todo'}">${ans[i] >= 0 ? 'Répondu' : 'Non lu'}</em></button></li>`).join('');
       const m = k.mails[open];
-      read.innerHTML = `<div class="hd"><b>${esc(m.from)}</b><span>À : moi · Objet : Petite question</span></div><p class="msg-txt">« ${esc(m.q)} »</p>
+      read.innerHTML = `<div class="hd"><b>${esc(m.from)}</b><span>À : moi · Objet : Petite question</span></div><p class="msg-txt">${nb('« ' + m.q + ' »')}</p>
         <div class="reply"><span>Réponse rapide</span>${m.opts.map((o, j) => `<button type="button" data-o="${j}" aria-pressed="${ans[open] === j}">${esc(o)}</button>`).join('')}</div>`;
     };
     list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { open = +b.dataset.i; draw(); } });
@@ -563,9 +565,9 @@ const R = {
       const left = to.filter((x) => !x).length;
       root.querySelector('#pbxLeft').textContent = left ? `${left} EN ATTENTE` : 'TOUT TRANSFÉRÉ';
       list.innerHTML = k.calls.map((c, i) => `<li><button type="button" class="call${i === cur ? ' sel' : ''}${to[i] ? ' done' : ''}" data-i="${i}"><span class="led"></span>
-        <span><b>Ligne ${i + 1} · ${esc(c.who)}</b><small>« ${esc(c.text)} »</small></span><em>${to[i] ? '→ ' + esc(to[i]) : 'En attente'}</em></button></li>`).join('');
+        <span><b>Ligne ${i + 1} · ${esc(c.who)}</b><small>${nb('« ' + c.text + ' »')}</small></span><em>${to[i] ? '→ ' + esc(to[i]) : 'En attente'}</em></button></li>`).join('');
       const c = k.calls[cur];
-      det.innerHTML = `<p><b>${esc(c.who)}</b> : « ${esc(c.text)} »</p>
+      det.innerHTML = `<p><b>${esc(c.who)}</b>${nb(' : « ' + c.text + ' »')}</p>
         <div class="tr"><span>Transférer à</span>${k.services.map((sv) => `<button type="button" data-s="${esc(sv)}" aria-pressed="${to[cur] === sv}">${esc(sv)}</button>`).join('')}</div>`;
     };
     list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) { cur = +b.dataset.i; draw(); } });
