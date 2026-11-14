@@ -7,6 +7,7 @@ import * as bj from './blackjack.js';
 import * as cases from './cases.js';
 import * as crash from './crash.js';
 import * as work from './work.js';
+export const NEW_DAY = 'Minuit est passé : les tâches ont changé. Voici celles d’aujourd’hui.';
 import { COMPANIES, FEE, marks } from './market.js';
 
 export const GAMES = ['plinko', 'roulette', 'blackjack', 'cases', 'slots', 'crash', 'rps', 'c4', 'stocks'];
@@ -192,6 +193,8 @@ export function run(p, game, action, params = {}, ctx) {
     if (action === 'submit') {
       const t = p.work.tasks[Number(params.i)];
       if (!t) throw new GameError('Tâche inconnue.');
+      // tâche ouverte avant minuit : la journée a changé entre-temps, ce n'est plus la même tâche
+      if (params.seed != null && Number(params.seed) !== t.seed) throw new GameError(NEW_DAY);
       if (t.done) throw new GameError('Tâche déjà faite aujourd’hui.');
       if (!work.checkTask(t.type, t.seed, params.ans)) throw new GameError('Ce n’est pas encore ça : vérifie et réessaie.');
       t.done = true;
